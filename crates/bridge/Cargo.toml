@@ -1,0 +1,12 @@
+[package]
+name = "bridge"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+nix = { version = "0.29", features = ["process"] }
+memmap2 = "0.9"
+thiserror = "2.0"

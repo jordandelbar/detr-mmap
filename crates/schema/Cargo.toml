@@ -8,8 +8,6 @@ path = "src/lib.rs"
 
 [dependencies]
 flatbuffers = "24.3"
-memmap2 = "0.9"
-thiserror = "2.0"
 
 [build-dependencies]
 flatc-rust = "0.2"

@@ -14,5 +14,6 @@ name = "gateway"
 opencv = "0.97"
 thiserror = "2.0.17"
 schema = { path = "../schema" }
+bridge = { path = "../bridge" }
 flatbuffers = "24.3"
 anyhow = "1.0"
