@@ -11,5 +11,9 @@ name = "inference"
 version = "0.1.0"
 
 [[package]]
+name = "logic"
+version = "0.1.0"
+
+[[package]]
 name = "schema"
 version = "0.1.0"
