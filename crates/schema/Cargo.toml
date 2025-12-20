@@ -3,4 +3,13 @@ name = "schema"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
+flatbuffers = "24.3"
+memmap2 = "0.9"
+thiserror = "2.0"
+
+[build-dependencies]
+flatc-rust = "0.2"

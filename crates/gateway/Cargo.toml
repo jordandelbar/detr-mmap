@@ -3,4 +3,16 @@ name = "gateway"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "gateway"
+
 [dependencies]
+opencv = "0.97"
+thiserror = "2.0.17"
+schema = { path = "../schema" }
+flatbuffers = "24.3"
+anyhow = "1.0"

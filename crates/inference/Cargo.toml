@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+schema = { path = "../schema" }
+flatbuffers = "24.3"
+memmap2 = "0.9"
+anyhow = "1.0"

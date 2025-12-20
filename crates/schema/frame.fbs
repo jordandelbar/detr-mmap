@@ -1,0 +1,20 @@
+namespace bridge.schema;
+
+enum ColorFormat : byte {
+    BGR = 0,
+    RGB = 1,
+    GRAY = 2
+}
+
+table Frame {
+    frame_number: uint64;
+    timestamp_ns: uint64;
+    camera_id: uint32;
+
+    width: uint32;
+    height: uint32;
+    channels: uint8;
+    format: ColorFormat;
+
+    pixels: [ubyte];
+}
