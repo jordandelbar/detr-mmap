@@ -1,7 +1,7 @@
+use crate::errors::BridgeError;
 use memmap2::{Mmap, MmapOptions};
 use std::fs::File;
 use std::path::Path;
-use crate::mmap_writer::BridgeError;
 
 pub struct MmapReader {
     _file: File,

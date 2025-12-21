@@ -1,20 +1,7 @@
+use crate::errors::BridgeError;
 use memmap2::{MmapMut, MmapOptions};
 use std::fs::OpenOptions;
-use std::io;
 use std::path::Path;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum BridgeError {
-    #[error("IO error: {0}")]
-    IoError(#[from] io::Error),
-
-    #[error("FlatBuffer verification failed")]
-    InvalidFlatBuffer,
-
-    #[error("Buffer size mismatch")]
-    SizeMismatch,
-}
 
 pub struct FrameWriter {
     mmap: MmapMut,
