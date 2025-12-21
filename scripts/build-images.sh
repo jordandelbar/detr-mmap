@@ -18,10 +18,17 @@ docker build \
   -t bridge-rt-inference:latest \
   .
 
+echo "Building logic image..."
+docker build \
+  -f docker/logic.Dockerfile \
+  -t bridge-rt-logic:latest \
+  .
+
 echo ""
 echo "=== Build complete ==="
 echo "Gateway image: bridge-rt-gateway:latest"
 echo "Inference image: bridge-rt-inference:latest"
+echo "Logic image: bridge-rt-logic:latest"
 echo ""
 echo "Next steps:"
 echo "  For kind: ./scripts/deploy-kind.sh"

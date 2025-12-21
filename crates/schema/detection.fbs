@@ -1,0 +1,19 @@
+namespace bridge.schema;
+
+table BoundingBox {
+    x1: float;
+    y1: float;
+    x2: float;
+    y2: float;
+    confidence: float;
+    class_id: uint32;
+}
+
+table DetectionResult {
+    frame_number: uint64;
+    timestamp_ns: uint64;
+    camera_id: uint32;
+    detections: [BoundingBox];
+}
+
+root_type DetectionResult;

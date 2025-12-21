@@ -23,6 +23,10 @@ spec:
           hostPath:
             path: /dev/video0
             type: CharDevice
+        - name: models
+          hostPath:
+            path: /home/jdelbar/Documents/projects/bridge-rt/models
+            type: Directory
 
       containers:
         - name: gateway
@@ -57,14 +61,37 @@ spec:
           volumeMounts:
             - name: shm-bridge
               mountPath: /dev/shm
+            - name: models
+              mountPath: /models
+              readOnly: true
 
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "500m"
+              memory: "512Mi"
+              cpu: "1000m"
             limits:
-              memory: "1Gi"
-              cpu: "2000m"
+              memory: "2Gi"
+              cpu: "4000m"
+
+          env:
+            - name: RUST_LOG
+              value: "info"
+
+        - name: logic
+          image: bridge-rt-logic:latest
+          imagePullPolicy: Never
+
+          volumeMounts:
+            - name: shm-bridge
+              mountPath: /dev/shm
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
 
           env:
             - name: RUST_LOG

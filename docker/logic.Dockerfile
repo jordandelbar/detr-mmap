@@ -19,17 +19,16 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 
-RUN cargo build --release --bin inference
+RUN cargo build --release --bin logic
 
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/inference /usr/local/bin/inference
+COPY --from=builder /build/target/release/logic /usr/local/bin/logic
 
-RUN mkdir -p /dev/shm /models
+RUN mkdir -p /dev/shm
 
-ENTRYPOINT ["/usr/local/bin/inference"]
+ENTRYPOINT ["/usr/local/bin/logic"]
