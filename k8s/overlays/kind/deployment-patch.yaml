@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bridge-rt
+spec:
+  template:
+    spec:
+      containers:
+        - name: gateway
+          imagePullPolicy: IfNotPresent
+
+          # Enable for development/debugging
+          # stdin: true
+          # tty: true
+
+        - name: inference
+          imagePullPolicy: IfNotPresent
+
+          # Enable for development/debugging
+          # stdin: true
+          # tty: true
