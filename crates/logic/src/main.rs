@@ -4,7 +4,6 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
-use base64::{Engine as _, engine::general_purpose};
 use bridge::MmapReader;
 use image::{ImageBuffer, RgbImage};
 use serde::{Deserialize, Serialize};
@@ -37,15 +36,19 @@ struct FrameMessage {
     width: u32,
     height: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    image_base64: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     detections: Option<Vec<Detection>>,
     status: String,
 }
 
 #[derive(Clone)]
+struct FramePacket {
+    metadata: FrameMessage,
+    jpeg_data: Vec<u8>,
+}
+
+#[derive(Clone)]
 struct AppState {
-    tx: Arc<broadcast::Sender<FrameMessage>>,
+    tx: Arc<broadcast::Sender<FramePacket>>,
 }
 
 #[tokio::main]
@@ -55,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Detection source: {}", DETECTION_MMAP_PATH);
     println!("WebSocket server: ws://{}\n", WS_ADDR);
 
-    let (tx, _) = broadcast::channel::<FrameMessage>(10);
+    let (tx, _) = broadcast::channel::<FramePacket>(10);
     let state = AppState { tx: Arc::new(tx) };
 
     let state_clone = state.clone();
@@ -87,8 +90,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
     let mut rx = state.tx.subscribe();
 
-    while let Ok(msg) = rx.recv().await {
-        let json = match serde_json::to_string(&msg) {
+    while let Ok(packet) = rx.recv().await {
+        let json = match serde_json::to_vec(&packet.metadata) {
             Ok(j) => j,
             Err(e) => {
                 eprintln!("JSON serialization error: {}", e);
@@ -96,8 +99,13 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             }
         };
 
+        let mut binary_msg = Vec::with_capacity(4 + json.len() + packet.jpeg_data.len());
+        binary_msg.extend_from_slice(&(json.len() as u32).to_le_bytes());
+        binary_msg.extend_from_slice(&json);
+        binary_msg.extend_from_slice(&packet.jpeg_data);
+
         if socket
-            .send(axum::extract::ws::Message::Text(json))
+            .send(axum::extract::ws::Message::Binary(binary_msg))
             .await
             .is_err()
         {
@@ -107,7 +115,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
 }
 
-async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Result<()> {
+async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result<()> {
     let mut frame_reader = loop {
         match MmapReader::new(FRAME_MMAP_PATH) {
             Ok(reader) => {
@@ -141,36 +149,31 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Resul
     loop {
         interval.tick().await;
 
-        // Always read both frame and detection at the same moment
         let frame_seq = frame_reader.current_sequence();
         let detection_seq = detection_reader.current_sequence();
 
         if frame_seq == 0 {
-            // No frame data yet
             continue;
         }
 
-        // Read frame data
         let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
         let frame_num = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let width = frame.width();
         let height = frame.height();
 
-        // Convert BGR to JPEG
-        let image_base64 = if let Some(pixels) = frame.pixels() {
-            match bgr_to_jpeg_base64(pixels.bytes(), width, height) {
-                Ok(encoded) => Some(encoded),
+        let jpeg_data = if let Some(pixels) = frame.pixels() {
+            match bgr_to_jpeg(pixels.bytes(), width, height) {
+                Ok(data) => data,
                 Err(e) => {
                     eprintln!("Image encoding error: {}", e);
-                    None
+                    Vec::new()
                 }
             }
         } else {
-            None
+            Vec::new()
         };
 
-        // Read detection data if available
         let (detections, status) = if detection_seq > 0 {
             let detection =
                 flatbuffers::root::<schema::DetectionResult>(detection_reader.buffer())?;
@@ -187,7 +190,7 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Resul
                     .collect()
             });
 
-            let status = if image_base64.is_some() {
+            let status = if !jpeg_data.is_empty() {
                 "complete"
             } else {
                 "detection_only"
@@ -198,30 +201,39 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Resul
             (None, "frame_only".to_string())
         };
 
-        let msg = FrameMessage {
+        let metadata = FrameMessage {
             frame_number: frame_num,
             timestamp_ns,
             width,
             height,
-            image_base64,
             detections,
             status: status.clone(),
+        };
+
+        let packet = FramePacket {
+            metadata,
+            jpeg_data,
         };
 
         frame_reader.mark_read();
         detection_reader.mark_read();
 
-        let det_count = msg.detections.as_ref().map(|d| d.len()).unwrap_or(0);
+        let det_count = packet
+            .metadata
+            .detections
+            .as_ref()
+            .map(|d| d.len())
+            .unwrap_or(0);
         println!(
             "Frame #{}: {} detections ({})",
-            msg.frame_number, det_count, msg.status
+            packet.metadata.frame_number, det_count, packet.metadata.status
         );
 
-        let _ = tx.send(msg);
+        let _ = tx.send(packet);
     }
 }
 
-fn bgr_to_jpeg_base64(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Result<String> {
+fn bgr_to_jpeg(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Result<Vec<u8>> {
     let mut rgb_data = Vec::with_capacity(bgr_data.len());
     for chunk in bgr_data.chunks_exact(3) {
         rgb_data.push(chunk[2]); // R
@@ -235,5 +247,5 @@ fn bgr_to_jpeg_base64(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Resul
     let mut jpeg_bytes = Cursor::new(Vec::new());
     img.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
 
-    Ok(general_purpose::STANDARD.encode(jpeg_bytes.into_inner()))
+    Ok(jpeg_bytes.into_inner())
 }

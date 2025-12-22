@@ -15,7 +15,7 @@ const DETECTION_MMAP_PATH: &str = "/dev/shm/bridge_detection_buffer";
 const DETECTION_MMAP_SIZE: usize = 1024 * 1024; // 1MB
 const CONFIDENCE_THRESHOLD: f32 = 0.5;
 const INPUT_SIZE: (u32, u32) = (640, 640);
-const POLL_INTERVAL_MS: u64 = 10;
+const POLL_INTERVAL_MS: u64 = 100; // ~10 FPS for inference
 
 fn main() -> anyhow::Result<()> {
     println!("Inference service starting (CPU mode)...");

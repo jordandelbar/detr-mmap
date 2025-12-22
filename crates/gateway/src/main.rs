@@ -81,14 +81,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         frame_count += 1;
 
-        println!("Frame #{} (seq: {})", frame_count, writer.sequence());
-        println!("  Size: {}x{}", frame_width, frame_height);
-        println!("  Channels: {}", channels);
-        println!("  Pixel data size: {} bytes", pixel_data.len());
-        println!("  FlatBuffer size: {} bytes", data.len());
-        println!("  Written to: {}", mmap_path);
-        println!();
+        if frame_count % 30 == 0 {
+            println!("Frame #{} (seq: {})", frame_count, writer.sequence());
+            println!("  Size: {}x{}", frame_width, frame_height);
+            println!("  FPS: ~30");
+        }
 
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        std::thread::sleep(std::time::Duration::from_millis(33)); // ~30 FPS
     }
 }

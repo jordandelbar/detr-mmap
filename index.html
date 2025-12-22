@@ -9,7 +9,9 @@
                 box-sizing: border-box;
                 margin: 0;
                 padding: 0;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
             }
 
             body {
@@ -17,7 +19,7 @@
                 justify-content: center;
                 align-items: center;
                 min-height: 100vh;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #334155;
                 color: #333;
                 padding: 20px;
             }
@@ -125,7 +127,9 @@
 
             <div class="video-container">
                 <canvas id="videoCanvas"></canvas>
-                <div id="noData" class="no-data">Waiting for video stream...</div>
+                <div id="noData" class="no-data">
+                    Waiting for video stream...
+                </div>
             </div>
 
             <div class="stats">
@@ -150,19 +154,28 @@
 
         <script>
             const COLORS = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-                '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#52B788'
+                "#FF6B6B",
+                "#4ECDC4",
+                "#45B7D1",
+                "#FFA07A",
+                "#98D8C8",
+                "#F7DC6F",
+                "#BB8FCE",
+                "#85C1E2",
+                "#F8B739",
+                "#52B788",
             ];
 
             class BridgeRTViewer {
                 constructor(url) {
                     this.socket = null;
                     this.url = url;
-                    this.canvas = document.getElementById('videoCanvas');
-                    this.ctx = this.canvas.getContext('2d');
-                    this.statusIndicator = document.getElementById('statusIndicator');
-                    this.statusText = document.getElementById('statusText');
-                    this.noData = document.getElementById('noData');
+                    this.canvas = document.getElementById("videoCanvas");
+                    this.ctx = this.canvas.getContext("2d");
+                    this.statusIndicator =
+                        document.getElementById("statusIndicator");
+                    this.statusText = document.getElementById("statusText");
+                    this.noData = document.getElementById("noData");
 
                     this.reconnectAttempts = 0;
                     this.maxReconnectAttempts = 10;
@@ -182,9 +195,9 @@
                     this.socket = new WebSocket(this.url);
 
                     this.socket.onopen = () => {
-                        console.log('WebSocket connected');
-                        this.statusIndicator.classList.add('connected');
-                        this.statusText.textContent = 'Connected';
+                        console.log("WebSocket connected");
+                        this.statusIndicator.classList.add("connected");
+                        this.statusText.textContent = "Connected";
                         this.reconnectAttempts = 0;
                     };
 
@@ -193,35 +206,53 @@
                     };
 
                     this.socket.onclose = () => {
-                        console.log('WebSocket disconnected');
-                        this.statusIndicator.classList.remove('connected');
-                        this.statusText.textContent = 'Disconnected';
+                        console.log("WebSocket disconnected");
+                        this.statusIndicator.classList.remove("connected");
+                        this.statusText.textContent = "Disconnected";
                         this.reconnect();
                     };
 
                     this.socket.onerror = (error) => {
-                        console.error('WebSocket error:', error);
-                        this.statusIndicator.classList.remove('connected');
-                        this.statusText.textContent = 'Error';
+                        console.error("WebSocket error:", error);
+                        this.statusIndicator.classList.remove("connected");
+                        this.statusText.textContent = "Error";
                     };
                 }
 
-                handleMessage(data) {
+                async handleMessage(data) {
                     try {
-                        const frame = JSON.parse(data);
-                        this.renderFrame(frame);
-                        this.updateStats(frame);
+                        // Binary message: [4 bytes length][JSON metadata][JPEG data]
+                        const buffer = await data.arrayBuffer();
+                        const view = new DataView(buffer);
+
+                        // Read JSON length (u32 little-endian)
+                        const jsonLength = view.getUint32(0, true);
+
+                        // Extract JSON metadata
+                        const jsonBytes = new Uint8Array(buffer, 4, jsonLength);
+                        const jsonText = new TextDecoder().decode(jsonBytes);
+                        const metadata = JSON.parse(jsonText);
+
+                        // Extract JPEG data
+                        const jpegBytes = new Uint8Array(
+                            buffer,
+                            4 + jsonLength,
+                        );
+                        const jpegBlob = new Blob([jpegBytes], {
+                            type: "image/jpeg",
+                        });
+                        const imageUrl = URL.createObjectURL(jpegBlob);
+
+                        // Render with metadata and image
+                        this.renderFrame(metadata, imageUrl);
+                        this.updateStats(metadata);
                     } catch (error) {
-                        console.error('Message parsing error:', error);
+                        console.error("Message parsing error:", error);
                     }
                 }
 
-                renderFrame(frame) {
-                    if (!frame.image_base64) {
-                        return;
-                    }
-
-                    this.noData.style.display = 'none';
+                renderFrame(frame, imageUrl) {
+                    this.noData.style.display = "none";
 
                     const img = new Image();
                     img.onload = () => {
@@ -231,17 +262,25 @@
                         this.ctx.drawImage(img, 0, 0);
 
                         if (frame.detections && frame.detections.length > 0) {
-                            this.drawDetections(frame.detections, frame.width, frame.height);
+                            this.drawDetections(
+                                frame.detections,
+                                frame.width,
+                                frame.height,
+                            );
                         }
 
                         this.updateFPS();
+
+                        // Clean up blob URL to prevent memory leaks
+                        URL.revokeObjectURL(imageUrl);
                     };
 
                     img.onerror = (e) => {
-                        console.error('Image load error:', e);
+                        console.error("Image load error:", e);
+                        URL.revokeObjectURL(imageUrl);
                     };
 
-                    img.src = 'data:image/jpeg;base64,' + frame.image_base64;
+                    img.src = imageUrl;
                 }
 
                 drawDetections(detections, width, height) {
@@ -253,33 +292,44 @@
                         this.ctx.lineWidth = 3;
                         const boxWidth = det.x2 - det.x1;
                         const boxHeight = det.y2 - det.y1;
-                        this.ctx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
+                        this.ctx.strokeRect(
+                            det.x1,
+                            det.y1,
+                            boxWidth,
+                            boxHeight,
+                        );
 
                         // Draw label background
                         const label = `Class ${det.class_id}: ${(det.confidence * 100).toFixed(1)}%`;
-                        this.ctx.font = 'bold 14px Arial';
+                        this.ctx.font = "bold 14px Arial";
                         const textWidth = this.ctx.measureText(label).width;
 
                         this.ctx.fillStyle = color;
-                        this.ctx.fillRect(det.x1, det.y1 - 22, textWidth + 10, 22);
+                        this.ctx.fillRect(
+                            det.x1,
+                            det.y1 - 22,
+                            textWidth + 10,
+                            22,
+                        );
 
                         // Draw label text
-                        this.ctx.fillStyle = '#fff';
+                        this.ctx.fillStyle = "#fff";
                         this.ctx.fillText(label, det.x1 + 5, det.y1 - 6);
                     });
                 }
 
                 updateStats(frame) {
-                    document.getElementById('frameNumber').textContent = frame.frame_number;
-                    document.getElementById('detectionCount').textContent =
+                    document.getElementById("frameNumber").textContent =
+                        frame.frame_number;
+                    document.getElementById("detectionCount").textContent =
                         frame.detections ? frame.detections.length : 0;
 
                     const statusMap = {
-                        'complete': '✓ Complete',
-                        'frame_only': '📹 Video',
-                        'detection_only': '🔍 Detection'
+                        complete: "✓ Complete",
+                        frame_only: "📹 Video",
+                        detection_only: "🔍 Detection",
                     };
-                    document.getElementById('streamStatus').textContent =
+                    document.getElementById("streamStatus").textContent =
                         statusMap[frame.status] || frame.status;
                 }
 
@@ -289,8 +339,10 @@
                     const elapsed = now - this.lastFrameTime;
 
                     if (elapsed >= 1000) {
-                        this.fps = (this.frameCount / elapsed * 1000).toFixed(1);
-                        document.getElementById('fps').textContent = this.fps;
+                        this.fps = ((this.frameCount / elapsed) * 1000).toFixed(
+                            1,
+                        );
+                        document.getElementById("fps").textContent = this.fps;
                         this.frameCount = 0;
                         this.lastFrameTime = now;
                     }
@@ -299,20 +351,23 @@
                 reconnect() {
                     if (this.reconnectAttempts < this.maxReconnectAttempts) {
                         this.reconnectAttempts++;
-                        const delay = Math.min(Math.pow(2, this.reconnectAttempts) * 1000, 30000);
+                        const delay = Math.min(
+                            Math.pow(2, this.reconnectAttempts) * 1000,
+                            30000,
+                        );
 
                         console.log(`Reconnecting in ${delay / 1000}s...`);
                         this.statusText.textContent = `Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`;
 
                         setTimeout(() => this.connect(), delay);
                     } else {
-                        console.error('Max reconnect attempts reached');
-                        this.statusText.textContent = 'Connection failed';
+                        console.error("Max reconnect attempts reached");
+                        this.statusText.textContent = "Connection failed";
                     }
                 }
             }
 
-            const viewer = new BridgeRTViewer('ws://localhost:8080/ws');
+            const viewer = new BridgeRTViewer("ws://localhost:8080/ws");
         </script>
     </body>
 </html>
