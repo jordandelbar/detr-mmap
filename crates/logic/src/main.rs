@@ -6,7 +6,9 @@ use axum::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use bridge::MmapReader;
+use image::{ImageBuffer, RgbImage};
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -137,94 +139,102 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Resul
     loop {
         interval.tick().await;
 
-        let has_frame = frame_reader.has_new_data();
-        let has_detection = detection_reader.has_new_data();
+        // Always read both frame and detection at the same moment
+        let frame_seq = frame_reader.current_sequence();
+        let detection_seq = detection_reader.current_sequence();
 
-        let msg = match (has_frame, has_detection) {
-            (false, false) => continue,
-            (true, false) => {
-                let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
-                let pixels = frame.pixels().map(|p| p.bytes()).unwrap_or(&[]);
+        if frame_seq == 0 {
+            // No frame data yet
+            continue;
+        }
 
-                FrameMessage {
-                    frame_number: frame.frame_number(),
-                    timestamp_ns: frame.timestamp_ns(),
-                    width: frame.width(),
-                    height: frame.height(),
-                    image_base64: Some(general_purpose::STANDARD.encode(pixels)),
-                    detections: None,
-                    status: "frame_only".to_string(),
+        // Read frame data
+        let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
+        let frame_num = frame.frame_number();
+        let timestamp_ns = frame.timestamp_ns();
+        let width = frame.width();
+        let height = frame.height();
+
+        // Convert BGR to JPEG
+        let image_base64 = if let Some(pixels) = frame.pixels() {
+            match bgr_to_jpeg_base64(pixels.bytes(), width, height) {
+                Ok(encoded) => Some(encoded),
+                Err(e) => {
+                    eprintln!("Image encoding error: {}", e);
+                    None
                 }
             }
-            (false, true) => {
-                let detection =
-                    flatbuffers::root::<schema::DetectionResult>(detection_reader.buffer())?;
-                let dets = detection.detections().map(|d| {
-                    d.iter()
-                        .map(|det| Detection {
-                            x1: det.x1(),
-                            y1: det.y1(),
-                            x2: det.x2(),
-                            y2: det.y2(),
-                            confidence: det.confidence(),
-                            class_id: det.class_id(),
-                        })
-                        .collect()
-                });
-
-                FrameMessage {
-                    frame_number: detection.frame_number(),
-                    timestamp_ns: detection.timestamp_ns(),
-                    width: 0,
-                    height: 0,
-                    image_base64: None,
-                    detections: dets,
-                    status: "detection_only".to_string(),
-                }
-            }
-            (true, true) => {
-                let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
-                let detection =
-                    flatbuffers::root::<schema::DetectionResult>(detection_reader.buffer())?;
-
-                let pixels = frame.pixels().map(|p| p.bytes()).unwrap_or(&[]);
-                let dets = detection.detections().map(|d| {
-                    d.iter()
-                        .map(|det| Detection {
-                            x1: det.x1(),
-                            y1: det.y1(),
-                            x2: det.x2(),
-                            y2: det.y2(),
-                            confidence: det.confidence(),
-                            class_id: det.class_id(),
-                        })
-                        .collect()
-                });
-
-                FrameMessage {
-                    frame_number: frame.frame_number(),
-                    timestamp_ns: frame.timestamp_ns(),
-                    width: frame.width(),
-                    height: frame.height(),
-                    image_base64: Some(general_purpose::STANDARD.encode(pixels)),
-                    detections: dets,
-                    status: "complete".to_string(),
-                }
-            }
+        } else {
+            None
         };
 
-        if has_frame {
-            frame_reader.mark_read();
-        }
-        if has_detection {
-            detection_reader.mark_read();
-        }
+        // Read detection data if available
+        let (detections, status) = if detection_seq > 0 {
+            let detection =
+                flatbuffers::root::<schema::DetectionResult>(detection_reader.buffer())?;
+            let dets = detection.detections().map(|d| {
+                d.iter()
+                    .map(|det| Detection {
+                        x1: det.x1(),
+                        y1: det.y1(),
+                        x2: det.x2(),
+                        y2: det.y2(),
+                        confidence: det.confidence(),
+                        class_id: det.class_id(),
+                    })
+                    .collect()
+            });
+
+            let status = if image_base64.is_some() {
+                "complete"
+            } else {
+                "detection_only"
+            };
+
+            (dets, status.to_string())
+        } else {
+            (None, "frame_only".to_string())
+        };
+
+        let msg = FrameMessage {
+            frame_number: frame_num,
+            timestamp_ns,
+            width,
+            height,
+            image_base64,
+            detections,
+            status: status.clone(),
+        };
+
+        frame_reader.mark_read();
+        detection_reader.mark_read();
 
         println!(
-            "Broadcasting frame #{} - status: {}",
-            msg.frame_number, msg.status
+            "Broadcasting frame #{} - status: {} (frame_seq: {}, det_seq: {})",
+            msg.frame_number, msg.status, frame_seq, detection_seq
         );
 
         let _ = tx.send(msg);
     }
+}
+
+fn bgr_to_jpeg_base64(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Result<String> {
+    // Convert BGR to RGB
+    let mut rgb_data = Vec::with_capacity(bgr_data.len());
+    for chunk in bgr_data.chunks_exact(3) {
+        rgb_data.push(chunk[2]); // R
+        rgb_data.push(chunk[1]); // G
+        rgb_data.push(chunk[0]); // B
+    }
+
+    // Create RGB image
+    let img: RgbImage = ImageBuffer::from_raw(width, height, rgb_data)
+        .ok_or_else(|| anyhow::anyhow!("Failed to create image from raw data"))?;
+
+    // Encode as JPEG
+    let mut jpeg_bytes = Cursor::new(Vec::new());
+    img.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
+
+    // Base64 encode
+    Ok(general_purpose::STANDARD.encode(jpeg_bytes.into_inner()))
 }

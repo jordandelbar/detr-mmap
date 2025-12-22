@@ -961,6 +961,7 @@ dependencies = [
  "base64",
  "bridge",
  "flatbuffers",
+ "image",
  "schema",
  "serde",
  "serde_json",

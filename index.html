@@ -237,7 +237,11 @@
                         this.updateFPS();
                     };
 
-                    img.src = 'data:image/png;base64,' + frame.image_base64;
+                    img.onerror = (e) => {
+                        console.error('Image load error:', e);
+                    };
+
+                    img.src = 'data:image/jpeg;base64,' + frame.image_base64;
                 }
 
                 drawDetections(detections, width, height) {
