@@ -17,3 +17,7 @@ schema = { path = "../schema" }
 bridge = { path = "../bridge" }
 flatbuffers = "24.3"
 anyhow = "1.0"
+config = { version = "0.15.19", default-features = false }
+serde = { version = "1.0.228", default-features = false, features = ["derive"] }
+tracing = { version = "0.1.44", default-features = false }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"]}
