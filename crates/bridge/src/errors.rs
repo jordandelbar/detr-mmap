@@ -11,4 +11,7 @@ pub enum BridgeError {
 
     #[error("Buffer size mismatch")]
     SizeMismatch,
+
+    #[error("No data available yet")]
+    NoDataAvailable,
 }

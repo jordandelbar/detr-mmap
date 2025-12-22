@@ -1,13 +1,13 @@
-use bridge::{FrameWriter, Semaphore};
+use bridge::{FrameWriter, MmapReader};
 use flatbuffers::FlatBufferBuilder;
 use image::{ImageBuffer, Rgb};
-use memmap2::Mmap;
 use ndarray::{Array, IxDyn};
 use ort::{
     session::{Session, builder::GraphOptimizationLevel},
     value::TensorRef,
 };
-use std::fs::File;
+use std::thread;
+use std::time::Duration;
 
 const MODEL_PATH: &str = "/models/model.onnx";
 const FRAME_MMAP_PATH: &str = "/dev/shm/bridge_frame_buffer";
@@ -15,6 +15,7 @@ const DETECTION_MMAP_PATH: &str = "/dev/shm/bridge_detection_buffer";
 const DETECTION_MMAP_SIZE: usize = 1024 * 1024; // 1MB
 const CONFIDENCE_THRESHOLD: f32 = 0.5;
 const INPUT_SIZE: (u32, u32) = (640, 640);
+const POLL_INTERVAL_MS: u64 = 10;
 
 fn main() -> anyhow::Result<()> {
     println!("Inference service starting (CPU mode)...");
@@ -36,43 +37,41 @@ fn main() -> anyhow::Result<()> {
         session.outputs.iter().map(|o| &o.name).collect::<Vec<_>>()
     );
 
-    println!("\nReading frames from: {}", FRAME_MMAP_PATH);
-    let file = File::open(FRAME_MMAP_PATH)?;
-    let mmap = unsafe { Mmap::map(&file)? };
-    println!("Frame mmap size: {} MB", mmap.len() / 1024 / 1024);
+    println!("\nWaiting for frame buffer at: {}", FRAME_MMAP_PATH);
+    let mut frame_reader = loop {
+        match MmapReader::new(FRAME_MMAP_PATH) {
+            Ok(reader) => break reader,
+            Err(_) => {
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+    };
+    println!("Frame buffer connected!");
 
     println!("Creating detection buffer at: {}", DETECTION_MMAP_PATH);
     let mut detection_writer = FrameWriter::new(DETECTION_MMAP_PATH, DETECTION_MMAP_SIZE)?;
     println!(
-        "Detection mmap size: {} MB\n",
+        "Detection buffer ready ({} MB)\n",
         DETECTION_MMAP_SIZE / 1024 / 1024
     );
 
-    let frame_writer_sem = Semaphore::open("/bridge_writer_sem")?;
-    let frame_reader_sem = Semaphore::open("/bridge_reader_sem")?;
+    println!("Polling for frames ({}ms interval)...\n", POLL_INTERVAL_MS);
 
-    let detection_writer_sem = Semaphore::new("/bridge_detection_writer_sem", 1)?;
-    let detection_reader_sem = Semaphore::new("/bridge_detection_reader_sem", 0)?;
-    println!("Semaphores initialized\n");
-
-    let mut last_frame_num = 0u64;
     let mut total_detections = 0usize;
+    let mut frames_processed = 0u64;
 
     loop {
-        frame_reader_sem.wait()?;
+        if !frame_reader.has_new_data() {
+            thread::sleep(Duration::from_millis(POLL_INTERVAL_MS));
+            continue;
+        }
 
-        let frame = flatbuffers::root::<schema::Frame>(&mmap)?;
+        let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
         let frame_num = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let camera_id = frame.camera_id();
         let width = frame.width();
         let height = frame.height();
-
-        if last_frame_num > 0 && frame_num != last_frame_num + 1 {
-            let dropped = frame_num - last_frame_num - 1;
-            eprintln!("⚠ Dropped {} frame(s)", dropped);
-        }
-        last_frame_num = frame_num;
 
         let pixels = frame
             .pixels()
@@ -87,16 +86,9 @@ fn main() -> anyhow::Result<()> {
             "orig_target_sizes" => TensorRef::from_array_view(&orig_sizes)?
         ])?;
 
-        let labels = outputs["labels"].try_extract_array::<i64>()?; // Class IDs as integers
+        let labels = outputs["labels"].try_extract_array::<i64>()?;
         let boxes = outputs["boxes"].try_extract_array::<f32>()?;
         let scores = outputs["scores"].try_extract_array::<f32>()?;
-
-        eprintln!(
-            "Output shapes - labels: {:?}, boxes: {:?}, scores: {:?}",
-            labels.shape(),
-            boxes.shape(),
-            scores.shape()
-        );
 
         let detections =
             parse_detections(&labels.view(), &boxes.view(), &scores.view(), width, height)?;
@@ -104,17 +96,18 @@ fn main() -> anyhow::Result<()> {
         let detection_buffer =
             build_detection_flatbuffer(frame_num, timestamp_ns, camera_id, &detections)?;
 
-        detection_writer_sem.wait()?;
         detection_writer.write(&detection_buffer)?;
-        detection_reader_sem.post()?;
 
-        frame_writer_sem.post()?;
-
+        frame_reader.mark_read();
+        frames_processed += 1;
         total_detections += detections.len();
+
         println!(
-            "Frame {}: {} detections | Total: {}",
+            "Frame {} (seq: {}): {} detections | Processed: {} | Total detections: {}",
             frame_num,
+            frame_reader.last_sequence(),
             detections.len(),
+            frames_processed,
             total_detections
         );
     }

@@ -7,3 +7,7 @@ nodes:
         containerPath: /models
       - hostPath: /dev/video0
         containerPath: /dev/video0
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP

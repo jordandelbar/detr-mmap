@@ -81,6 +81,11 @@ spec:
           image: bridge-rt-logic:latest
           imagePullPolicy: Never
 
+          ports:
+            - containerPort: 8080
+              name: websocket
+              protocol: TCP
+
           volumeMounts:
             - name: shm-bridge
               mountPath: /dev/shm
@@ -98,3 +103,20 @@ spec:
               value: "info"
 
       restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bridge-rt-service
+  labels:
+    app: bridge-rt
+spec:
+  type: NodePort
+  selector:
+    app: bridge-rt
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+      protocol: TCP
+      name: websocket

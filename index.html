@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Bridge RT - Live Detection</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: #333;
+                padding: 20px;
+            }
+
+            .container {
+                background: #fff;
+                padding: 24px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                max-width: 1200px;
+                width: 100%;
+            }
+
+            .header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+                margin: 0;
+                color: #2d3748;
+            }
+
+            .status {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.9em;
+                color: #718096;
+            }
+
+            #statusIndicator {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background-color: #f56565;
+                transition: background-color 0.3s ease;
+            }
+
+            #statusIndicator.connected {
+                background-color: #48bb78;
+            }
+
+            .video-container {
+                position: relative;
+                width: 100%;
+                background: #000;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            #videoCanvas {
+                width: 100%;
+                height: auto;
+                display: block;
+            }
+
+            .stats {
+                display: flex;
+                justify-content: space-around;
+                margin-top: 16px;
+                padding: 12px;
+                background: #f7fafc;
+                border-radius: 8px;
+            }
+
+            .stat {
+                text-align: center;
+            }
+
+            .stat-label {
+                font-size: 0.75em;
+                color: #718096;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .stat-value {
+                font-size: 1.5em;
+                font-weight: bold;
+                color: #2d3748;
+                margin-top: 4px;
+            }
+
+            .no-data {
+                text-align: center;
+                padding: 60px 20px;
+                color: #a0aec0;
+                font-size: 1.1em;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Bridge RT - Live Detection</h1>
+                <div class="status">
+                    <div id="statusIndicator" title="Connection Status"></div>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </div>
+
+            <div class="video-container">
+                <canvas id="videoCanvas"></canvas>
+                <div id="noData" class="no-data">Waiting for video stream...</div>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Frame</div>
+                    <div class="stat-value" id="frameNumber">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Detections</div>
+                    <div class="stat-value" id="detectionCount">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">FPS</div>
+                    <div class="stat-value" id="fps">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="streamStatus">-</div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const COLORS = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+                '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#52B788'
+            ];
+
+            class BridgeRTViewer {
+                constructor(url) {
+                    this.socket = null;
+                    this.url = url;
+                    this.canvas = document.getElementById('videoCanvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.statusIndicator = document.getElementById('statusIndicator');
+                    this.statusText = document.getElementById('statusText');
+                    this.noData = document.getElementById('noData');
+
+                    this.reconnectAttempts = 0;
+                    this.maxReconnectAttempts = 10;
+
+                    this.frameCount = 0;
+                    this.lastFrameTime = Date.now();
+                    this.fps = 0;
+
+                    this.init();
+                }
+
+                init() {
+                    this.connect();
+                }
+
+                connect() {
+                    this.socket = new WebSocket(this.url);
+
+                    this.socket.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.statusIndicator.classList.add('connected');
+                        this.statusText.textContent = 'Connected';
+                        this.reconnectAttempts = 0;
+                    };
+
+                    this.socket.onmessage = (event) => {
+                        this.handleMessage(event.data);
+                    };
+
+                    this.socket.onclose = () => {
+                        console.log('WebSocket disconnected');
+                        this.statusIndicator.classList.remove('connected');
+                        this.statusText.textContent = 'Disconnected';
+                        this.reconnect();
+                    };
+
+                    this.socket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.statusIndicator.classList.remove('connected');
+                        this.statusText.textContent = 'Error';
+                    };
+                }
+
+                handleMessage(data) {
+                    try {
+                        const frame = JSON.parse(data);
+                        this.renderFrame(frame);
+                        this.updateStats(frame);
+                    } catch (error) {
+                        console.error('Message parsing error:', error);
+                    }
+                }
+
+                renderFrame(frame) {
+                    if (!frame.image_base64) {
+                        return;
+                    }
+
+                    this.noData.style.display = 'none';
+
+                    const img = new Image();
+                    img.onload = () => {
+                        this.canvas.width = frame.width;
+                        this.canvas.height = frame.height;
+
+                        this.ctx.drawImage(img, 0, 0);
+
+                        if (frame.detections && frame.detections.length > 0) {
+                            this.drawDetections(frame.detections, frame.width, frame.height);
+                        }
+
+                        this.updateFPS();
+                    };
+
+                    img.src = 'data:image/png;base64,' + frame.image_base64;
+                }
+
+                drawDetections(detections, width, height) {
+                    detections.forEach((det, idx) => {
+                        const color = COLORS[det.class_id % COLORS.length];
+
+                        this.ctx.strokeStyle = color;
+                        this.ctx.lineWidth = 3;
+                        this.ctx.strokeRect(det.x1, det.y1, det.x2 - det.x1, det.y2 - det.y1);
+
+                        const label = `Class ${det.class_id}: ${(det.confidence * 100).toFixed(1)}%`;
+                        this.ctx.font = 'bold 14px Arial';
+                        const textWidth = this.ctx.measureText(label).width;
+
+                        this.ctx.fillStyle = color;
+                        this.ctx.fillRect(det.x1, det.y1 - 22, textWidth + 10, 22);
+
+                        this.ctx.fillStyle = '#fff';
+                        this.ctx.fillText(label, det.x1 + 5, det.y1 - 6);
+                    });
+                }
+
+                updateStats(frame) {
+                    document.getElementById('frameNumber').textContent = frame.frame_number;
+                    document.getElementById('detectionCount').textContent =
+                        frame.detections ? frame.detections.length : 0;
+
+                    const statusMap = {
+                        'complete': '✓ Complete',
+                        'frame_only': '📹 Video',
+                        'detection_only': '🔍 Detection'
+                    };
+                    document.getElementById('streamStatus').textContent =
+                        statusMap[frame.status] || frame.status;
+                }
+
+                updateFPS() {
+                    this.frameCount++;
+                    const now = Date.now();
+                    const elapsed = now - this.lastFrameTime;
+
+                    if (elapsed >= 1000) {
+                        this.fps = (this.frameCount / elapsed * 1000).toFixed(1);
+                        document.getElementById('fps').textContent = this.fps;
+                        this.frameCount = 0;
+                        this.lastFrameTime = now;
+                    }
+                }
+
+                reconnect() {
+                    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                        this.reconnectAttempts++;
+                        const delay = Math.min(Math.pow(2, this.reconnectAttempts) * 1000, 30000);
+
+                        console.log(`Reconnecting in ${delay / 1000}s...`);
+                        this.statusText.textContent = `Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`;
+
+                        setTimeout(() => this.connect(), delay);
+                    } else {
+                        console.error('Max reconnect attempts reached');
+                        this.statusText.textContent = 'Connection failed';
+                    }
+                }
+            }
+
+            const viewer = new BridgeRTViewer('ws://localhost:8080/ws');
+        </script>
+    </body>
+</html>

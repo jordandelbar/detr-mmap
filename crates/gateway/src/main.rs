@@ -2,7 +2,7 @@ use opencv::{
     prelude::*,
     videoio::{self, CAP_ANY, VideoCapture},
 };
-use bridge::{FrameWriter, Semaphore};
+use bridge::FrameWriter;
 use schema::{ColorFormat, FrameArgs};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -34,30 +34,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mmap_size / 1024 / 1024
     );
 
-    let writer_sem = Semaphore::new("/bridge_writer_sem", 1)?;
-    let reader_sem = Semaphore::new("/bridge_reader_sem", 0)?;
-    println!("Created semaphores for synchronization");
+    println!("Frame buffer ready - writing at camera rate");
     println!("\nCapturing frames (Ctrl+C to stop)...\n");
 
     let mut frame = Mat::default();
     let mut frame_count = 0u64;
-    let mut dropped_count = 0u64;
 
     loop {
         cam.read(&mut frame)?;
 
         if frame.empty() {
             eprintln!("Warning: Empty frame received");
-            continue;
-        }
-
-        if !writer_sem.try_wait()? {
-            dropped_count += 1;
-            eprintln!(
-                "Frame dropped - inference still processing (total dropped: {})",
-                dropped_count
-            );
-            std::thread::sleep(std::time::Duration::from_millis(10));
             continue;
         }
 
@@ -92,19 +79,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         writer.write(data)?;
 
-        reader_sem.post()?;
-
         frame_count += 1;
 
-        println!("Frame #{}", frame_count);
+        println!("Frame #{} (seq: {})", frame_count, writer.sequence());
         println!("  Size: {}x{}", frame_width, frame_height);
         println!("  Channels: {}", channels);
         println!("  Pixel data size: {} bytes", pixel_data.len());
         println!("  FlatBuffer size: {} bytes", data.len());
         println!("  Written to: {}", mmap_path);
-        if dropped_count > 0 {
-            println!("  Total frames dropped: {}", dropped_count);
-        }
         println!();
 
         std::thread::sleep(std::time::Duration::from_millis(1000));
