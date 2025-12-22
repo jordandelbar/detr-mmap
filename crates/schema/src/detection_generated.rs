@@ -429,4 +429,3 @@ pub fn finish_size_prefixed_detection_result_buffer<'a, 'b, A: flatbuffers::Allo
 }
 }  // pub mod schema
 }  // pub mod bridge
-
