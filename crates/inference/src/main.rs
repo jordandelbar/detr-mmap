@@ -77,9 +77,10 @@ fn main() -> anyhow::Result<()> {
             .pixels()
             .ok_or_else(|| anyhow::anyhow!("No pixel data"))?;
 
-        let preprocessed = preprocess_frame(pixels, width, height)?;
+        let (preprocessed, scale, offset_x, offset_y) = preprocess_frame(pixels, width, height)?;
 
-        let orig_sizes = Array::from_shape_vec((1, 2), vec![height as i64, width as i64])?;
+        let orig_sizes =
+            Array::from_shape_vec((1, 2), vec![INPUT_SIZE.1 as i64, INPUT_SIZE.0 as i64])?;
 
         let outputs = session.run(ort::inputs![
             "images" => TensorRef::from_array_view(&preprocessed)?,
@@ -90,8 +91,16 @@ fn main() -> anyhow::Result<()> {
         let boxes = outputs["boxes"].try_extract_array::<f32>()?;
         let scores = outputs["scores"].try_extract_array::<f32>()?;
 
-        let detections =
-            parse_detections(&labels.view(), &boxes.view(), &scores.view(), width, height)?;
+        let detections = parse_detections(
+            &labels.view(),
+            &boxes.view(),
+            &scores.view(),
+            width,
+            height,
+            scale,
+            offset_x,
+            offset_y,
+        )?;
 
         let detection_buffer =
             build_detection_flatbuffer(frame_num, timestamp_ns, camera_id, &detections)?;
@@ -117,7 +126,7 @@ fn preprocess_frame(
     pixels: flatbuffers::Vector<u8>,
     width: u32,
     height: u32,
-) -> anyhow::Result<Array<f32, IxDyn>> {
+) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
     let mut rgb_data = Vec::with_capacity((width * height * 3) as usize);
     for i in (0..pixels.len()).step_by(3) {
         let b = pixels.get(i);
@@ -131,24 +140,34 @@ fn preprocess_frame(
     let img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width, height, rgb_data)
         .ok_or_else(|| anyhow::anyhow!("Failed to create image buffer"))?;
 
+    let scale = (INPUT_SIZE.0 as f32 / width as f32).min(INPUT_SIZE.1 as f32 / height as f32);
+    let new_width = (width as f32 * scale) as u32;
+    let new_height = (height as f32 * scale) as u32;
+
     let resized = image::imageops::resize(
         &img,
-        INPUT_SIZE.0,
-        INPUT_SIZE.1,
+        new_width,
+        new_height,
         image::imageops::FilterType::Triangle,
     );
+
+    let mut letterboxed =
+        ImageBuffer::from_pixel(INPUT_SIZE.0, INPUT_SIZE.1, Rgb([114u8, 114u8, 114u8]));
+    let offset_x = (INPUT_SIZE.0 - new_width) / 2;
+    let offset_y = (INPUT_SIZE.1 - new_height) / 2;
+    image::imageops::overlay(&mut letterboxed, &resized, offset_x as i64, offset_y as i64);
 
     let mut input = Array::zeros(IxDyn(&[1, 3, INPUT_SIZE.1 as usize, INPUT_SIZE.0 as usize]));
     for y in 0..INPUT_SIZE.1 {
         for x in 0..INPUT_SIZE.0 {
-            let pixel = resized.get_pixel(x, y);
+            let pixel = letterboxed.get_pixel(x, y);
             input[[0, 0, y as usize, x as usize]] = pixel[0] as f32 / 255.0;
             input[[0, 1, y as usize, x as usize]] = pixel[1] as f32 / 255.0;
             input[[0, 2, y as usize, x as usize]] = pixel[2] as f32 / 255.0;
         }
     }
 
-    Ok(input)
+    Ok((input, scale, offset_x as f32, offset_y as f32))
 }
 
 struct Detection {
@@ -166,6 +185,9 @@ fn parse_detections(
     scores: &ndarray::ArrayViewD<f32>,
     orig_width: u32,
     orig_height: u32,
+    scale: f32,
+    offset_x: f32,
+    offset_y: f32,
 ) -> anyhow::Result<Vec<Detection>> {
     let mut detections = Vec::new();
 
@@ -179,15 +201,18 @@ fn parse_detections(
             continue;
         }
 
-        let cx = boxes[[0, i, 0]];
-        let cy = boxes[[0, i, 1]];
-        let w = boxes[[0, i, 2]];
-        let h = boxes[[0, i, 3]];
-
-        let x1 = ((cx - w / 2.0) * orig_width as f32).max(0.0);
-        let y1 = ((cy - h / 2.0) * orig_height as f32).max(0.0);
-        let x2 = ((cx + w / 2.0) * orig_width as f32).min(orig_width as f32);
-        let y2 = ((cy + h / 2.0) * orig_height as f32).min(orig_height as f32);
+        let x1 = ((boxes[[0, i, 0]] - offset_x) / scale)
+            .max(0.0)
+            .min(orig_width as f32);
+        let y1 = ((boxes[[0, i, 1]] - offset_y) / scale)
+            .max(0.0)
+            .min(orig_height as f32);
+        let x2 = ((boxes[[0, i, 2]] - offset_x) / scale)
+            .max(0.0)
+            .min(orig_width as f32);
+        let y2 = ((boxes[[0, i, 3]] - offset_y) / scale)
+            .max(0.0)
+            .min(orig_height as f32);
 
         detections.push(Detection {
             x1,

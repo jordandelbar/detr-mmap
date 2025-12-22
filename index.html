@@ -248,10 +248,14 @@
                     detections.forEach((det, idx) => {
                         const color = COLORS[det.class_id % COLORS.length];
 
+                        // Draw bounding box
                         this.ctx.strokeStyle = color;
                         this.ctx.lineWidth = 3;
-                        this.ctx.strokeRect(det.x1, det.y1, det.x2 - det.x1, det.y2 - det.y1);
+                        const boxWidth = det.x2 - det.x1;
+                        const boxHeight = det.y2 - det.y1;
+                        this.ctx.strokeRect(det.x1, det.y1, boxWidth, boxHeight);
 
+                        // Draw label background
                         const label = `Class ${det.class_id}: ${(det.confidence * 100).toFixed(1)}%`;
                         this.ctx.font = 'bold 14px Arial';
                         const textWidth = this.ctx.measureText(label).width;
@@ -259,6 +263,7 @@
                         this.ctx.fillStyle = color;
                         this.ctx.fillRect(det.x1, det.y1 - 22, textWidth + 10, 22);
 
+                        // Draw label text
                         this.ctx.fillStyle = '#fff';
                         this.ctx.fillText(label, det.x1 + 5, det.y1 - 6);
                     });

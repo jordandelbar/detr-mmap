@@ -1,10 +1,10 @@
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade},
+    Router,
+    extract::{State, WebSocketUpgrade, ws::WebSocket},
     response::IntoResponse,
     routing::get,
-    Router,
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use bridge::MmapReader;
 use image::{ImageBuffer, RgbImage};
 use serde::{Deserialize, Serialize};
@@ -56,9 +56,7 @@ async fn main() -> anyhow::Result<()> {
     println!("WebSocket server: ws://{}\n", WS_ADDR);
 
     let (tx, _) = broadcast::channel::<FrameMessage>(10);
-    let state = AppState {
-        tx: Arc::new(tx),
-    };
+    let state = AppState { tx: Arc::new(tx) };
 
     let state_clone = state.clone();
     tokio::spawn(async move {
@@ -98,7 +96,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             }
         };
 
-        if socket.send(axum::extract::ws::Message::Text(json)).await.is_err() {
+        if socket
+            .send(axum::extract::ws::Message::Text(json))
+            .await
+            .is_err()
+        {
             println!("Client disconnected");
             break;
         }
@@ -209,9 +211,10 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Resul
         frame_reader.mark_read();
         detection_reader.mark_read();
 
+        let det_count = msg.detections.as_ref().map(|d| d.len()).unwrap_or(0);
         println!(
-            "Broadcasting frame #{} - status: {} (frame_seq: {}, det_seq: {})",
-            msg.frame_number, msg.status, frame_seq, detection_seq
+            "Frame #{}: {} detections ({})",
+            msg.frame_number, det_count, msg.status
         );
 
         let _ = tx.send(msg);
@@ -219,7 +222,6 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FrameMessage>>) -> anyhow::Resul
 }
 
 fn bgr_to_jpeg_base64(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Result<String> {
-    // Convert BGR to RGB
     let mut rgb_data = Vec::with_capacity(bgr_data.len());
     for chunk in bgr_data.chunks_exact(3) {
         rgb_data.push(chunk[2]); // R
@@ -227,14 +229,11 @@ fn bgr_to_jpeg_base64(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Resul
         rgb_data.push(chunk[0]); // B
     }
 
-    // Create RGB image
     let img: RgbImage = ImageBuffer::from_raw(width, height, rgb_data)
         .ok_or_else(|| anyhow::anyhow!("Failed to create image from raw data"))?;
 
-    // Encode as JPEG
     let mut jpeg_bytes = Cursor::new(Vec::new());
     img.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
 
-    // Base64 encode
     Ok(general_purpose::STANDARD.encode(jpeg_bytes.into_inner()))
 }
