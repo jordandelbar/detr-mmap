@@ -163,7 +163,8 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result
         let height = frame.height();
 
         let jpeg_data = if let Some(pixels) = frame.pixels() {
-            match bgr_to_jpeg(pixels.bytes(), width, height) {
+            let format = frame.format();
+            match pixels_to_jpeg(pixels.bytes(), width, height, format) {
                 Ok(data) => data,
                 Err(e) => {
                     eprintln!("Image encoding error: {}", e);
@@ -233,13 +234,29 @@ async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result
     }
 }
 
-fn bgr_to_jpeg(bgr_data: &[u8], width: u32, height: u32) -> anyhow::Result<Vec<u8>> {
-    let mut rgb_data = Vec::with_capacity(bgr_data.len());
-    for chunk in bgr_data.chunks_exact(3) {
-        rgb_data.push(chunk[2]); // R
-        rgb_data.push(chunk[1]); // G
-        rgb_data.push(chunk[0]); // B
-    }
+fn pixels_to_jpeg(pixel_data: &[u8], width: u32, height: u32, format: schema::ColorFormat) -> anyhow::Result<Vec<u8>> {
+    let rgb_data = match format {
+        schema::ColorFormat::RGB => {
+            // Already RGB, use directly
+            pixel_data.to_vec()
+        }
+        schema::ColorFormat::BGR => {
+            // Convert BGR to RGB
+            let mut rgb_data = Vec::with_capacity(pixel_data.len());
+            for chunk in pixel_data.chunks_exact(3) {
+                rgb_data.push(chunk[2]); // R
+                rgb_data.push(chunk[1]); // G
+                rgb_data.push(chunk[0]); // B
+            }
+            rgb_data
+        }
+        schema::ColorFormat::GRAY => {
+            return Err(anyhow::anyhow!("Grayscale format not supported for JPEG encoding"));
+        }
+        _ => {
+            return Err(anyhow::anyhow!("Unknown color format"));
+        }
+    };
 
     let img: RgbImage = ImageBuffer::from_raw(width, height, rgb_data)
         .ok_or_else(|| anyhow::anyhow!("Failed to create image from raw data"))?;

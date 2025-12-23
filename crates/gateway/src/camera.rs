@@ -1,8 +1,7 @@
 use bridge::FrameWriter;
-use opencv::{
-    prelude::*,
-    videoio::{self, CAP_ANY, VideoCapture},
-};
+use nokhwa::Camera as NokhwaCamera;
+use nokhwa::pixel_format::RgbFormat;
+use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use schema::{ColorFormat, FrameArgs};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -13,9 +12,9 @@ pub struct CameraConfig {
 }
 
 pub struct Camera {
-    cam: VideoCapture,
-    width: f64,
-    height: f64,
+    cam: NokhwaCamera,
+    width: u32,
+    height: u32,
     frame_duration: Duration,
     writer: FrameWriter,
     builder: flatbuffers::FlatBufferBuilder<'static>,
@@ -28,18 +27,20 @@ impl Camera {
             config.device_id
         );
 
-        let cam = VideoCapture::new(config.device_id as i32, CAP_ANY)?;
+        let index = CameraIndex::Index(config.device_id);
+        let requested_format =
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
-        if !VideoCapture::is_opened(&cam)? {
-            return Err(format!("Failed to open camera at /dev/video{}", config.device_id).into());
-        }
+        let mut cam = NokhwaCamera::new(index, requested_format)?;
+        cam.open_stream()?;
 
         tracing::info!("camera opened successfully");
 
-        let width = cam.get(videoio::CAP_PROP_FRAME_WIDTH)?;
-        let height = cam.get(videoio::CAP_PROP_FRAME_HEIGHT)?;
-        let fps = cam.get(videoio::CAP_PROP_FPS)?;
-        let frame_duration = std::time::Duration::from_secs_f64(1.0 / fps);
+        let camera_format = cam.camera_format();
+        let width = camera_format.width();
+        let height = camera_format.height();
+        let fps = camera_format.frame_rate();
+        let frame_duration = std::time::Duration::from_secs_f64(1.0 / fps as f64);
 
         tracing::info!(
             "camera properties: Resolution: {}x{}, FPS: {}",
@@ -70,19 +71,13 @@ impl Camera {
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("frame buffer ready - writing at camera rate");
 
-        let mut frame = Mat::default();
         let mut frame_count = 0u64;
 
         loop {
-            self.cam.read(&mut frame)?;
+            let frame = self.cam.frame()?;
+            let decoded = frame.decode_image::<RgbFormat>()?;
+            let pixel_data = decoded.as_raw();
 
-            if frame.empty() {
-                tracing::warn!("empty frame received");
-                continue;
-            }
-
-            let channels = frame.channels() as u8;
-            let pixel_data = frame.data_bytes()?;
             let timestamp_ns = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos() as u64;
 
             self.builder.reset();
@@ -94,10 +89,10 @@ impl Camera {
                     frame_number: frame_count,
                     timestamp_ns,
                     camera_id: 0,
-                    width: self.width as u32,
-                    height: self.height as u32,
-                    channels,
-                    format: ColorFormat::BGR,
+                    width: self.width,
+                    height: self.height,
+                    channels: 3,
+                    format: ColorFormat::RGB,
                     pixels: Some(pixels_vec),
                 },
             );

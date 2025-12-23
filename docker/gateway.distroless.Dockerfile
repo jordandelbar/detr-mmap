@@ -1,12 +1,12 @@
 FROM rust:1.92-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
-    libopencv-dev \
     clang \
     libclang-dev \
     pkg-config \
     wget \
     unzip \
+    libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q https://github.com/google/flatbuffers/releases/download/v24.3.25/Linux.flatc.binary.clang++-15.zip && \

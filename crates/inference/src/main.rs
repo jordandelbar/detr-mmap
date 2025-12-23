@@ -76,8 +76,9 @@ fn main() -> anyhow::Result<()> {
         let pixels = frame
             .pixels()
             .ok_or_else(|| anyhow::anyhow!("No pixel data"))?;
+        let format = frame.format();
 
-        let (preprocessed, scale, offset_x, offset_y) = preprocess_frame(pixels, width, height)?;
+        let (preprocessed, scale, offset_x, offset_y) = preprocess_frame(pixels, width, height, format)?;
 
         let orig_sizes =
             Array::from_shape_vec((1, 2), vec![INPUT_SIZE.1 as i64, INPUT_SIZE.0 as i64])?;
@@ -126,15 +127,46 @@ fn preprocess_frame(
     pixels: flatbuffers::Vector<u8>,
     width: u32,
     height: u32,
+    format: schema::ColorFormat,
 ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
-    let mut rgb_data = Vec::with_capacity((width * height * 3) as usize);
-    for i in (0..pixels.len()).step_by(3) {
-        let b = pixels.get(i);
-        let g = pixels.get(i + 1);
-        let r = pixels.get(i + 2);
-        rgb_data.push(r);
-        rgb_data.push(g);
-        rgb_data.push(b);
+    println!("Frame dimensions: {}x{}, format: {:?}, pixel bytes: {}", width, height, format, pixels.len());
+
+    let expected_size = (width * height * 3) as usize;
+    println!("Expected RGB buffer size: {}", expected_size);
+
+    let mut rgb_data = Vec::with_capacity(expected_size);
+
+    match format {
+        schema::ColorFormat::RGB => {
+            // Already RGB, just copy
+            rgb_data.extend_from_slice(pixels.bytes());
+        }
+        schema::ColorFormat::BGR => {
+            // Convert BGR to RGB
+            for i in (0..pixels.len()).step_by(3) {
+                let b = pixels.get(i);
+                let g = pixels.get(i + 1);
+                let r = pixels.get(i + 2);
+                rgb_data.push(r);
+                rgb_data.push(g);
+                rgb_data.push(b);
+            }
+        }
+        schema::ColorFormat::GRAY => {
+            return Err(anyhow::anyhow!("Grayscale format not supported"));
+        }
+        _ => {
+            return Err(anyhow::anyhow!("Unknown color format"));
+        }
+    }
+
+    println!("Actual RGB buffer size: {}", rgb_data.len());
+
+    if rgb_data.len() != expected_size {
+        return Err(anyhow::anyhow!(
+            "Buffer size mismatch: expected {} bytes for {}x{} RGB, got {} bytes",
+            expected_size, width, height, rgb_data.len()
+        ));
     }
 
     let img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width, height, rgb_data)
