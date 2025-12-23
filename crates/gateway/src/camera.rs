@@ -6,18 +6,69 @@ use schema::{ColorFormat, FrameArgs};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub struct CameraConfig {
+    pub camera_id: u32,
     pub device_id: u32,
     pub mmap_path: String,
     pub mmap_size: usize,
 }
 
+struct FrameSerializer {
+    writer: FrameWriter,
+    builder: flatbuffers::FlatBufferBuilder<'static>,
+}
+
+impl FrameSerializer {
+    fn new(writer: FrameWriter, builder: flatbuffers::FlatBufferBuilder<'static>) -> Self {
+        Self { writer, builder }
+    }
+
+    fn write(
+        &mut self,
+        pixel_data: &[u8],
+        camera_id: u32,
+        frame_count: u64,
+        width: u32,
+        height: u32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let timestamp_ns = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos() as u64;
+
+        self.builder.reset();
+        let pixels_vec = self.builder.create_vector(pixel_data);
+
+        let frame_fb = schema::Frame::create(
+            &mut self.builder,
+            &FrameArgs {
+                frame_number: frame_count,
+                timestamp_ns,
+                camera_id,
+                width,
+                height,
+                channels: 3,
+                format: ColorFormat::RGB,
+                pixels: Some(pixels_vec),
+            },
+        );
+
+        self.builder.finish(frame_fb, None);
+        let data = self.builder.finished_data();
+
+        self.writer.write(data)?;
+
+        Ok(())
+    }
+
+    fn sequence(&self) -> u64 {
+        self.writer.sequence()
+    }
+}
+
 pub struct Camera {
+    camera_id: u32,
     cam: NokhwaCamera,
     width: u32,
     height: u32,
     frame_duration: Duration,
-    writer: FrameWriter,
-    builder: flatbuffers::FlatBufferBuilder<'static>,
+    frame_serializer: FrameSerializer,
 }
 
 impl Camera {
@@ -50,21 +101,22 @@ impl Camera {
         );
 
         let writer = FrameWriter::new(&config.mmap_path, config.mmap_size)?;
+        let builder = flatbuffers::FlatBufferBuilder::new();
+        let frame_serializer = FrameSerializer::new(writer, builder);
+
         tracing::info!(
             "Created mmap at {} ({} MB)",
             config.mmap_path,
             config.mmap_size / 1024 / 1024
         );
 
-        let builder = flatbuffers::FlatBufferBuilder::new();
-
         Ok(Self {
+            camera_id: config.camera_id,
             cam,
             width,
             height,
             frame_duration,
-            writer,
-            builder,
+            frame_serializer,
         })
     }
 
@@ -78,29 +130,13 @@ impl Camera {
             let decoded = frame.decode_image::<RgbFormat>()?;
             let pixel_data = decoded.as_raw();
 
-            let timestamp_ns = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos() as u64;
-
-            self.builder.reset();
-            let pixels_vec = self.builder.create_vector(pixel_data);
-
-            let frame_fb = schema::Frame::create(
-                &mut self.builder,
-                &FrameArgs {
-                    frame_number: frame_count,
-                    timestamp_ns,
-                    camera_id: 0,
-                    width: self.width,
-                    height: self.height,
-                    channels: 3,
-                    format: ColorFormat::RGB,
-                    pixels: Some(pixels_vec),
-                },
-            );
-
-            self.builder.finish(frame_fb, None);
-            let data = self.builder.finished_data();
-
-            self.writer.write(data)?;
+            self.frame_serializer.write(
+                pixel_data,
+                self.camera_id,
+                frame_count,
+                self.width,
+                self.height,
+            )?;
 
             frame_count += 1;
 
@@ -108,7 +144,7 @@ impl Camera {
                 tracing::debug!(
                     "Frame #{} (seq: {}), Size: {}x{}",
                     frame_count,
-                    self.writer.sequence(),
+                    self.frame_serializer.sequence(),
                     self.width,
                     self.height
                 );
