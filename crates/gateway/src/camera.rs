@@ -71,29 +71,59 @@ impl Camera {
         tracing::info!("frame buffer ready - writing at camera rate");
 
         let mut frame_count = 0u64;
+        let mut dropped_frames = 0u64;
 
         loop {
-            let frame = self.cam.frame()?;
-            let decoded = frame.decode_image::<RgbFormat>()?;
+            let frame = match self.cam.frame() {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::warn!("Failed to capture frame: {}", e);
+                    dropped_frames += 1;
+                    std::thread::sleep(self.frame_duration);
+                    continue;
+                }
+            };
+
+            let decoded = match frame.decode_image::<RgbFormat>() {
+                Ok(d) => d,
+                Err(e) => {
+                    tracing::warn!("Failed to decode frame: {}", e);
+                    dropped_frames += 1;
+                    std::thread::sleep(self.frame_duration);
+                    continue;
+                }
+            };
+
             let pixel_data = decoded.as_raw();
 
-            self.frame_serializer.write(
+            if let Err(e) = self.frame_serializer.write(
                 pixel_data,
                 self.camera_id,
                 frame_count,
                 self.width,
                 self.height,
-            )?;
+            ) {
+                tracing::error!(
+                    "Failed to write frame #{} (size: {} bytes): {}",
+                    frame_count,
+                    pixel_data.len(),
+                    e
+                );
+                dropped_frames += 1;
+                std::thread::sleep(self.frame_duration);
+                continue;
+            }
 
             frame_count += 1;
 
             if frame_count % 30 == 0 {
                 tracing::debug!(
-                    "Frame #{} (seq: {}), Size: {}x{}",
+                    "Frame #{} (seq: {}), Size: {}x{}, Dropped: {}",
                     frame_count,
                     self.frame_serializer.sequence(),
                     self.width,
-                    self.height
+                    self.height,
+                    dropped_frames
                 );
             }
 

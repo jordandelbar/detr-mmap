@@ -12,7 +12,7 @@ fn main() {
         camera_id: 0,
         device_id: 0,
         mmap_path: "/dev/shm/bridge_frame_buffer".to_string(),
-        mmap_size: 8 * 1024 * 1024,
+        mmap_size: 32 * 1024 * 1024,
     };
 
     let mut camera = Camera::build(camera_config).expect("failed to build camera");
