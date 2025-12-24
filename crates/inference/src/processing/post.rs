@@ -1,5 +1,3 @@
-use flatbuffers::FlatBufferBuilder;
-
 const CONFIDENCE_THRESHOLD: f32 = 0.5;
 
 pub struct Detection {
@@ -57,45 +55,4 @@ pub fn parse_detections(
     }
 
     Ok(detections)
-}
-
-pub fn build_detection_flatbuffer(
-    frame_number: u64,
-    timestamp_ns: u64,
-    camera_id: u32,
-    detections: &[Detection],
-) -> anyhow::Result<Vec<u8>> {
-    let mut builder = FlatBufferBuilder::new();
-
-    let bbox_vec: Vec<_> = detections
-        .iter()
-        .map(|d| {
-            schema::BoundingBox::create(
-                &mut builder,
-                &schema::BoundingBoxArgs {
-                    x1: d.x1,
-                    y1: d.y1,
-                    x2: d.x2,
-                    y2: d.y2,
-                    confidence: d.confidence,
-                    class_id: d.class_id,
-                },
-            )
-        })
-        .collect();
-
-    let detections_offset = builder.create_vector(&bbox_vec);
-
-    let detection_result = schema::DetectionResult::create(
-        &mut builder,
-        &schema::DetectionResultArgs {
-            frame_number,
-            timestamp_ns,
-            camera_id,
-            detections: Some(detections_offset),
-        },
-    );
-
-    builder.finish(detection_result, None);
-    Ok(builder.finished_data().to_vec())
 }

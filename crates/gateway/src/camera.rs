@@ -1,65 +1,14 @@
-use bridge::FrameWriter;
+use crate::serialization::FrameSerializer;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
-use schema::{ColorFormat, FrameArgs};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 pub struct CameraConfig {
     pub camera_id: u32,
     pub device_id: u32,
     pub mmap_path: String,
     pub mmap_size: usize,
-}
-
-struct FrameSerializer {
-    writer: FrameWriter,
-    builder: flatbuffers::FlatBufferBuilder<'static>,
-}
-
-impl FrameSerializer {
-    fn new(writer: FrameWriter, builder: flatbuffers::FlatBufferBuilder<'static>) -> Self {
-        Self { writer, builder }
-    }
-
-    fn write(
-        &mut self,
-        pixel_data: &[u8],
-        camera_id: u32,
-        frame_count: u64,
-        width: u32,
-        height: u32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let timestamp_ns = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos() as u64;
-
-        self.builder.reset();
-        let pixels_vec = self.builder.create_vector(pixel_data);
-
-        let frame_fb = schema::Frame::create(
-            &mut self.builder,
-            &FrameArgs {
-                frame_number: frame_count,
-                timestamp_ns,
-                camera_id,
-                width,
-                height,
-                channels: 3,
-                format: ColorFormat::RGB,
-                pixels: Some(pixels_vec),
-            },
-        );
-
-        self.builder.finish(frame_fb, None);
-        let data = self.builder.finished_data();
-
-        self.writer.write(data)?;
-
-        Ok(())
-    }
-
-    fn sequence(&self) -> u64 {
-        self.writer.sequence()
-    }
 }
 
 pub struct Camera {
@@ -100,9 +49,7 @@ impl Camera {
             fps
         );
 
-        let writer = FrameWriter::new(&config.mmap_path, config.mmap_size)?;
-        let builder = flatbuffers::FlatBufferBuilder::new();
-        let frame_serializer = FrameSerializer::new(writer, builder);
+        let frame_serializer = FrameSerializer::build(&config.mmap_path, config.mmap_size)?;
 
         tracing::info!(
             "Created mmap at {} ({} MB)",

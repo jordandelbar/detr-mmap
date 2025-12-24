@@ -1,10 +1,10 @@
 use crate::{
     backend::InferenceBackend,
     config::InferenceConfig,
-    postprocessing::{build_detection_flatbuffer, parse_detections},
-    preprocessing::preprocess_frame,
+    processing::{post::parse_detections, pre::preprocess_frame},
+    serialization::DetectionSerializer,
 };
-use bridge::{FrameWriter, MmapReader};
+use bridge::MmapReader;
 use ndarray::Array;
 use std::thread;
 use std::time::Duration;
@@ -48,8 +48,10 @@ impl<B: InferenceBackend> InferenceService<B> {
             "Creating detection buffer"
         );
 
-        let mut detection_writer =
-            FrameWriter::new(&self.config.detection_mmap_path, self.config.detection_mmap_size)?;
+        let mut detection_serializer = DetectionSerializer::build(
+            &self.config.detection_mmap_path,
+            self.config.detection_mmap_size,
+        )?;
 
         tracing::info!(
             poll_interval_ms = self.config.poll_interval_ms,
@@ -65,7 +67,7 @@ impl<B: InferenceBackend> InferenceService<B> {
                 continue;
             }
 
-            match self.process_frame(&frame_reader, &mut detection_writer) {
+            match self.process_frame(&frame_reader, &mut detection_serializer) {
                 Ok(detections) => {
                     frames_processed += 1;
                     total_detections += detections;
@@ -89,7 +91,7 @@ impl<B: InferenceBackend> InferenceService<B> {
     fn process_frame(
         &mut self,
         frame_reader: &MmapReader,
-        detection_writer: &mut FrameWriter,
+        detection_serializer: &mut DetectionSerializer,
     ) -> anyhow::Result<usize> {
         let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
         let frame_num = frame.frame_number();
@@ -116,7 +118,10 @@ impl<B: InferenceBackend> InferenceService<B> {
 
         let orig_sizes = Array::from_shape_vec(
             (1, 2),
-            vec![self.config.input_size.1 as i64, self.config.input_size.0 as i64],
+            vec![
+                self.config.input_size.1 as i64,
+                self.config.input_size.0 as i64,
+            ],
         )?
         .into_dyn();
 
@@ -134,10 +139,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             offset_y,
         )?;
 
-        let detection_buffer =
-            build_detection_flatbuffer(frame_num, timestamp_ns, camera_id, &detections)?;
-
-        detection_writer.write(&detection_buffer)?;
+        detection_serializer.write(frame_num, timestamp_ns, camera_id, &detections)?;
 
         Ok(detections.len())
     }
