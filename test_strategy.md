@@ -55,16 +55,16 @@
 - [x] test_realistic_rtdetr_output (300 queries → 3 detections)
 
 **File:** `crates/inference/src/processing/pre.rs` (inline unit tests)
-- [ ] test_bgr_to_rgb_conversion (most cameras output BGR!)
-- [ ] test_rgb_to_rgb_passthrough
-- [ ] test_gray_format_returns_error
-- [ ] test_buffer_size_mismatch_detection
-- [ ] test_letterboxing_preserves_aspect_ratio
-- [ ] test_letterboxing_uses_gray_padding (RGB 114,114,114)
-- [ ] test_preprocessing_output_shape ([1, 3, 640, 640])
-- [ ] test_pixel_normalization_to_0_1_range
-- [ ] test_scale_calculation_for_tall_images
-- [ ] test_scale_calculation_for_wide_images
+- [x] test_bgr_to_rgb_conversion (most cameras output BGR!)
+- [x] test_rgb_to_rgb_passthrough
+- [x] test_gray_format_returns_error
+- [x] test_buffer_size_mismatch_detection
+- [x] test_letterboxing_preserves_aspect_ratio
+- [x] test_letterboxing_uses_gray_padding (RGB 114,114,114)
+- [x] test_preprocessing_output_shape ([1, 3, 640, 640])
+- [x] test_pixel_normalization_to_0_1_range
+- [x] test_scale_calculation_for_tall_images
+- [x] test_scale_calculation_for_wide_images
 
 ---
 
@@ -265,12 +265,12 @@ wiremock = "0.6"
 
 | Crate     | Target | Current | Priority Tests                    |
 |-----------|--------|---------|-----------------------------------|
-| bridge    | 90%+   | ~30%    | ✅ IPC synchronization            |
-| inference | 80%+   | ~25%    | ✅ Coordinate transforms (done!)  |
+| bridge    | 90%+   | 90.79%  | ✅ GOAL MET!                      |
+| inference | 80%+   | 96%     | ✅ GOAL EXCEEDED!                 |
 | gateway   | 60%+   | 0%      | ⚠️  Serialization                  |
 | logic     | 75%+   | 0%      | WebSocket handling                |
 | common    | 90%+   | 0%      | Logging configuration             |
-| schema    | 100%   | 0%      | Schema roundtrips                 |
+| schema    | 100%   | 0%      | ⚪ Generated code (skip)          |
 
 ---
 
@@ -330,19 +330,21 @@ test_data/
 ## Progress Summary
 
 **Total Tests Planned:** ~80 tests
-**Tests Implemented:** 12 ✅
-**Completion:** 15%
+**Tests Implemented:** 22 ✅
+**Completion:** 28%
+
+**Overall Coverage:** 41.10% ⬆️ (was 19.48%)
 
 **By Priority:**
-- 🔴 Critical (Phase 1): 12/35 = 34% ⬆️
+- 🔴 Critical (Phase 1): 22/35 = 63% ⬆️⬆️
 - 🟢 Integration (Phase 2): 0/25 = 0%
 - 🔵 Advanced (Phase 3): 0/15 = 0%
 - ⚪ Resilience (Phase 4): 0/5 = 0%
 
 **Next Up:**
-1. [ ] BGR→RGB conversion test (inference/pre.rs) ⚠️ CRITICAL
-2. [ ] Preprocessing tests (letterboxing, normalization)
-3. [ ] Serialization roundtrip tests (gateway)
+1. [ ] Serialization roundtrip tests (gateway) 🟢
+2. [ ] Bridge unit tests (flush, buffer_mut) 🔴
+3. [ ] WebSocket tests (logic) 🟢
 
 ---
 
