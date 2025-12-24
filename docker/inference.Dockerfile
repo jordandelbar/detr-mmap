@@ -21,15 +21,16 @@ COPY crates/ crates/
 
 RUN cargo build --release --bin inference
 
-FROM debian:bookworm-slim
+RUN mkdir -p /libs && \
+    ldd /build/target/release/inference | \
+    grep "=> /" | \
+    awk '{print $3}' | \
+    xargs -I {} cp {} /libs/
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/cc-debian12
 
 COPY --from=builder /build/target/release/inference /usr/local/bin/inference
 
-RUN mkdir -p /dev/shm /models
+COPY --from=builder /libs/* /usr/lib/x86_64-linux-gnu/
 
 ENTRYPOINT ["/usr/local/bin/inference"]

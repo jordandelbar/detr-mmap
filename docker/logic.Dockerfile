@@ -21,14 +21,16 @@ COPY crates/ crates/
 
 RUN cargo build --release --bin logic
 
-FROM debian:bookworm-slim
+RUN mkdir -p /libs && \
+    ldd /build/target/release/logic | \
+    grep "=> /" | \
+    awk '{print $3}' | \
+    xargs -I {} cp {} /libs/
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/cc-debian12
 
 COPY --from=builder /build/target/release/logic /usr/local/bin/logic
 
-RUN mkdir -p /dev/shm
+COPY --from=builder /libs/* /usr/lib/x86_64-linux-gnu/
 
 ENTRYPOINT ["/usr/local/bin/logic"]
