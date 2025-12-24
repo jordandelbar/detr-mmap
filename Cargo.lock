@@ -397,14 +397,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
-name = "config"
-version = "0.15.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b30fa8254caad766fc03cb0ccae691e14bf3bd72bfff27f72802ce729551b3d6"
+name = "common"
+version = "0.1.0"
 dependencies = [
- "pathdiff",
- "serde_core",
- "winnow",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -813,14 +810,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bridge",
- "config",
+ "common",
  "flatbuffers",
  "nokhwa",
  "schema",
- "serde",
  "thiserror 2.0.17",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1022,7 +1017,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bridge",
- "config",
+ "common",
  "flatbuffers",
  "image",
  "memmap2",
@@ -1030,7 +1025,6 @@ dependencies = [
  "ort",
  "schema",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1674,12 +1668,6 @@ name = "pastey"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
-
-[[package]]
-name = "pathdiff"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 
 [[package]]
 name = "peeking_take_while"
@@ -3058,15 +3046,6 @@ name = "windows_x86_64_msvc"
 version = "0.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
-
-[[package]]
-name = "winnow"
-version = "0.7.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "wit-bindgen"

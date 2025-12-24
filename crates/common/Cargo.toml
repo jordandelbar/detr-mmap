@@ -1,0 +1,11 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+tracing = { version = "0.1.44", default-features = false }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }

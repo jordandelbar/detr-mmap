@@ -1,10 +1,10 @@
 pub mod backend;
 pub mod config;
+pub mod logging;
 pub mod postprocessing;
 pub mod preprocessing;
 pub mod service;
 
-// Re-export commonly used types for convenience
 pub use backend::{InferenceBackend, InferenceOutput};
 pub use config::InferenceConfig;
 pub use postprocessing::Detection;

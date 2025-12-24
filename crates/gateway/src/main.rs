@@ -1,12 +1,12 @@
 use gateway::{
     camera::{Camera, CameraConfig},
-    config::get_configuration,
+    config::Config,
     logging::setup_logging,
 };
 
 fn main() {
-    let config = get_configuration().expect("failed to load configuration");
-    setup_logging(config);
+    let config = Config::from_env();
+    setup_logging(&config);
 
     let camera_config = CameraConfig {
         camera_id: 0,

@@ -15,9 +15,7 @@ nokhwa = { version = "0.10", features = ["input-native"] }
 thiserror = "2.0.17"
 schema = { path = "../schema" }
 bridge = { path = "../bridge" }
+common = { path = "../common" }
 flatbuffers = "24.3"
 anyhow = "1.0"
-config = { version = "0.15.19", default-features = false }
-serde = { version = "1.0.228", default-features = false, features = ["derive"] }
 tracing = { version = "0.1.44", default-features = false }
-tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"]}

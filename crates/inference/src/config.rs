@@ -1,7 +1,11 @@
 use std::env;
 
+pub use common::{Environment, LogLevel};
+
 #[derive(Debug, Clone)]
 pub struct InferenceConfig {
+    pub log_level: LogLevel,
+    pub environment: Environment,
     pub model_path: String,
     pub frame_mmap_path: String,
     pub detection_mmap_path: String,
@@ -13,8 +17,11 @@ pub struct InferenceConfig {
 impl InferenceConfig {
     /// Load configuration from environment variables with sensible defaults
     pub fn from_env() -> anyhow::Result<Self> {
-        let model_path = env::var("MODEL_PATH")
-            .unwrap_or_else(|_| "/models/model.onnx".to_string());
+        let log_level = LogLevel::from_env();
+        let environment = Environment::from_env();
+
+        let model_path =
+            env::var("MODEL_PATH").unwrap_or_else(|_| "/models/model.onnx".to_string());
 
         let frame_mmap_path = env::var("FRAME_MMAP_PATH")
             .unwrap_or_else(|_| "/dev/shm/bridge_frame_buffer".to_string());
@@ -43,6 +50,8 @@ impl InferenceConfig {
             .unwrap_or(100);
 
         Ok(Self {
+            log_level,
+            environment,
             model_path,
             frame_mmap_path,
             detection_mmap_path,
@@ -56,6 +65,8 @@ impl InferenceConfig {
     #[cfg(test)]
     pub fn default() -> Self {
         Self {
+            log_level: LogLevel::Info,
+            environment: Environment::Development,
             model_path: "/models/model.onnx".to_string(),
             frame_mmap_path: "/dev/shm/bridge_frame_buffer".to_string(),
             detection_mmap_path: "/dev/shm/bridge_detection_buffer".to_string(),
