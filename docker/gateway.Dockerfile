@@ -1,12 +1,12 @@
 FROM rust:1.92-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
-    libopencv-dev \
     clang \
     libclang-dev \
     pkg-config \
     wget \
     unzip \
+    libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q https://github.com/google/flatbuffers/releases/download/v24.3.25/Linux.flatc.binary.clang++-15.zip && \
@@ -22,14 +22,16 @@ COPY crates/ crates/
 
 RUN cargo build --release --bin gateway
 
-FROM debian:bookworm-slim
+RUN mkdir -p /libs && \
+    ldd /build/target/release/gateway | \
+    grep "=> /" | \
+    awk '{print $3}' | \
+    xargs -I {} cp {} /libs/
 
-RUN apt-get update && apt-get install -y \
-    libopencv4.6 \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/cc-debian12
 
 COPY --from=builder /build/target/release/gateway /usr/local/bin/gateway
 
-RUN mkdir -p /dev/shm
+COPY --from=builder /libs/* /usr/lib/x86_64-linux-gnu/
 
 ENTRYPOINT ["/usr/local/bin/gateway"]

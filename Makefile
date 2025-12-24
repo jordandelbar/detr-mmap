@@ -1,7 +1,7 @@
 .PHONY: build up
 
 build:
-	@./scripts/build-images.sh
+	@docker compose build
 
 up:
 	@./scripts/setup-kind.sh

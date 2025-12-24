@@ -1,0 +1,13 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/gateway.Dockerfile
+  inference:
+    build:
+      context: .
+      dockerfile: docker/inference.Dockerfile
+  logic:
+    build:
+      context: .
+      dockerfile: docker/logic.Dockerfile
