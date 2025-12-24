@@ -58,7 +58,9 @@ spec:
 
           env:
             - name: RUST_LOG
-              value: "info"
+              value: "warn"
+            - name: ENVIRONMENT
+              value: "production"
 
         - name: inference
           image: bridge-rt-inference:latest
@@ -81,7 +83,9 @@ spec:
 
           env:
             - name: RUST_LOG
-              value: "info"
+              value: "warn"
+            - name: ENVIRONMENT
+              value: "production"
 
         - name: logic
           image: bridge-rt-logic:latest
@@ -107,6 +111,8 @@ spec:
           env:
             - name: RUST_LOG
               value: "info"
+            - name: ENVIRONMENT
+              value: "production"
 
       restartPolicy: Always
 ---

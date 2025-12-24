@@ -1,12 +1,14 @@
-use crate::config::{Environment, LogLevel};
+use crate::config::Environment;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Initialize tracing subscriber with pretty formatting for development
-/// and JSON formatting for production
-pub fn setup_logging(log_level: LogLevel, environment: Environment) {
-    let log_level_str = log_level.as_str();
+/// and JSON formatting for production.
+///
+/// Uses RUST_LOG environment variable for filtering (defaults to "info" if not set).
+pub fn setup_logging(environment: Environment) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| log_level_str.into());
+        .unwrap_or_else(|_| "info".into());
+
     let registry = tracing_subscriber::registry().with(env_filter);
 
     match environment {
