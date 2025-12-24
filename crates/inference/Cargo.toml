@@ -12,3 +12,6 @@ memmap2 = "0.9"
 anyhow = "1.0"
 ndarray = "0.16"
 image = "0.25"
+tracing = { version = "0.1.44", default-features = false }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"]}
+config = { version = "0.15.19", default-features = false }

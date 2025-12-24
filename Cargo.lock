@@ -1022,12 +1022,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bridge",
+ "config",
  "flatbuffers",
  "image",
  "memmap2",
  "ndarray",
  "ort",
  "schema",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

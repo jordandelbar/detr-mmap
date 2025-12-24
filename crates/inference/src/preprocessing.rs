@@ -9,20 +9,23 @@ pub fn preprocess_frame(
     height: u32,
     format: schema::ColorFormat,
 ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
-    println!("Frame dimensions: {}x{}, format: {:?}, pixel bytes: {}", width, height, format, pixels.len());
+    tracing::trace!(
+        width,
+        height,
+        format = ?format,
+        pixel_bytes = pixels.len(),
+        "Preprocessing frame dimensions"
+    );
 
     let expected_size = (width * height * 3) as usize;
-    println!("Expected RGB buffer size: {}", expected_size);
 
     let mut rgb_data = Vec::with_capacity(expected_size);
 
     match format {
         schema::ColorFormat::RGB => {
-            // Already RGB, just copy
             rgb_data.extend_from_slice(pixels.bytes());
         }
         schema::ColorFormat::BGR => {
-            // Convert BGR to RGB
             for i in (0..pixels.len()).step_by(3) {
                 let b = pixels.get(i);
                 let g = pixels.get(i + 1);
@@ -40,12 +43,13 @@ pub fn preprocess_frame(
         }
     }
 
-    println!("Actual RGB buffer size: {}", rgb_data.len());
-
     if rgb_data.len() != expected_size {
         return Err(anyhow::anyhow!(
             "Buffer size mismatch: expected {} bytes for {}x{} RGB, got {} bytes",
-            expected_size, width, height, rgb_data.len()
+            expected_size,
+            width,
+            height,
+            rgb_data.len()
         ));
     }
 
