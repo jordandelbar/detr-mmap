@@ -39,7 +39,6 @@ impl FrameWriter {
             return Err(BridgeError::SizeMismatch);
         }
 
-        // Write data first
         self.mmap[DATA_OFFSET..DATA_OFFSET + data.len()].copy_from_slice(data);
 
         // Increment sequence and write atomically (signals data is ready)
