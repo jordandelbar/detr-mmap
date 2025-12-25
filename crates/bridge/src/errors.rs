@@ -14,4 +14,7 @@ pub enum BridgeError {
 
     #[error("No data available yet")]
     NoDataAvailable,
+
+    #[error("Semaphore error: {0}")]
+    SemaphoreError(String),
 }

@@ -1,4 +1,5 @@
 use crate::serialization::FrameSerializer;
+use bridge::FrameSemaphore;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
@@ -18,6 +19,7 @@ pub struct Camera {
     height: u32,
     frame_duration: Duration,
     frame_serializer: FrameSerializer,
+    frame_semaphore: FrameSemaphore,
 }
 
 impl Camera {
@@ -57,6 +59,9 @@ impl Camera {
             config.mmap_size / 1024 / 1024
         );
 
+        let frame_semaphore = FrameSemaphore::create("/bridge_frame_ready")?;
+        tracing::info!("Created frame synchronization semaphore");
+
         Ok(Self {
             camera_id: config.camera_id,
             cam,
@@ -64,6 +69,7 @@ impl Camera {
             height,
             frame_duration,
             frame_serializer,
+            frame_semaphore,
         })
     }
 
@@ -112,6 +118,14 @@ impl Camera {
                 dropped_frames += 1;
                 std::thread::sleep(self.frame_duration);
                 continue;
+            }
+
+            // Signal semaphore twice: once for inference, once for logic
+            if let Err(e) = self.frame_semaphore.post() {
+                tracing::warn!("Failed to signal inference: {}", e);
+            }
+            if let Err(e) = self.frame_semaphore.post() {
+                tracing::warn!("Failed to signal logic: {}", e);
             }
 
             frame_count += 1;

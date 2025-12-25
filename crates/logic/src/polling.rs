@@ -1,6 +1,6 @@
 use crate::config::LogicConfig;
 use crate::state::{Detection, FrameMessage, FramePacket};
-use bridge::MmapReader;
+use bridge::{FrameSemaphore, MmapReader};
 use image::{ImageBuffer, RgbImage};
 use std::io::Cursor;
 use std::sync::Arc;
@@ -38,15 +38,38 @@ pub async fn poll_buffers(
         }
     };
 
-    tracing::info!(
-        "Polling buffers at {}ms intervals",
-        config.poll_interval_ms
-    );
+    tracing::info!("Opening frame synchronization semaphore");
+    let frame_semaphore = loop {
+        match FrameSemaphore::open("/bridge_frame_ready") {
+            Ok(sem) => {
+                tracing::info!("Semaphore connected successfully");
+                break Arc::new(sem);
+            }
+            Err(_) => {
+                tracing::debug!("Waiting for semaphore...");
+                time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+    };
 
-    let mut interval = time::interval(Duration::from_millis(config.poll_interval_ms));
+    tracing::info!("Starting event-driven buffer processing (synchronized to camera)");
 
     loop {
-        interval.tick().await;
+        // Wait for frame ready signal in blocking task
+        let sem = frame_semaphore.clone();
+        let wait_result = tokio::task::spawn_blocking(move || sem.wait()).await;
+
+        if let Err(e) = wait_result {
+            tracing::error!(error = %e, "Semaphore wait task failed");
+            time::sleep(Duration::from_millis(100)).await;
+            continue;
+        }
+
+        if let Err(e) = wait_result.unwrap() {
+            tracing::error!(error = %e, "Semaphore wait failed");
+            time::sleep(Duration::from_millis(100)).await;
+            continue;
+        }
 
         let frame_seq = frame_reader.current_sequence();
         let detection_seq = detection_reader.current_sequence();

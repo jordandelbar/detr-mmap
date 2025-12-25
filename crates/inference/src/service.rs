@@ -4,7 +4,7 @@ use crate::{
     processing::{post::parse_detections, pre::preprocess_frame},
     serialization::DetectionSerializer,
 };
-use bridge::MmapReader;
+use bridge::{FrameSemaphore, MmapReader};
 use ndarray::Array;
 use std::thread;
 use std::time::Duration;
@@ -53,18 +53,44 @@ impl<B: InferenceBackend> InferenceService<B> {
             self.config.detection_mmap_size,
         )?;
 
-        tracing::info!(
-            poll_interval_ms = self.config.poll_interval_ms,
-            "Starting inference loop"
-        );
+        tracing::info!("Opening frame synchronization semaphore");
+        let frame_semaphore = loop {
+            match FrameSemaphore::open("/bridge_frame_ready") {
+                Ok(sem) => {
+                    tracing::info!("Semaphore connected successfully");
+                    break sem;
+                }
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(100));
+                }
+            }
+        };
+
+        tracing::info!("Starting inference loop (event-driven)");
 
         let mut total_detections = 0usize;
         let mut frames_processed = 0u64;
+        let mut frames_skipped = 0u64;
 
         loop {
-            if !frame_reader.has_new_data() {
-                thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
+            // Wait for frame ready signal
+            if let Err(e) = frame_semaphore.wait() {
+                tracing::error!(error = %e, "Semaphore wait failed");
+                thread::sleep(Duration::from_millis(100));
                 continue;
+            }
+
+            // Drain any additional pending signals to skip to the latest frame
+            match frame_semaphore.drain() {
+                Ok(skipped) => {
+                    if skipped > 0 {
+                        frames_skipped += skipped as u64;
+                        tracing::trace!(skipped, "Skipped frames to process latest");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to drain semaphore");
+                }
             }
 
             match self.process_frame(&frame_reader, &mut detection_serializer) {
@@ -72,12 +98,15 @@ impl<B: InferenceBackend> InferenceService<B> {
                     frames_processed += 1;
                     total_detections += detections;
 
-                    tracing::debug!(
-                        frames_processed,
-                        total_detections,
-                        detections,
-                        "Frame processed"
-                    );
+                    if frames_processed % 10 == 0 {
+                        tracing::debug!(
+                            frames_processed,
+                            frames_skipped,
+                            total_detections,
+                            detections,
+                            "Frame processed"
+                        );
+                    }
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "Failed to process frame");
