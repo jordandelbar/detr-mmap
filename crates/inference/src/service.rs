@@ -53,11 +53,11 @@ impl<B: InferenceBackend> InferenceService<B> {
             self.config.detection_mmap_size,
         )?;
 
-        tracing::info!("Opening frame synchronization semaphore");
+        tracing::info!("Opening inference frame synchronization semaphore");
         let frame_semaphore = loop {
-            match FrameSemaphore::open("/bridge_frame_ready") {
+            match FrameSemaphore::open("/bridge_frame_inference") {
                 Ok(sem) => {
-                    tracing::info!("Semaphore connected successfully");
+                    tracing::info!("Inference semaphore connected successfully");
                     break sem;
                 }
                 Err(_) => {

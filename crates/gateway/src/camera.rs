@@ -19,7 +19,8 @@ pub struct Camera {
     height: u32,
     frame_duration: Duration,
     frame_serializer: FrameSerializer,
-    frame_semaphore: FrameSemaphore,
+    inference_semaphore: FrameSemaphore,
+    logic_semaphore: FrameSemaphore,
 }
 
 impl Camera {
@@ -59,8 +60,9 @@ impl Camera {
             config.mmap_size / 1024 / 1024
         );
 
-        let frame_semaphore = FrameSemaphore::create("/bridge_frame_ready")?;
-        tracing::info!("Created frame synchronization semaphore");
+        let inference_semaphore = FrameSemaphore::create("/bridge_frame_inference")?;
+        let logic_semaphore = FrameSemaphore::create("/bridge_frame_logic")?;
+        tracing::info!("Created frame synchronization semaphores (inference + logic)");
 
         Ok(Self {
             camera_id: config.camera_id,
@@ -69,7 +71,8 @@ impl Camera {
             height,
             frame_duration,
             frame_serializer,
-            frame_semaphore,
+            inference_semaphore,
+            logic_semaphore,
         })
     }
 
@@ -120,11 +123,11 @@ impl Camera {
                 continue;
             }
 
-            // Signal semaphore twice: once for inference, once for logic
-            if let Err(e) = self.frame_semaphore.post() {
+            // Signal each consumer's dedicated queue
+            if let Err(e) = self.inference_semaphore.post() {
                 tracing::warn!("Failed to signal inference: {}", e);
             }
-            if let Err(e) = self.frame_semaphore.post() {
+            if let Err(e) = self.logic_semaphore.post() {
                 tracing::warn!("Failed to signal logic: {}", e);
             }
 

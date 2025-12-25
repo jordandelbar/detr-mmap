@@ -38,15 +38,15 @@ pub async fn poll_buffers(
         }
     };
 
-    tracing::info!("Opening frame synchronization semaphore");
+    tracing::info!("Opening logic frame synchronization semaphore");
     let frame_semaphore = loop {
-        match FrameSemaphore::open("/bridge_frame_ready") {
+        match FrameSemaphore::open("/bridge_frame_logic") {
             Ok(sem) => {
-                tracing::info!("Semaphore connected successfully");
+                tracing::info!("Logic semaphore connected successfully");
                 break Arc::new(sem);
             }
             Err(_) => {
-                tracing::debug!("Waiting for semaphore...");
+                tracing::debug!("Waiting for logic semaphore...");
                 time::sleep(Duration::from_millis(500)).await;
             }
         }
