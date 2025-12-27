@@ -15,13 +15,8 @@ if ! k3d cluster list | grep -q "^${CLUSTER_NAME}"; then
     exit 1
 fi
 
-echo "Building Docker images..."
-docker compose build
-
-echo "Tagging images for local registry..."
-docker tag bridge-rt-gateway:latest ${REGISTRY}/bridge-rt-gateway:latest
-docker tag bridge-rt-inference:latest ${REGISTRY}/bridge-rt-inference:latest
-docker tag bridge-rt-logic:latest ${REGISTRY}/bridge-rt-logic:latest
+echo "Building and tagging Docker images..."
+docker buildx bake --set "*.platform=linux/amd64"
 
 echo "Pushing images to k3d registry..."
 docker push ${REGISTRY}/bridge-rt-gateway:latest

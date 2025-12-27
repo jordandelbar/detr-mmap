@@ -4,7 +4,9 @@
 
 - [ ] Magic numbers scattered (CONFIDENCE_THRESHOLD: 0.5, poll intervals)
 - [ ] Could use more newtype patterns for domain concepts
-- [ ] Some code duplication (Dockerfiles, config patterns)
+- [ ] Some code duplication:
+  - [x] Dockerfiles
+  - [ ] config patterns
 - [ ] Input validation beyond basic assertions
 - [ ] Comprehensive test suite (unit, integration, property-based)
 - [ ] Architecture documentation with diagrams

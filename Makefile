@@ -4,7 +4,7 @@
 # Run #
 #######
 build:
-	@docker compose build
+	@docker buildx bake
 
 up:
 	@./scripts/setup-k3d.sh
