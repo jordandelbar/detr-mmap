@@ -7,11 +7,11 @@ build:
 	@docker compose build
 
 up:
-	@./scripts/setup-kind.sh
-	@./scripts/deploy-kind.sh
+	@./scripts/setup-k3d.sh
+	@./scripts/deploy-k3d.sh
 
 down:
-	@kind delete cluster -n kind
+	@k3d cluster delete bridge-rt
 
 open-webpage:
 	@if command -v xdg-open > /dev/null; then xdg-open index.html; \

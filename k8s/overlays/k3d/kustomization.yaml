@@ -11,8 +11,11 @@ patchesStrategicMerge:
 
 images:
   - name: bridge-rt-gateway
-    newName: bridge-rt-gateway
+    newName: localhost:5000/bridge-rt-gateway
     newTag: latest
   - name: bridge-rt-inference
-    newName: bridge-rt-inference
+    newName: localhost:5000/bridge-rt-inference
+    newTag: latest
+  - name: bridge-rt-logic
+    newName: localhost:5000/bridge-rt-logic
     newTag: latest

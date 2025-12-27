@@ -5,7 +5,6 @@ metadata:
 spec:
   template:
     spec:
-      # Override volumes for kind - paths mounted via kind config extraMounts
       volumes:
         - name: shm-bridge
           emptyDir:
@@ -21,7 +20,7 @@ spec:
             type: CharDevice
         - name: models
           hostPath:
-            path: /models  # This path is inside kind node, mounted via extraMounts
+            path: /models
             type: Directory
 
       containers:

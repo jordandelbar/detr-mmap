@@ -1,0 +1,36 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: bridge-rt
+servers: 1
+agents: 0
+ports:
+  - port: 8080:30080
+    nodeFilters:
+      - loadbalancer
+volumes:
+  - volume: /home/jdelbar/Documents/projects/bridge-rt/models:/models
+    nodeFilters:
+      - server:0
+  - volume: /dev/video0:/dev/video0
+    nodeFilters:
+      - server:0
+  - volume: /dev/video1:/dev/video1
+    nodeFilters:
+      - server:0
+registries:
+  create:
+    name: k3d-registry
+    host: "0.0.0.0"
+    hostPort: "5000"
+  config: |
+    mirrors:
+      "localhost:5000":
+        endpoint:
+          - http://k3d-registry:5000
+options:
+  k3s:
+    extraArgs:
+      - arg: --disable=traefik
+        nodeFilters:
+          - server:*
