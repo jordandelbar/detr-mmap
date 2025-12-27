@@ -5,10 +5,6 @@ nodes:
     extraMounts:
       - hostPath: /home/jdelbar/Documents/projects/bridge-rt/models
         containerPath: /models
-      - hostPath: /dev/video0
-        containerPath: /dev/video0
-      - hostPath: /dev/video1
-        containerPath: /dev/video1
     extraPortMappings:
       - containerPort: 30080
         hostPort: 8080
