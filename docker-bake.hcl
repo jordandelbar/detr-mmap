@@ -32,10 +32,24 @@ target "inference" {
   }
 }
 
+target "inference-gpu" {
+  context = "."
+  dockerfile = "docker/inference-gpu.Dockerfile"
+  platforms = ["linux/amd64"]
+  tags = ["bridge-rt-inference-gpu:${TAG}", "${REGISTRY}/bridge-rt-inference-gpu:${TAG}"]
+}
+
 target "logic" {
   inherits = ["common"]
   tags = ["bridge-rt-logic:${TAG}", "${REGISTRY}/bridge-rt-logic:${TAG}"]
   args = {
     BINARY_NAME = "logic"
   }
+}
+
+target "benchmark-gpu" {
+  context = "."
+  dockerfile = "docker/benchmark-gpu.Dockerfile"
+  platforms = ["linux/amd64"]
+  tags = ["bridge-rt-benchmark-gpu:${TAG}", "${REGISTRY}/bridge-rt-benchmark-gpu:${TAG}"]
 }

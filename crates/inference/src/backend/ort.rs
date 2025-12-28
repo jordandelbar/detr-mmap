@@ -11,10 +11,36 @@ pub struct OrtBackend {
 
 impl InferenceBackend for OrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
-        let session = Session::builder()?
+        // Try TensorRT first (with CUDA fallback), then fall back to CPU if unavailable
+        let session = match Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
-            .commit_from_file(path)?;
+            .with_execution_providers([
+                ort::execution_providers::TensorRTExecutionProvider::default()
+                    .with_device_id(0)
+                    .build(),
+                ort::execution_providers::CUDAExecutionProvider::default()
+                    .with_device_id(0)
+                    .build(),
+            ])?
+            .commit_from_file(path)
+        {
+            Ok(session) => {
+                tracing::info!("Model loaded with TensorRT/CUDA execution provider");
+                session
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Failed to load model with TensorRT/CUDA, falling back to CPU"
+                );
+                Session::builder()?
+                    .with_optimization_level(GraphOptimizationLevel::Level3)?
+                    .with_intra_threads(4)?
+                    .commit_from_file(path)?
+            }
+        };
+
         Ok(Self { session })
     }
 

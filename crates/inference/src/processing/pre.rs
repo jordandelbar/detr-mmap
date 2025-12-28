@@ -1,7 +1,8 @@
-use image::{ImageBuffer, Rgb};
+use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image};
 use ndarray::{Array, IxDyn};
 
 const INPUT_SIZE: (u32, u32) = (640, 640);
+const LETTERBOX_COLOR: u8 = 114;
 
 pub fn preprocess_frame(
     pixels: flatbuffers::Vector<u8>,
@@ -53,33 +54,46 @@ pub fn preprocess_frame(
         ));
     }
 
-    let img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width, height, rgb_data)
-        .ok_or_else(|| anyhow::anyhow!("Failed to create image buffer"))?;
-
+    // Calculate letterbox parameters
     let scale = (INPUT_SIZE.0 as f32 / width as f32).min(INPUT_SIZE.1 as f32 / height as f32);
     let new_width = (width as f32 * scale) as u32;
     let new_height = (height as f32 * scale) as u32;
-
-    let resized = image::imageops::resize(
-        &img,
-        new_width,
-        new_height,
-        image::imageops::FilterType::Triangle,
-    );
-
-    let mut letterboxed =
-        ImageBuffer::from_pixel(INPUT_SIZE.0, INPUT_SIZE.1, Rgb([114u8, 114u8, 114u8]));
     let offset_x = (INPUT_SIZE.0 - new_width) / 2;
     let offset_y = (INPUT_SIZE.1 - new_height) / 2;
-    image::imageops::overlay(&mut letterboxed, &resized, offset_x as i64, offset_y as i64);
+
+    // Create source image for fast_image_resize
+    let src_image = Image::from_vec_u8(width, height, rgb_data, PixelType::U8x3)?;
+
+    let mut dst_image = Image::new(new_width, new_height, PixelType::U8x3);
+
+    let mut resizer = Resizer::new();
+    resizer.resize(
+        &src_image,
+        &mut dst_image,
+        &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear)),
+    )?;
+
+    let mut letterboxed = vec![LETTERBOX_COLOR; (INPUT_SIZE.0 * INPUT_SIZE.1 * 3) as usize];
+
+    let resized_data = dst_image.buffer();
+    for y in 0..new_height {
+        let src_row_start = (y * new_width * 3) as usize;
+        let src_row_end = src_row_start + (new_width * 3) as usize;
+        let dst_row_start = ((y + offset_y) * INPUT_SIZE.0 * 3 + offset_x * 3) as usize;
+        let dst_row_end = dst_row_start + (new_width * 3) as usize;
+
+        letterboxed[dst_row_start..dst_row_end]
+            .copy_from_slice(&resized_data[src_row_start..src_row_end]);
+    }
 
     let mut input = Array::zeros(IxDyn(&[1, 3, INPUT_SIZE.1 as usize, INPUT_SIZE.0 as usize]));
-    for y in 0..INPUT_SIZE.1 {
-        for x in 0..INPUT_SIZE.0 {
-            let pixel = letterboxed.get_pixel(x, y);
-            input[[0, 0, y as usize, x as usize]] = pixel[0] as f32 / 255.0;
-            input[[0, 1, y as usize, x as usize]] = pixel[1] as f32 / 255.0;
-            input[[0, 2, y as usize, x as usize]] = pixel[2] as f32 / 255.0;
+
+    for y in 0..INPUT_SIZE.1 as usize {
+        for x in 0..INPUT_SIZE.0 as usize {
+            let pixel_idx = (y * INPUT_SIZE.0 as usize + x) * 3;
+            input[[0, 0, y, x]] = letterboxed[pixel_idx] as f32 / 255.0;
+            input[[0, 1, y, x]] = letterboxed[pixel_idx + 1] as f32 / 255.0;
+            input[[0, 2, y, x]] = letterboxed[pixel_idx + 2] as f32 / 255.0;
         }
     }
 

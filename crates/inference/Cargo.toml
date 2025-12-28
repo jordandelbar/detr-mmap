@@ -7,12 +7,13 @@ edition = "2024"
 schema = { path = "../schema" }
 bridge = { path = "../bridge" }
 common = { path = "../common" }
-ort = { version = "2.0.0-rc.10" }
+ort = { version = "2.0.0-rc.10", features = ["cuda", "tensorrt"] }
 flatbuffers = "24.3"
 memmap2 = "0.9"
 anyhow = "1.0"
 ndarray = "0.16"
 image = "0.25"
+fast_image_resize = "5.0"
 tracing = { version = "0.1.44", default-features = false }
 
 [dev-dependencies]
