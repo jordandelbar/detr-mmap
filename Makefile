@@ -6,6 +6,10 @@
 build:
 	@docker buildx bake
 
+build-gpu:
+	@docker buildx bake gpu-base
+	@docker buildx bake gpu-inference
+
 up:
 	@./scripts/setup-k3d.sh
 	@./scripts/deploy-k3d.sh
