@@ -14,3 +14,10 @@ anyhow = "1.0"
 ndarray = "0.16"
 image = "0.25"
 tracing = { version = "0.1.44", default-features = false }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "inference_pipeline"
+harness = false

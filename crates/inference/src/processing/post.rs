@@ -12,6 +12,12 @@ pub struct PostProcessor {
 }
 
 impl PostProcessor {
+    pub fn new(confidence_threshold: f32) -> Self {
+        Self {
+            confidence_threshold,
+        }
+    }
+
     pub fn parse_detections(
         &self,
         labels: &ndarray::ArrayViewD<i64>,
