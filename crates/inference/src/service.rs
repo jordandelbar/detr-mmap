@@ -1,7 +1,7 @@
 use crate::{
     backend::InferenceBackend,
     config::InferenceConfig,
-    processing::{post::parse_detections, pre::preprocess_frame},
+    processing::{post::PostProcessor, pre::preprocess_frame},
     serialization::DetectionSerializer,
 };
 use bridge::{FrameSemaphore, MmapReader};
@@ -12,11 +12,19 @@ use std::time::Duration;
 pub struct InferenceService<B: InferenceBackend> {
     backend: B,
     config: InferenceConfig,
+    post_processor: PostProcessor,
 }
 
 impl<B: InferenceBackend> InferenceService<B> {
     pub fn new(backend: B, config: InferenceConfig) -> Self {
-        Self { backend, config }
+        let post_processor = PostProcessor {
+            confidence_threshold: config.confidence_threshold,
+        };
+        Self {
+            backend,
+            config,
+            post_processor,
+        }
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
@@ -157,7 +165,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         tracing::trace!(frame_num, "Running inference");
         let output = self.backend.infer(&preprocessed, &orig_sizes)?;
 
-        let detections = parse_detections(
+        let detections = self.post_processor.parse_detections(
             &output.labels.view(),
             &output.boxes.view(),
             &output.scores.view(),

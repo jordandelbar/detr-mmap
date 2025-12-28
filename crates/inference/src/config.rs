@@ -11,6 +11,7 @@ pub struct InferenceConfig {
     pub detection_mmap_size: usize,
     pub input_size: (u32, u32),
     pub poll_interval_ms: u64,
+    pub confidence_threshold: f32,
 }
 
 impl InferenceConfig {
@@ -47,6 +48,11 @@ impl InferenceConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(100);
 
+        let confidence_threshold = env::var("CONFIDENCE_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.6);
+
         Ok(Self {
             environment,
             model_path,
@@ -55,6 +61,7 @@ impl InferenceConfig {
             detection_mmap_size,
             input_size: (input_width, input_height),
             poll_interval_ms,
+            confidence_threshold,
         })
     }
 
@@ -69,6 +76,7 @@ impl InferenceConfig {
             detection_mmap_size: 1024 * 1024,
             input_size: (640, 640),
             poll_interval_ms: 100,
+            confidence_threshold: 0.6,
         }
     }
 }

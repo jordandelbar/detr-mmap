@@ -1,5 +1,3 @@
-const CONFIDENCE_THRESHOLD: f32 = 0.5;
-
 pub struct Detection {
     pub x1: f32,
     pub y1: f32,
@@ -9,52 +7,59 @@ pub struct Detection {
     pub class_id: u32,
 }
 
-pub fn parse_detections(
-    labels: &ndarray::ArrayViewD<i64>,
-    boxes: &ndarray::ArrayViewD<f32>,
-    scores: &ndarray::ArrayViewD<f32>,
-    orig_width: u32,
-    orig_height: u32,
-    scale: f32,
-    offset_x: f32,
-    offset_y: f32,
-) -> anyhow::Result<Vec<Detection>> {
-    let mut detections = Vec::new();
+pub struct PostProcessor {
+    pub confidence_threshold: f32,
+}
 
-    let num_queries = labels.shape()[1];
+impl PostProcessor {
+    pub fn parse_detections(
+        &self,
+        labels: &ndarray::ArrayViewD<i64>,
+        boxes: &ndarray::ArrayViewD<f32>,
+        scores: &ndarray::ArrayViewD<f32>,
+        orig_width: u32,
+        orig_height: u32,
+        scale: f32,
+        offset_x: f32,
+        offset_y: f32,
+    ) -> anyhow::Result<Vec<Detection>> {
+        let mut detections = Vec::new();
 
-    for i in 0..num_queries {
-        let class_id = labels[[0, i]];
-        let confidence = scores[[0, i]];
+        let num_queries = labels.shape()[1];
 
-        if confidence < CONFIDENCE_THRESHOLD {
-            continue;
+        for i in 0..num_queries {
+            let class_id = labels[[0, i]];
+            let confidence = scores[[0, i]];
+
+            if confidence < self.confidence_threshold {
+                continue;
+            }
+
+            let x1 = ((boxes[[0, i, 0]] - offset_x) / scale)
+                .max(0.0)
+                .min(orig_width as f32);
+            let y1 = ((boxes[[0, i, 1]] - offset_y) / scale)
+                .max(0.0)
+                .min(orig_height as f32);
+            let x2 = ((boxes[[0, i, 2]] - offset_x) / scale)
+                .max(0.0)
+                .min(orig_width as f32);
+            let y2 = ((boxes[[0, i, 3]] - offset_y) / scale)
+                .max(0.0)
+                .min(orig_height as f32);
+
+            detections.push(Detection {
+                x1,
+                y1,
+                x2,
+                y2,
+                confidence,
+                class_id: class_id as u32,
+            });
         }
 
-        let x1 = ((boxes[[0, i, 0]] - offset_x) / scale)
-            .max(0.0)
-            .min(orig_width as f32);
-        let y1 = ((boxes[[0, i, 1]] - offset_y) / scale)
-            .max(0.0)
-            .min(orig_height as f32);
-        let x2 = ((boxes[[0, i, 2]] - offset_x) / scale)
-            .max(0.0)
-            .min(orig_width as f32);
-        let y2 = ((boxes[[0, i, 3]] - offset_y) / scale)
-            .max(0.0)
-            .min(orig_height as f32);
-
-        detections.push(Detection {
-            x1,
-            y1,
-            x2,
-            y2,
-            confidence,
-            class_id: class_id as u32,
-        });
+        Ok(detections)
     }
-
-    Ok(detections)
 }
 
 #[cfg(test)]
@@ -82,17 +87,21 @@ mod tests {
         .unwrap();
         let scores = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0.49, 0.5, 0.8]).unwrap();
 
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            100,
-            100,
-            1.0,
-            0.0,
-            0.0,
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                100,
+                100,
+                1.0,
+                0.0,
+                0.0,
+            )
+            .unwrap();
 
         // Should have 2 detections (0.5 and 0.8), not 0.49
         assert_eq!(detections.len(), 2, "Should filter out confidence < 0.5");
@@ -121,21 +130,25 @@ mod tests {
         //   y2 = (250 - 80) / 0.8 = 212.5
 
         let labels = Array::from_shape_vec(IxDyn(&[1, 1]), vec![0]).unwrap();
-        let boxes = Array::from_shape_vec(IxDyn(&[1, 1, 4]), vec![100.0, 150.0, 200.0, 250.0])
-            .unwrap();
+        let boxes =
+            Array::from_shape_vec(IxDyn(&[1, 1, 4]), vec![100.0, 150.0, 200.0, 250.0]).unwrap();
         let scores = Array::from_shape_vec(IxDyn(&[1, 1]), vec![0.9]).unwrap();
 
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            800,  // original width
-            600,  // original height
-            0.8,  // scale
-            0.0,  // offset_x
-            80.0, // offset_y
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                800,  // original width
+                600,  // original height
+                0.8,  // scale
+                0.0,  // offset_x
+                80.0, // offset_y
+            )
+            .unwrap();
 
         assert_eq!(detections.len(), 1);
         let det = &detections[0];
@@ -158,37 +171,33 @@ mod tests {
                 // Detection 1: Negative after transformation (offset > coord)
                 5.0, 5.0, 50.0, 50.0,
                 // Detection 2: Exceeds bounds after transformation
-                500.0, 500.0, 800.0, 800.0,
-                // Detection 3: Normal, within bounds
+                500.0, 500.0, 800.0, 800.0, // Detection 3: Normal, within bounds
                 100.0, 100.0, 200.0, 200.0,
             ],
         )
         .unwrap();
         let scores = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0.9, 0.9, 0.9]).unwrap();
-
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            640, // original width
-            480, // original height
-            1.0, // scale
-            50.0, // offset_x (will make first box negative)
-            50.0, // offset_y
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                640,  // original width
+                480,  // original height
+                1.0,  // scale
+                50.0, // offset_x (will make first box negative)
+                50.0, // offset_y
+            )
+            .unwrap();
 
         assert_eq!(detections.len(), 3);
 
         // Detection 1: Should be clamped to 0 on lower bound
-        assert_eq!(
-            detections[0].x1, 0.0,
-            "Negative x1 should be clamped to 0"
-        );
-        assert_eq!(
-            detections[0].y1, 0.0,
-            "Negative y1 should be clamped to 0"
-        );
+        assert_eq!(detections[0].x1, 0.0, "Negative x1 should be clamped to 0");
+        assert_eq!(detections[0].y1, 0.0, "Negative y1 should be clamped to 0");
 
         // Detection 2: Should be clamped to max bounds
         assert_eq!(
@@ -219,17 +228,21 @@ mod tests {
         // All confidences below threshold
         let scores = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0.1, 0.3, 0.49]).unwrap();
 
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            640,
-            480,
-            1.0,
-            0.0,
-            0.0,
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                640,
+                480,
+                1.0,
+                0.0,
+                0.0,
+            )
+            .unwrap();
 
         assert_eq!(
             detections.len(),
@@ -246,24 +259,28 @@ mod tests {
         let boxes = Array::from_shape_vec(
             IxDyn(&[1, 4, 4]),
             vec![
-                10.0, 10.0, 50.0, 50.0, 20.0, 20.0, 60.0, 60.0, 30.0, 30.0, 70.0, 70.0, 40.0,
-                40.0, 80.0, 80.0,
+                10.0, 10.0, 50.0, 50.0, 20.0, 20.0, 60.0, 60.0, 30.0, 30.0, 70.0, 70.0, 40.0, 40.0,
+                80.0, 80.0,
             ],
         )
         .unwrap();
         let scores = Array::from_shape_vec(IxDyn(&[1, 4]), vec![0.9, 0.8, 0.7, 0.95]).unwrap();
 
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            640,
-            480,
-            1.0,
-            0.0,
-            0.0,
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                640,
+                480,
+                1.0,
+                0.0,
+                0.0,
+            )
+            .unwrap();
 
         assert_eq!(detections.len(), 4);
 
@@ -281,19 +298,27 @@ mod tests {
         let boxes = Array::from_shape_vec(IxDyn(&[1, 0, 4]), vec![]).unwrap();
         let scores = Array::from_shape_vec(IxDyn(&[1, 0]), vec![]).unwrap();
 
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            640,
-            480,
-            1.0,
-            0.0,
-            0.0,
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                640,
+                480,
+                1.0,
+                0.0,
+                0.0,
+            )
+            .unwrap();
 
-        assert_eq!(detections.len(), 0, "Empty input should return no detections");
+        assert_eq!(
+            detections.len(),
+            0,
+            "Empty input should return no detections"
+        );
     }
 
     /// Test realistic RT-DETR scenario with mixed confidences
@@ -324,20 +349,28 @@ mod tests {
         let boxes = Array::from_shape_vec(IxDyn(&[1, 300, 4]), box_data).unwrap();
         let scores = Array::from_shape_vec(IxDyn(&[1, 300]), score_data).unwrap();
 
-        let detections = parse_detections(
-            &labels.view(),
-            &boxes.view(),
-            &scores.view(),
-            640,
-            640,
-            1.0,
-            0.0,
-            0.0,
-        )
-        .unwrap();
+        let post_processor = PostProcessor {
+            confidence_threshold: 0.5,
+        };
+        let detections = post_processor
+            .parse_detections(
+                &labels.view(),
+                &boxes.view(),
+                &scores.view(),
+                640,
+                640,
+                1.0,
+                0.0,
+                0.0,
+            )
+            .unwrap();
 
         // Only 3 detections should pass threshold
-        assert_eq!(detections.len(), 3, "Should filter 300 queries to 3 detections");
+        assert_eq!(
+            detections.len(),
+            3,
+            "Should filter 300 queries to 3 detections"
+        );
 
         // Verify detections are in order
         assert_eq!(detections[0].class_id, 0, "First detection: person");
