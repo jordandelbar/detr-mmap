@@ -5,6 +5,7 @@ metadata:
 spec:
   template:
     spec:
+      runtimeClassName: nvidia
       volumes:
         - name: shm-bridge
           emptyDir:
@@ -33,6 +34,9 @@ spec:
 
         - name: inference
           imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              nvidia.com/gpu: 1
 
           # Enable for development/debugging
           # stdin: true
