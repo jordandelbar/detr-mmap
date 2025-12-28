@@ -1,8 +1,12 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use flatbuffers::FlatBufferBuilder;
-use inference::processing::{post::PostProcessor, pre::preprocess_frame};
+use inference::{
+    backend::{InferenceBackend, ort::OrtBackend},
+    processing::{post::PostProcessor, pre::preprocess_frame},
+};
 use ndarray::{Array, IxDyn};
 use schema::ColorFormat;
+use std::path::Path;
 
 /// Helper function to create a FlatBuffers Frame for benchmarking
 fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
@@ -144,10 +148,51 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
     group.finish();
 }
 
+fn benchmark_onnx_inference(c: &mut Criterion) {
+    let model_path = "../../models/model.onnx";
+
+    if !Path::new(model_path).exists() {
+        eprintln!(
+            "Skipping ONNX inference benchmark: model not found at {}",
+            model_path
+        );
+        return;
+    }
+
+    let mut group = c.benchmark_group("onnx_inference");
+
+    let mut backend = match OrtBackend::load_model(model_path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to load model: {}", e);
+            return;
+        }
+    };
+
+    // Create preprocessed input (640x640) - matches RT-DETR input
+    let preprocessed = Array::zeros(IxDyn(&[1, 3, 640, 640]));
+
+    // RT-DETR expects original target sizes
+    let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
+        .unwrap()
+        .into_dyn();
+
+    group.bench_function("rtdetr_640x640", |b| {
+        b.iter(|| {
+            backend
+                .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                .unwrap()
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     benchmark_preprocessing,
     benchmark_postprocessing,
-    benchmark_bgr_conversion
+    benchmark_bgr_conversion,
+    benchmark_onnx_inference
 );
 criterion_main!(benches);
