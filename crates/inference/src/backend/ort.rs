@@ -1,7 +1,7 @@
 use super::{InferenceBackend, InferenceOutput};
 use ndarray::{Array, IxDyn};
 use ort::{
-    session::{builder::GraphOptimizationLevel, Session},
+    session::{Session, builder::GraphOptimizationLevel},
     value::TensorRef,
 };
 
@@ -11,36 +11,20 @@ pub struct OrtBackend {
 
 impl InferenceBackend for OrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
-        // Try TensorRT first (with CUDA fallback), then fall back to CPU if unavailable
-        let session = match Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .with_intra_threads(4)?
+        ort::init()
             .with_execution_providers([
-                ort::execution_providers::TensorRTExecutionProvider::default()
-                    .with_device_id(0)
-                    .build(),
                 ort::execution_providers::CUDAExecutionProvider::default()
                     .with_device_id(0)
                     .build(),
-            ])?
-            .commit_from_file(path)
-        {
-            Ok(session) => {
-                tracing::info!("Model loaded with TensorRT/CUDA execution provider");
-                session
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "Failed to load model with TensorRT/CUDA, falling back to CPU"
-                );
-                Session::builder()?
-                    .with_optimization_level(GraphOptimizationLevel::Level3)?
-                    .with_intra_threads(4)?
-                    .commit_from_file(path)?
-            }
-        };
+            ])
+            .commit()?;
 
+        let session = Session::builder()?
+            .with_optimization_level(GraphOptimizationLevel::Level3)?
+            .with_intra_threads(4)?
+            .commit_from_file(path)?;
+
+        tracing::info!("Model loaded from {}", path);
         Ok(Self { session })
     }
 
