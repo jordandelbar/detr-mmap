@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS builder
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
 
 RUN apt-get update && apt-get install -y \
     curl \
@@ -18,21 +18,4 @@ RUN wget -q https://github.com/google/flatbuffers/releases/download/v24.3.25/Lin
     mv flatc /usr/local/bin/ && \
     rm Linux.flatc.binary.clang++-15.zip
 
-WORKDIR /build
-
-COPY Cargo.toml Cargo.lock ./
-COPY crates/ crates/
-
-RUN cargo build --release --bin inference
-
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
-
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /build/target/release/inference /usr/local/bin/app
-
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
-
-ENTRYPOINT ["/usr/local/bin/app"]

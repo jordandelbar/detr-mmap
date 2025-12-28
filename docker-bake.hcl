@@ -32,9 +32,19 @@ target "inference" {
   }
 }
 
-target "inference-gpu" {
+target "gpu-base" {
   context = "."
-  dockerfile = "docker/inference-gpu.Dockerfile"
+  dockerfile = "docker/gpu-base.Dockerfile"
+  platforms = ["linux/amd64"]
+  tags = ["bridge-rt-gpu-base:${TAG}"]
+}
+
+target "inference-gpu" {
+  contexts = {
+    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+  }
+  context = "."
+  dockerfile = "docker/gpu-inference.Dockerfile"
   platforms = ["linux/amd64"]
   tags = ["bridge-rt-inference-gpu:${TAG}", "${REGISTRY}/bridge-rt-inference-gpu:${TAG}"]
 }
@@ -48,8 +58,11 @@ target "logic" {
 }
 
 target "benchmark-gpu" {
+  contexts = {
+    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+  }
   context = "."
-  dockerfile = "docker/benchmark-gpu.Dockerfile"
+  dockerfile = "docker/gpu-benchmark.Dockerfile"
   platforms = ["linux/amd64"]
   tags = ["bridge-rt-benchmark-gpu:${TAG}", "${REGISTRY}/bridge-rt-benchmark-gpu:${TAG}"]
 }
