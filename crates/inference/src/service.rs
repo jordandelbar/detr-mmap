@@ -45,7 +45,7 @@ impl<B: InferenceBackend> InferenceService<B> {
                     break reader;
                 }
                 Err(_) => {
-                    thread::sleep(Duration::from_millis(100));
+                    thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
                 }
             }
         };
@@ -69,7 +69,7 @@ impl<B: InferenceBackend> InferenceService<B> {
                     break sem;
                 }
                 Err(_) => {
-                    thread::sleep(Duration::from_millis(100));
+                    thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
                 }
             }
         };
@@ -84,7 +84,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             // Wait for frame ready signal
             if let Err(e) = frame_semaphore.wait() {
                 tracing::error!(error = %e, "Semaphore wait failed");
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
                 continue;
             }
 

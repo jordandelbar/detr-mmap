@@ -51,7 +51,7 @@ impl InferenceConfig {
         let confidence_threshold = env::var("CONFIDENCE_THRESHOLD")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(0.6);
+            .unwrap_or(0.5);
 
         Ok(Self {
             environment,

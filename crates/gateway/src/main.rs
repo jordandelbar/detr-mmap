@@ -1,20 +1,9 @@
-use gateway::{
-    camera::{Camera, CameraConfig},
-    config::Config,
-    logging::setup_logging,
-};
+use gateway::{camera::Camera, config::CameraConfig, logging::setup_logging};
 
-fn main() {
-    let config = Config::from_env();
+fn main() -> anyhow::Result<()> {
+    let config = CameraConfig::from_env()?;
     setup_logging(&config);
-
-    let camera_config = CameraConfig {
-        camera_id: 0,
-        device_id: 0,
-        mmap_path: "/dev/shm/bridge_frame_buffer".to_string(),
-        mmap_size: 32 * 1024 * 1024,
-    };
-
-    let mut camera = Camera::build(camera_config).expect("failed to build camera");
+    let mut camera = Camera::build(config).expect("failed to build camera");
     let _ = camera.run();
+    Ok(())
 }

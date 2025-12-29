@@ -1,16 +1,10 @@
+use crate::config::CameraConfig;
 use crate::serialization::FrameSerializer;
 use bridge::FrameSemaphore;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use std::time::Duration;
-
-pub struct CameraConfig {
-    pub camera_id: u32,
-    pub device_id: u32,
-    pub mmap_path: String,
-    pub mmap_size: usize,
-}
 
 pub struct Camera {
     camera_id: u32,
