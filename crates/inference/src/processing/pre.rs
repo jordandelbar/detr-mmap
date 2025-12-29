@@ -1,103 +1,119 @@
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image};
 use ndarray::{Array, IxDyn};
 
-const INPUT_SIZE: (u32, u32) = (640, 640);
 const LETTERBOX_COLOR: u8 = 114;
 
-pub fn preprocess_frame(
-    pixels: flatbuffers::Vector<u8>,
-    width: u32,
-    height: u32,
-    format: schema::ColorFormat,
-) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
-    tracing::trace!(
-        width,
-        height,
-        format = ?format,
-        pixel_bytes = pixels.len(),
-        "Preprocessing frame dimensions"
-    );
+pub struct PreProcessor {
+    pub input_size: (u32, u32),
+}
 
-    let expected_size = (width * height * 3) as usize;
-
-    let mut rgb_data = Vec::with_capacity(expected_size);
-
-    match format {
-        schema::ColorFormat::RGB => {
-            rgb_data.extend_from_slice(pixels.bytes());
-        }
-        schema::ColorFormat::BGR => {
-            for i in (0..pixels.len()).step_by(3) {
-                let b = pixels.get(i);
-                let g = pixels.get(i + 1);
-                let r = pixels.get(i + 2);
-                rgb_data.push(r);
-                rgb_data.push(g);
-                rgb_data.push(b);
-            }
-        }
-        schema::ColorFormat::GRAY => {
-            return Err(anyhow::anyhow!("Grayscale format not supported"));
-        }
-        _ => {
-            return Err(anyhow::anyhow!("Unknown color format"));
+impl PreProcessor {
+    pub fn default() -> Self {
+        Self {
+            input_size: (640, 640),
         }
     }
-
-    if rgb_data.len() != expected_size {
-        return Err(anyhow::anyhow!(
-            "Buffer size mismatch: expected {} bytes for {}x{} RGB, got {} bytes",
-            expected_size,
+    pub fn preprocess_frame(
+        &self,
+        pixels: flatbuffers::Vector<u8>,
+        width: u32,
+        height: u32,
+        format: schema::ColorFormat,
+    ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
+        tracing::trace!(
             width,
             height,
-            rgb_data.len()
-        ));
-    }
+            format = ?format,
+            pixel_bytes = pixels.len(),
+            "Preprocessing frame dimensions"
+        );
 
-    // Calculate letterbox parameters
-    let scale = (INPUT_SIZE.0 as f32 / width as f32).min(INPUT_SIZE.1 as f32 / height as f32);
-    let new_width = (width as f32 * scale) as u32;
-    let new_height = (height as f32 * scale) as u32;
-    let offset_x = (INPUT_SIZE.0 - new_width) / 2;
-    let offset_y = (INPUT_SIZE.1 - new_height) / 2;
+        let expected_size = (width * height * 3) as usize;
 
-    // Create source image for fast_image_resize
-    let src_image = Image::from_vec_u8(width, height, rgb_data, PixelType::U8x3)?;
+        let mut rgb_data = Vec::with_capacity(expected_size);
 
-    let mut dst_image = Image::new(new_width, new_height, PixelType::U8x3);
-
-    let mut resizer = Resizer::new();
-    resizer.resize(
-        &src_image,
-        &mut dst_image,
-        &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear)),
-    )?;
-
-    let mut letterboxed = vec![LETTERBOX_COLOR; (INPUT_SIZE.0 * INPUT_SIZE.1 * 3) as usize];
-
-    let resized_data = dst_image.buffer();
-    for y in 0..new_height {
-        let src_row_start = (y * new_width * 3) as usize;
-        let src_row_end = src_row_start + (new_width * 3) as usize;
-        let dst_row_start = ((y + offset_y) * INPUT_SIZE.0 * 3 + offset_x * 3) as usize;
-        let dst_row_end = dst_row_start + (new_width * 3) as usize;
-
-        letterboxed[dst_row_start..dst_row_end]
-            .copy_from_slice(&resized_data[src_row_start..src_row_end]);
-    }
-
-    let mut input = Array::zeros(IxDyn(&[1, 3, INPUT_SIZE.1 as usize, INPUT_SIZE.0 as usize]));
-
-    for y in 0..INPUT_SIZE.1 as usize {
-        for x in 0..INPUT_SIZE.0 as usize {
-            let pixel_idx = (y * INPUT_SIZE.0 as usize + x) * 3;
-            input[[0, 0, y, x]] = letterboxed[pixel_idx] as f32 / 255.0;
-            input[[0, 1, y, x]] = letterboxed[pixel_idx + 1] as f32 / 255.0;
-            input[[0, 2, y, x]] = letterboxed[pixel_idx + 2] as f32 / 255.0;
+        match format {
+            schema::ColorFormat::RGB => {
+                rgb_data.extend_from_slice(pixels.bytes());
+            }
+            schema::ColorFormat::BGR => {
+                for i in (0..pixels.len()).step_by(3) {
+                    let b = pixels.get(i);
+                    let g = pixels.get(i + 1);
+                    let r = pixels.get(i + 2);
+                    rgb_data.push(r);
+                    rgb_data.push(g);
+                    rgb_data.push(b);
+                }
+            }
+            schema::ColorFormat::GRAY => {
+                return Err(anyhow::anyhow!("Grayscale format not supported"));
+            }
+            _ => {
+                return Err(anyhow::anyhow!("Unknown color format"));
+            }
         }
-    }
 
-    Ok((input, scale, offset_x as f32, offset_y as f32))
+        if rgb_data.len() != expected_size {
+            return Err(anyhow::anyhow!(
+                "Buffer size mismatch: expected {} bytes for {}x{} RGB, got {} bytes",
+                expected_size,
+                width,
+                height,
+                rgb_data.len()
+            ));
+        }
+
+        let scale =
+            (self.input_size.0 as f32 / width as f32).min(self.input_size.1 as f32 / height as f32);
+        let new_width = (width as f32 * scale) as u32;
+        let new_height = (height as f32 * scale) as u32;
+        let offset_x = (self.input_size.0 - new_width) / 2;
+        let offset_y = (self.input_size.1 - new_height) / 2;
+
+        let src_image = Image::from_vec_u8(width, height, rgb_data, PixelType::U8x3)?;
+
+        let mut dst_image = Image::new(new_width, new_height, PixelType::U8x3);
+
+        let mut resizer = Resizer::new();
+        resizer.resize(
+            &src_image,
+            &mut dst_image,
+            &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear)),
+        )?;
+
+        let mut letterboxed =
+            vec![LETTERBOX_COLOR; (self.input_size.0 * self.input_size.1 * 3) as usize];
+
+        let resized_data = dst_image.buffer();
+        for y in 0..new_height {
+            let src_row_start = (y * new_width * 3) as usize;
+            let src_row_end = src_row_start + (new_width * 3) as usize;
+            let dst_row_start = ((y + offset_y) * self.input_size.0 * 3 + offset_x * 3) as usize;
+            let dst_row_end = dst_row_start + (new_width * 3) as usize;
+
+            letterboxed[dst_row_start..dst_row_end]
+                .copy_from_slice(&resized_data[src_row_start..src_row_end]);
+        }
+
+        let mut input = Array::zeros(IxDyn(&[
+            1,
+            3,
+            self.input_size.1 as usize,
+            self.input_size.0 as usize,
+        ]));
+
+        for y in 0..self.input_size.1 as usize {
+            for x in 0..self.input_size.0 as usize {
+                let pixel_idx = (y * self.input_size.0 as usize + x) * 3;
+                input[[0, 0, y, x]] = letterboxed[pixel_idx] as f32 / 255.0;
+                input[[0, 1, y, x]] = letterboxed[pixel_idx + 1] as f32 / 255.0;
+                input[[0, 2, y, x]] = letterboxed[pixel_idx + 2] as f32 / 255.0;
+            }
+        }
+
+        Ok((input, scale, offset_x as f32, offset_y as f32))
+    }
 }
 
 #[cfg(test)]
@@ -149,13 +165,15 @@ mod tests {
         let frame_data = create_test_frame(2, 2, schema::ColorFormat::BGR, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let (output, scale, offset_x, offset_y) = preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        )
-        .unwrap();
+        let preprocessor = PreProcessor::default();
+        let (output, scale, offset_x, offset_y) = preprocessor
+            .preprocess_frame(
+                frame.pixels().unwrap(),
+                frame.width(),
+                frame.height(),
+                frame.format(),
+            )
+            .unwrap();
 
         // Verify output shape
         assert_eq!(output.shape(), &[1, 3, 640, 640]);
@@ -193,7 +211,8 @@ mod tests {
         let frame_data = create_test_frame(2, 2, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let result = preprocess_frame(
+        let preprocessor = PreProcessor::default();
+        let result = preprocessor.preprocess_frame(
             frame.pixels().unwrap(),
             frame.width(),
             frame.height(),
@@ -213,7 +232,8 @@ mod tests {
         let frame_data = create_test_frame(10, 10, schema::ColorFormat::GRAY, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let result = preprocess_frame(
+        let preprocessor = PreProcessor::default();
+        let result = preprocessor.preprocess_frame(
             frame.pixels().unwrap(),
             frame.width(),
             frame.height(),
@@ -237,7 +257,8 @@ mod tests {
         let frame_data = create_test_frame(10, 10, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let result = preprocess_frame(
+        let preprocessor = PreProcessor::default();
+        let result = preprocessor.preprocess_frame(
             frame.pixels().unwrap(),
             frame.width(),
             frame.height(),
@@ -260,13 +281,15 @@ mod tests {
         let frame_data = create_test_frame(800, 600, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let (output, scale, offset_x, offset_y) = preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        )
-        .unwrap();
+        let preprocessor = PreProcessor::default();
+        let (output, scale, offset_x, offset_y) = preprocessor
+            .preprocess_frame(
+                frame.pixels().unwrap(),
+                frame.width(),
+                frame.height(),
+                frame.format(),
+            )
+            .unwrap();
 
         // Scale should be min(640/800, 640/600) = 640/800 = 0.8
         assert_eq!(scale, 0.8, "Scale should preserve aspect ratio");
@@ -290,13 +313,15 @@ mod tests {
         let frame_data = create_test_frame(100, 100, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let (output, scale, _offset_x, _offset_y) = preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        )
-        .unwrap();
+        let preprocessor = PreProcessor::default();
+        let (output, scale, _, _) = preprocessor
+            .preprocess_frame(
+                frame.pixels().unwrap(),
+                frame.width(),
+                frame.height(),
+                frame.format(),
+            )
+            .unwrap();
 
         // Scale: 640/100 = 6.4
         // Resized: 640x640
@@ -325,13 +350,15 @@ mod tests {
             let frame_data = create_test_frame(width, height, schema::ColorFormat::RGB, pixels);
             let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-            let (output, _, _, _) = preprocess_frame(
-                frame.pixels().unwrap(),
-                frame.width(),
-                frame.height(),
-                frame.format(),
-            )
-            .unwrap();
+            let preprocessor = PreProcessor::default();
+            let (output, _, _, _) = preprocessor
+                .preprocess_frame(
+                    frame.pixels().unwrap(),
+                    frame.width(),
+                    frame.height(),
+                    frame.format(),
+                )
+                .unwrap();
 
             assert_eq!(
                 output.shape(),
@@ -357,13 +384,15 @@ mod tests {
         let frame_data = create_test_frame(2, 2, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let (output, _, _, _) = preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        )
-        .unwrap();
+        let preprocessor = PreProcessor::default();
+        let (output, _, _, _) = preprocessor
+            .preprocess_frame(
+                frame.pixels().unwrap(),
+                frame.width(),
+                frame.height(),
+                frame.format(),
+            )
+            .unwrap();
 
         // All values should be in [0.0, 1.0] range
         for val in output.iter() {
@@ -384,13 +413,15 @@ mod tests {
         let frame_data = create_test_frame(400, 800, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let (_, scale, offset_x, offset_y) = preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        )
-        .unwrap();
+        let preprocessor = PreProcessor::default();
+        let (_, scale, offset_x, offset_y) = preprocessor
+            .preprocess_frame(
+                frame.pixels().unwrap(),
+                frame.width(),
+                frame.height(),
+                frame.format(),
+            )
+            .unwrap();
 
         // Scale should be limited by width: 640/400 = 1.6
         // But height would need: 640/800 = 0.8
@@ -413,13 +444,15 @@ mod tests {
         let frame_data = create_test_frame(1280, 720, schema::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let (_, scale, offset_x, offset_y) = preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        )
-        .unwrap();
+        let preprocessor = PreProcessor::default();
+        let (_, scale, offset_x, offset_y) = preprocessor
+            .preprocess_frame(
+                frame.pixels().unwrap(),
+                frame.width(),
+                frame.height(),
+                frame.format(),
+            )
+            .unwrap();
 
         // Scale: min(640/1280, 640/720) = min(0.5, 0.888...) = 0.5
         assert_eq!(scale, 0.5, "Scale should be limited by width");

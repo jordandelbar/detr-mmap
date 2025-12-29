@@ -1,7 +1,7 @@
 use crate::{
     backend::InferenceBackend,
     config::InferenceConfig,
-    processing::{post::PostProcessor, pre::preprocess_frame},
+    processing::{post::PostProcessor, pre::PreProcessor},
     serialization::DetectionSerializer,
 };
 use bridge::{FrameSemaphore, MmapReader};
@@ -12,18 +12,23 @@ use std::time::Duration;
 pub struct InferenceService<B: InferenceBackend> {
     backend: B,
     config: InferenceConfig,
-    post_processor: PostProcessor,
+    postprocessor: PostProcessor,
+    preprocessor: PreProcessor,
 }
 
 impl<B: InferenceBackend> InferenceService<B> {
     pub fn new(backend: B, config: InferenceConfig) -> Self {
-        let post_processor = PostProcessor {
+        let postprocessor = PostProcessor {
             confidence_threshold: config.confidence_threshold,
+        };
+        let preprocessor = PreProcessor {
+            input_size: config.input_size,
         };
         Self {
             backend,
             config,
-            post_processor,
+            postprocessor,
+            preprocessor,
         }
     }
 
@@ -150,8 +155,9 @@ impl<B: InferenceBackend> InferenceService<B> {
             "Preprocessing frame"
         );
 
-        let (preprocessed, scale, offset_x, offset_y) =
-            preprocess_frame(pixels, width, height, format)?;
+        let (preprocessed, scale, offset_x, offset_y) = self
+            .preprocessor
+            .preprocess_frame(pixels, width, height, format)?;
 
         let orig_sizes = Array::from_shape_vec(
             (1, 2),
@@ -165,7 +171,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         tracing::trace!(frame_num, "Running inference");
         let output = self.backend.infer(&preprocessed, &orig_sizes)?;
 
-        let detections = self.post_processor.parse_detections(
+        let detections = self.postprocessor.parse_detections(
             &output.labels.view(),
             &output.boxes.view(),
             &output.scores.view(),

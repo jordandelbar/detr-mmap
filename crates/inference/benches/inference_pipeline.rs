@@ -2,7 +2,7 @@ use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_ma
 use flatbuffers::FlatBufferBuilder;
 use inference::{
     backend::{InferenceBackend, ort::OrtBackend},
-    processing::{post::PostProcessor, pre::preprocess_frame},
+    processing::{post::PostProcessor, pre::PreProcessor},
 };
 use ndarray::{Array, IxDyn};
 use schema::ColorFormat;
@@ -72,19 +72,23 @@ fn benchmark_preprocessing(c: &mut Criterion) {
     for (width, height) in resolutions.iter() {
         let frame_data = create_test_frame(*width, *height, ColorFormat::BGR);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
+        let preprocessor = PreProcessor {
+            input_size: (640, 640),
+        };
 
         group.bench_with_input(
             BenchmarkId::new("bgr_letterbox", format!("{}x{}", width, height)),
             &frame,
             |b, frame| {
                 b.iter(|| {
-                    preprocess_frame(
-                        black_box(frame.pixels().unwrap()),
-                        black_box(frame.width()),
-                        black_box(frame.height()),
-                        black_box(frame.format()),
-                    )
-                    .unwrap()
+                    preprocessor
+                        .preprocess_frame(
+                            black_box(frame.pixels().unwrap()),
+                            black_box(frame.width()),
+                            black_box(frame.height()),
+                            black_box(frame.format()),
+                        )
+                        .unwrap()
                 });
             },
         );
@@ -133,16 +137,20 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
     // BGR path (expensive - pixel-by-pixel conversion)
     let bgr_frame_data = create_test_frame(1920, 1080, ColorFormat::BGR);
     let bgr_frame = flatbuffers::root::<schema::Frame>(&bgr_frame_data).unwrap();
+    let preprocessor = PreProcessor {
+        input_size: (640, 640),
+    };
 
     group.bench_function("bgr_to_rgb_1920x1080", |b| {
         b.iter(|| {
-            preprocess_frame(
-                black_box(bgr_frame.pixels().unwrap()),
-                black_box(1920),
-                black_box(1080),
-                black_box(ColorFormat::BGR),
-            )
-            .unwrap()
+            preprocessor
+                .preprocess_frame(
+                    black_box(bgr_frame.pixels().unwrap()),
+                    black_box(1920),
+                    black_box(1080),
+                    black_box(ColorFormat::BGR),
+                )
+                .unwrap()
         });
     });
 
@@ -152,13 +160,14 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
 
     group.bench_function("rgb_passthrough_1920x1080", |b| {
         b.iter(|| {
-            preprocess_frame(
-                black_box(rgb_frame.pixels().unwrap()),
-                black_box(1920),
-                black_box(1080),
-                black_box(ColorFormat::RGB),
-            )
-            .unwrap()
+            preprocessor
+                .preprocess_frame(
+                    black_box(rgb_frame.pixels().unwrap()),
+                    black_box(1920),
+                    black_box(1080),
+                    black_box(ColorFormat::RGB),
+                )
+                .unwrap()
         });
     });
 

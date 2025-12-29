@@ -76,7 +76,7 @@ impl InferenceConfig {
             detection_mmap_size: 1024 * 1024,
             input_size: (640, 640),
             poll_interval_ms: 100,
-            confidence_threshold: 0.6,
+            confidence_threshold: 0.5,
         }
     }
 }
