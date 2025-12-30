@@ -8,7 +8,7 @@ pub struct DetectionSerializer {
 
 impl DetectionSerializer {
     pub fn build(mmap_path: &str, mmap_size: usize) -> anyhow::Result<Self> {
-        let writer = FrameWriter::new(mmap_path, mmap_size)?;
+        let writer = FrameWriter::create_and_init(mmap_path, mmap_size)?;
         let builder = flatbuffers::FlatBufferBuilder::new();
         Ok(Self { writer, builder })
     }

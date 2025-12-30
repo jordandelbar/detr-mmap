@@ -18,7 +18,7 @@ fn test_writer_reader_synchronization() {
     let path = dir.path().join("sync_test.mmap");
 
     // Initialize writer and reader
-    let mut writer = FrameWriter::new(&path, 4096).unwrap();
+    let mut writer = FrameWriter::create_and_init(&path, 4096).unwrap();
     let mut reader = MmapReader::new(&path).unwrap();
 
     // TEST 1: Initially, reader should have no data
@@ -34,7 +34,7 @@ fn test_writer_reader_synchronization() {
         "Shared memory should have sequence 0"
     );
     assert!(
-        !reader.has_new_data(),
+        reader.has_new_data().is_none(),
         "Reader should not detect data when sequence is 0"
     );
 
@@ -51,7 +51,7 @@ fn test_writer_reader_synchronization() {
 
     // Reader should detect new data
     assert!(
-        reader.has_new_data(),
+        reader.has_new_data().is_some(),
         "Reader should detect new data (seq 1 > last_seq 0)"
     );
     assert_eq!(
@@ -76,7 +76,7 @@ fn test_writer_reader_synchronization() {
         "Reader's last_sequence should update to 1"
     );
     assert!(
-        !reader.has_new_data(),
+        reader.has_new_data().is_none(),
         "Reader should not detect new data after mark_read()"
     );
 
@@ -89,7 +89,7 @@ fn test_writer_reader_synchronization() {
 
     // Reader should detect new data again
     assert!(
-        reader.has_new_data(),
+        reader.has_new_data().is_some(),
         "Reader should detect new data (seq 2 > last_seq 1)"
     );
 
@@ -113,7 +113,7 @@ fn test_writer_reader_synchronization() {
             i
         );
         assert!(
-            reader.has_new_data(),
+            reader.has_new_data().is_some(),
             "Reader should detect data for frame {}",
             i
         );
@@ -153,7 +153,7 @@ fn test_concurrent_producer_consumer() {
 
     // Producer thread: Initializes file and writes frames
     let producer = thread::spawn(move || {
-        let mut writer = FrameWriter::new(&path_producer, FRAME_SIZE + 8).unwrap();
+        let mut writer = FrameWriter::create_and_init(&path_producer, FRAME_SIZE + 8).unwrap();
 
         // Give consumer time to open file after we initialize it
         thread::sleep(Duration::from_millis(50));
@@ -201,7 +201,7 @@ fn test_concurrent_producer_consumer() {
                 );
             }
 
-            if reader.has_new_data() {
+            if reader.has_new_data().is_some() {
                 let current_seq = reader.current_sequence();
                 let buffer = reader.buffer();
 
@@ -269,7 +269,7 @@ fn test_write_fails_when_data_exceeds_buffer() {
     let path = dir.path().join("size_test.mmap");
 
     // Create writer with small buffer (100 bytes)
-    let mut writer = FrameWriter::new(&path, 100).unwrap();
+    let mut writer = FrameWriter::create_and_init(&path, 100).unwrap();
 
     // Try to write data larger than buffer (200 bytes)
     let large_data = vec![0u8; 200];
@@ -300,13 +300,13 @@ fn test_reader_handles_stale_data() {
     let path = dir.path().join("stale_test.mmap");
 
     // Create writer but don't write anything
-    let _writer = FrameWriter::new(&path, 1024).unwrap();
+    let _writer = FrameWriter::create_and_init(&path, 1024).unwrap();
     let reader = MmapReader::new(&path).unwrap();
 
     // Poll multiple times - should never indicate new data
     for _ in 0..10 {
         assert!(
-            !reader.has_new_data(),
+            reader.has_new_data().is_none(),
             "Reader should not see data when nothing written"
         );
         thread::sleep(Duration::from_millis(1));
@@ -328,7 +328,7 @@ fn test_multiple_concurrent_readers() {
     const NUM_FRAMES: usize = 50;
 
     // Setup writer
-    let mut writer = FrameWriter::new(&path, 1024).unwrap();
+    let mut writer = FrameWriter::create_and_init(&path, 1024).unwrap();
 
     // Create 3 readers
     let mut reader1 = MmapReader::new(&path).unwrap();
@@ -341,9 +341,9 @@ fn test_multiple_concurrent_readers() {
         writer.write(data.as_bytes()).unwrap();
 
         // All readers should detect new data
-        assert!(reader1.has_new_data(), "Reader 1 should see frame {}", i);
-        assert!(reader2.has_new_data(), "Reader 2 should see frame {}", i);
-        assert!(reader3.has_new_data(), "Reader 3 should see frame {}", i);
+        assert!(reader1.has_new_data().is_some(), "Reader 1 should see frame {}", i);
+        assert!(reader2.has_new_data().is_some(), "Reader 2 should see frame {}", i);
+        assert!(reader3.has_new_data().is_some(), "Reader 3 should see frame {}", i);
 
         // All should read same data
         assert_eq!(

@@ -1,4 +1,5 @@
 pub mod errors;
+pub mod header;
 pub mod mmap_reader;
 pub mod mmap_writer;
 pub mod semaphore;
