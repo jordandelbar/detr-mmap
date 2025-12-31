@@ -98,6 +98,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-target-
 
+      - name: Generate FlatBuffer schema files
+        run: cargo build --package schema
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
