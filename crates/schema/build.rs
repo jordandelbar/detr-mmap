@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::process::Command;
 
 fn main() {
     let frame_schema = Path::new("frame.fbs");
@@ -13,4 +14,9 @@ fn main() {
         ..Default::default()
     })
     .expect("Failed to generate Rust code from FlatBuffer schemas");
+
+    // Format the generated files
+    let _ = Command::new("rustfmt")
+        .args(["src/frame_generated.rs", "src/detection_generated.rs"])
+        .status();
 }
