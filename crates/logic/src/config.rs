@@ -28,8 +28,7 @@ impl LogicConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(16); // ~60fps
 
-        let ws_addr = env::var("LOGIC_WS_ADDR")
-            .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+        let ws_addr = env::var("LOGIC_WS_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
 
         let channel_capacity = env::var("LOGIC_CHANNEL_CAPACITY")
             .ok()

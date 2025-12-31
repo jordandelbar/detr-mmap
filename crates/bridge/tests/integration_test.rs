@@ -341,9 +341,21 @@ fn test_multiple_concurrent_readers() {
         writer.write(data.as_bytes()).unwrap();
 
         // All readers should detect new data
-        assert!(reader1.has_new_data().is_some(), "Reader 1 should see frame {}", i);
-        assert!(reader2.has_new_data().is_some(), "Reader 2 should see frame {}", i);
-        assert!(reader3.has_new_data().is_some(), "Reader 3 should see frame {}", i);
+        assert!(
+            reader1.has_new_data().is_some(),
+            "Reader 1 should see frame {}",
+            i
+        );
+        assert!(
+            reader2.has_new_data().is_some(),
+            "Reader 2 should see frame {}",
+            i
+        );
+        assert!(
+            reader3.has_new_data().is_some(),
+            "Reader 3 should see frame {}",
+            i
+        );
 
         // All should read same data
         assert_eq!(

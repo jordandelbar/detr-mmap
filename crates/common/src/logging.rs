@@ -6,8 +6,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 ///
 /// Uses RUST_LOG environment variable for filtering (defaults to "info" if not set).
 pub fn setup_logging(environment: Environment) {
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "info".into());
+    let env_filter =
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
     let registry = tracing_subscriber::registry().with(env_filter);
 

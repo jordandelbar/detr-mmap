@@ -12,11 +12,9 @@ pub struct OrtBackend {
 impl InferenceBackend for OrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
         ort::init()
-            .with_execution_providers([
-                ort::execution_providers::CUDAExecutionProvider::default()
-                    .with_device_id(0)
-                    .build(),
-            ])
+            .with_execution_providers([ort::execution_providers::CUDAExecutionProvider::default()
+                .with_device_id(0)
+                .build()])
             .commit()?;
 
         let session = Session::builder()?

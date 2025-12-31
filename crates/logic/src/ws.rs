@@ -1,10 +1,10 @@
 use crate::config::LogicConfig;
 use crate::state::AppState;
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade},
+    Router,
+    extract::{State, WebSocketUpgrade, ws::WebSocket},
     response::IntoResponse,
     routing::get,
-    Router,
 };
 use tower_http::cors::CorsLayer;
 

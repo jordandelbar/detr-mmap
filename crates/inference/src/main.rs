@@ -1,7 +1,7 @@
 use inference::{
-    backend::{ort::OrtBackend, InferenceBackend},
-    logging::setup_logging,
     InferenceConfig, InferenceService,
+    backend::{InferenceBackend, ort::OrtBackend},
+    logging::setup_logging,
 };
 
 fn main() -> anyhow::Result<()> {

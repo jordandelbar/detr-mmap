@@ -108,7 +108,11 @@ mod tests {
 
         // Create reader and verify it starts with sequence 0
         let reader = MmapReader::new(path).unwrap();
-        assert_eq!(reader.last_sequence(), 0, "New reader should start with last_sequence = 0");
+        assert_eq!(
+            reader.last_sequence(),
+            0,
+            "New reader should start with last_sequence = 0"
+        );
     }
 
     #[test]
@@ -121,7 +125,10 @@ mod tests {
 
         // Reader should report no new data when sequence is 0
         let reader = MmapReader::new(path).unwrap();
-        assert!(reader.has_new_data().is_none(), "has_new_data should return None when sequence is 0");
+        assert!(
+            reader.has_new_data().is_none(),
+            "has_new_data should return None when sequence is 0"
+        );
     }
 
     #[test]
@@ -139,7 +146,11 @@ mod tests {
         writer.write(&[1, 2, 3, 4]).unwrap();
 
         // Now there should be new data with sequence 1
-        assert_eq!(reader.has_new_data(), Some(1), "has_new_data should return Some(1) after write");
+        assert_eq!(
+            reader.has_new_data(),
+            Some(1),
+            "has_new_data should return Some(1) after write"
+        );
     }
 
     #[test]
@@ -153,13 +164,24 @@ mod tests {
         // Write data (sequence becomes 1)
         writer.write(&[1, 2, 3]).unwrap();
 
-        assert_eq!(reader.last_sequence(), 0, "Initial last_sequence should be 0");
+        assert_eq!(
+            reader.last_sequence(),
+            0,
+            "Initial last_sequence should be 0"
+        );
 
         // Mark as read
         reader.mark_read();
 
-        assert_eq!(reader.last_sequence(), 1, "last_sequence should be 1 after mark_read");
-        assert!(reader.has_new_data().is_none(), "has_new_data should return None after marking current sequence as read");
+        assert_eq!(
+            reader.last_sequence(),
+            1,
+            "last_sequence should be 1 after mark_read"
+        );
+        assert!(
+            reader.has_new_data().is_none(),
+            "has_new_data should return None after marking current sequence as read"
+        );
     }
 
     #[test]
@@ -193,7 +215,10 @@ mod tests {
         let reader = MmapReader::new(path).unwrap();
 
         // No data written yet
-        assert!(reader.read_frame().is_none(), "read_frame should return None when no data");
+        assert!(
+            reader.read_frame().is_none(),
+            "read_frame should return None when no data"
+        );
     }
 
     #[test]
@@ -209,17 +234,27 @@ mod tests {
 
         // read_frame should return the data
         let result = reader.read_frame();
-        assert!(result.is_some(), "read_frame should return Some when data available");
+        assert!(
+            result.is_some(),
+            "read_frame should return Some when data available"
+        );
 
         let (seq, buf) = result.unwrap();
         assert_eq!(seq, 1, "Sequence should be 1");
-        assert_eq!(&buf[..9], b"test data", "Buffer should contain the written data");
+        assert_eq!(
+            &buf[..9],
+            b"test data",
+            "Buffer should contain the written data"
+        );
 
         // Mark as read
         reader.mark_read_seq(seq);
 
         // Should return None after marking as read
-        assert!(reader.read_frame().is_none(), "read_frame should return None after data is marked read");
+        assert!(
+            reader.read_frame().is_none(),
+            "read_frame should return None after data is marked read"
+        );
     }
 
     #[test]
