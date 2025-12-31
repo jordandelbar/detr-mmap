@@ -67,7 +67,7 @@ impl InferenceConfig {
 
     /// Create default configuration for testing
     #[cfg(test)]
-    pub fn default() -> Self {
+    pub fn test_default() -> Self {
         Self {
             environment: Environment::Development,
             model_path: "/models/model.onnx".to_string(),

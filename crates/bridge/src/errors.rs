@@ -83,7 +83,7 @@ mod tests {
 
         // Test that the #[from] attribute enables ? operator
         fn returns_io_error() -> Result<(), io::Error> {
-            Err(io::Error::new(io::ErrorKind::Other, "test error"))
+            Err(io::Error::other("test error"))
         }
 
         fn uses_question_mark() -> Result<(), BridgeError> {

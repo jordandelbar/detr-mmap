@@ -47,7 +47,7 @@ impl LogicConfig {
 
     /// Create default configuration for testing
     #[cfg(test)]
-    pub fn default() -> Self {
+    pub fn test_default() -> Self {
         Self {
             environment: Environment::Development,
             frame_mmap_path: "/dev/shm/bridge_frame_buffer".to_string(),
