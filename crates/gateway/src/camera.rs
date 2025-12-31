@@ -127,7 +127,7 @@ impl Camera {
 
             frame_count += 1;
 
-            if frame_count % 30 == 0 {
+            if frame_count.is_multiple_of(30) {
                 tracing::debug!(
                     "Frame #{} (seq: {}), Size: {}x{}, Dropped: {}",
                     frame_count,

@@ -1,7 +1,10 @@
 use crate::{
     backend::InferenceBackend,
     config::InferenceConfig,
-    processing::{post::PostProcessor, pre::PreProcessor},
+    processing::{
+        post::{PostProcessor, TransformParams},
+        pre::PreProcessor,
+    },
     serialization::DetectionSerializer,
 };
 use bridge::{FrameSemaphore, MmapReader};
@@ -111,7 +114,7 @@ impl<B: InferenceBackend> InferenceService<B> {
                     frames_processed += 1;
                     total_detections += detections;
 
-                    if frames_processed % 10 == 0 {
+                    if frames_processed.is_multiple_of(10) {
                         tracing::debug!(
                             frames_processed,
                             frames_skipped,
@@ -171,15 +174,18 @@ impl<B: InferenceBackend> InferenceService<B> {
         tracing::trace!(frame_num, "Running inference");
         let output = self.backend.infer(&preprocessed, &orig_sizes)?;
 
+        let transform = TransformParams {
+            orig_width: width,
+            orig_height: height,
+            scale,
+            offset_x,
+            offset_y,
+        };
         let detections = self.postprocessor.parse_detections(
             &output.labels.view(),
             &output.boxes.view(),
             &output.scores.view(),
-            width,
-            height,
-            scale,
-            offset_x,
-            offset_y,
+            &transform,
         )?;
 
         detection_serializer.write(frame_num, timestamp_ns, camera_id, &detections)?;

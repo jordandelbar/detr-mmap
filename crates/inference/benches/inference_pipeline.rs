@@ -110,17 +110,20 @@ fn benchmark_postprocessing(c: &mut Criterion) {
             BenchmarkId::new("parse_detections", num_detections),
             &(labels, boxes, scores),
             |b, (labels, boxes, scores)| {
+                let transform = inference::processing::post::TransformParams {
+                    orig_width: 1920,
+                    orig_height: 1080,
+                    scale: 1.0,
+                    offset_x: 0.0,
+                    offset_y: 0.0,
+                };
                 b.iter(|| {
                     post_processor
                         .parse_detections(
                             black_box(&labels.view()),
                             black_box(&boxes.view()),
                             black_box(&scores.view()),
-                            black_box(1920),
-                            black_box(1080),
-                            black_box(1.0),
-                            black_box(0.0),
-                            black_box(0.0),
+                            black_box(&transform),
                         )
                         .unwrap()
                 });

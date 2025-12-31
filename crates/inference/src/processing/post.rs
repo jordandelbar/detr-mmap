@@ -7,6 +7,14 @@ pub struct Detection {
     pub class_id: u32,
 }
 
+pub struct TransformParams {
+    pub orig_width: u32,
+    pub orig_height: u32,
+    pub scale: f32,
+    pub offset_x: f32,
+    pub offset_y: f32,
+}
+
 pub struct PostProcessor {
     pub confidence_threshold: f32,
 }
@@ -23,11 +31,7 @@ impl PostProcessor {
         labels: &ndarray::ArrayViewD<i64>,
         boxes: &ndarray::ArrayViewD<f32>,
         scores: &ndarray::ArrayViewD<f32>,
-        orig_width: u32,
-        orig_height: u32,
-        scale: f32,
-        offset_x: f32,
-        offset_y: f32,
+        transform: &TransformParams,
     ) -> anyhow::Result<Vec<Detection>> {
         let mut detections = Vec::new();
 
@@ -41,18 +45,18 @@ impl PostProcessor {
                 continue;
             }
 
-            let x1 = ((boxes[[0, i, 0]] - offset_x) / scale)
+            let x1 = ((boxes[[0, i, 0]] - transform.offset_x) / transform.scale)
                 .max(0.0)
-                .min(orig_width as f32);
-            let y1 = ((boxes[[0, i, 1]] - offset_y) / scale)
+                .min(transform.orig_width as f32);
+            let y1 = ((boxes[[0, i, 1]] - transform.offset_y) / transform.scale)
                 .max(0.0)
-                .min(orig_height as f32);
-            let x2 = ((boxes[[0, i, 2]] - offset_x) / scale)
+                .min(transform.orig_height as f32);
+            let x2 = ((boxes[[0, i, 2]] - transform.offset_x) / transform.scale)
                 .max(0.0)
-                .min(orig_width as f32);
-            let y2 = ((boxes[[0, i, 3]] - offset_y) / scale)
+                .min(transform.orig_width as f32);
+            let y2 = ((boxes[[0, i, 3]] - transform.offset_y) / transform.scale)
                 .max(0.0)
-                .min(orig_height as f32);
+                .min(transform.orig_height as f32);
 
             detections.push(Detection {
                 x1,
@@ -96,17 +100,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 100,
+            orig_height: 100,
+            scale: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                100,
-                100,
-                1.0,
-                0.0,
-                0.0,
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         // Should have 2 detections (0.5 and 0.8), not 0.49
@@ -143,17 +145,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 800,
+            orig_height: 600,
+            scale: 0.8,
+            offset_x: 0.0,
+            offset_y: 80.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                800,  // original width
-                600,  // original height
-                0.8,  // scale
-                0.0,  // offset_x
-                80.0, // offset_y
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         assert_eq!(detections.len(), 1);
@@ -186,17 +186,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 640,
+            orig_height: 480,
+            scale: 1.0,
+            offset_x: 50.0,
+            offset_y: 50.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                640,  // original width
-                480,  // original height
-                1.0,  // scale
-                50.0, // offset_x (will make first box negative)
-                50.0, // offset_y
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         assert_eq!(detections.len(), 3);
@@ -237,17 +235,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 640,
+            orig_height: 480,
+            scale: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                640,
-                480,
-                1.0,
-                0.0,
-                0.0,
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         assert_eq!(
@@ -275,17 +271,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 640,
+            orig_height: 480,
+            scale: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                640,
-                480,
-                1.0,
-                0.0,
-                0.0,
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         assert_eq!(detections.len(), 4);
@@ -307,17 +301,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 640,
+            orig_height: 480,
+            scale: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                640,
-                480,
-                1.0,
-                0.0,
-                0.0,
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         assert_eq!(
@@ -358,17 +350,15 @@ mod tests {
         let post_processor = PostProcessor {
             confidence_threshold: 0.5,
         };
+        let transform = TransformParams {
+            orig_width: 640,
+            orig_height: 640,
+            scale: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        };
         let detections = post_processor
-            .parse_detections(
-                &labels.view(),
-                &boxes.view(),
-                &scores.view(),
-                640,
-                640,
-                1.0,
-                0.0,
-                0.0,
-            )
+            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
             .unwrap();
 
         // Only 3 detections should pass threshold

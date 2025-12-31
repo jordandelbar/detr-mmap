@@ -1,5 +1,6 @@
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image};
 use ndarray::{Array, IxDyn};
+use std::default::Default;
 
 const LETTERBOX_COLOR: u8 = 114;
 
@@ -8,11 +9,6 @@ pub struct PreProcessor {
 }
 
 impl PreProcessor {
-    pub fn default() -> Self {
-        Self {
-            input_size: (640, 640),
-        }
-    }
     pub fn preprocess_frame(
         &self,
         pixels: flatbuffers::Vector<u8>,
@@ -113,6 +109,14 @@ impl PreProcessor {
         }
 
         Ok((input, scale, offset_x as f32, offset_y as f32))
+    }
+}
+
+impl Default for PreProcessor {
+    fn default() -> Self {
+        Self {
+            input_size: (640, 640),
+        }
     }
 }
 
