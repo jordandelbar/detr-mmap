@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    app: bridge-rt
+    component: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bridge-rt
+      component: gateway
+  template:
+    metadata:
+      labels:
+        app: bridge-rt
+        component: gateway
+    spec:
+      # Node selector for edge simulation (can be overridden in overlays)
+      nodeSelector:
+        node-role: edge
+
+      # Share host IPC namespace for POSIX message queues (/dev/mqueue)
+      # This enables mmap/semaphore IPC between capture/inference/gateway pods
+      # Appropriate for single-tenant edge deployment (Raspberry Pi, Jetson, etc.)
+      hostIPC: true
+
+      volumes:
+        - name: shm-bridge
+          hostPath:
+            path: /dev/shm
+            type: Directory
+
+      containers:
+        - name: gateway
+          image: bridge-rt-gateway:latest
+          imagePullPolicy: Never
+
+          ports:
+            - containerPort: 8080
+              name: websocket
+              protocol: TCP
+
+          volumeMounts:
+            - name: shm-bridge
+              mountPath: /dev/shm
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: ENVIRONMENT
+              value: "production"
+
+      restartPolicy: Always

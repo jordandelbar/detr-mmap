@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capture
+spec:
+  template:
+    spec:
+      containers:
+        - name: capture
+          imagePullPolicy: IfNotPresent
+
+          # Enable for development/debugging
+          # stdin: true
+          # tty: true

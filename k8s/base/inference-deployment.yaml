@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference
+  labels:
+    app: bridge-rt
+    component: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bridge-rt
+      component: inference
+  template:
+    metadata:
+      labels:
+        app: bridge-rt
+        component: inference
+    spec:
+      # Node selector for edge simulation (can be overridden in overlays)
+      nodeSelector:
+        node-role: edge
+
+      # Share host IPC namespace for POSIX message queues (/dev/mqueue)
+      # This enables mmap/semaphore IPC between capture/inference/gateway pods
+      # Appropriate for single-tenant edge deployment (Raspberry Pi, Jetson, etc.)
+      hostIPC: true
+
+      volumes:
+        - name: shm-bridge
+          hostPath:
+            path: /dev/shm
+            type: Directory
+        - name: models
+          hostPath:
+            path: /models
+            type: Directory
+
+      containers:
+        - name: inference
+          image: bridge-rt-inference:latest
+          imagePullPolicy: Never
+
+          volumeMounts:
+            - name: shm-bridge
+              mountPath: /dev/shm
+            - name: models
+              mountPath: /models
+              readOnly: true
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "1000m"
+            limits:
+              memory: "2Gi"
+              cpu: "4000m"
+
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: ENVIRONMENT
+              value: "production"
+
+      restartPolicy: Always

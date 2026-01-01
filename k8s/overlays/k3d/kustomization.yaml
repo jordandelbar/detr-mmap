@@ -7,7 +7,9 @@ resources:
   - ../../base
 
 patches:
-  - path: deployment-patch.yaml
+  - path: capture-patch.yaml
+  - path: inference-patch.yaml
+  - path: gateway-patch.yaml
 
 images:
   - name: bridge-rt-capture

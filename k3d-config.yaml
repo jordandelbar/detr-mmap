@@ -4,21 +4,20 @@ metadata:
   name: bridge-rt
 image: k3s-gpu:v1.31.5-k3s1
 servers: 1
-agents: 0
+agents: 1  # Simulate edge device (e.g., Raspberry Pi)
 ports:
   - port: 8080:30080
     nodeFilters:
       - loadbalancer
 volumes:
+  # Models mounted on agent (edge device has local model storage)
   - volume: /home/jdelbar/Documents/projects/bridge-rt/models:/models
     nodeFilters:
-      - server:0
-  - volume: /dev/video0:/dev/video0
+      - agent:0
+  # Mount host /dev for dynamic camera detection (cameras may reconnect as video1, video2, etc.)
+  - volume: /dev:/dev
     nodeFilters:
-      - server:0
-  - volume: /dev/video1:/dev/video1
-    nodeFilters:
-      - server:0
+      - agent:0
 registries:
   create:
     name: k3d-registry

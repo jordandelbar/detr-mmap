@@ -5,7 +5,10 @@ namespace: bridge-rt
 
 resources:
   - namespace.yaml
-  - deployment.yaml
+  - capture-deployment.yaml
+  - inference-deployment.yaml
+  - gateway-deployment.yaml
+  - gateway-service.yaml
 
 labels:
   - pairs:

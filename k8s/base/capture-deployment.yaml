@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capture
+  labels:
+    app: bridge-rt
+    component: capture
+spec:
+  replicas: 1
+  # Recreate strategy: terminate old pod BEFORE starting new one
+  # Required for exclusive hardware access (camera)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bridge-rt
+      component: capture
+  template:
+    metadata:
+      labels:
+        app: bridge-rt
+        component: capture
+    spec:
+      # Node selector for edge simulation (can be overridden in overlays)
+      nodeSelector:
+        node-role: edge
+
+      # Share host IPC namespace for POSIX message queues (/dev/mqueue)
+      # This enables mmap/semaphore IPC between capture/inference/gateway pods
+      # Appropriate for single-tenant edge deployment (Raspberry Pi, Jetson, etc.)
+      hostIPC: true
+
+      volumes:
+        - name: shm-bridge
+          hostPath:
+            path: /dev/shm
+            type: Directory
+        # Mount entire /dev for dynamic camera device detection
+        # Cameras may reconnect as /dev/video1, /dev/video2, etc.
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+
+      containers:
+        - name: capture
+          image: bridge-rt-capture:latest
+          imagePullPolicy: Never
+
+          volumeMounts:
+            - name: shm-bridge
+              mountPath: /dev/shm
+            - name: dev
+              mountPath: /dev
+
+          securityContext:
+            privileged: true
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: ENVIRONMENT
+              value: "production"
+
+      restartPolicy: Always
