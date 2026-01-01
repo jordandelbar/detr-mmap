@@ -4,11 +4,11 @@ use std::sync::atomic::AtomicU64;
 ///
 /// This header defines the shared memory layout for mmap IPC.
 ///
-/// **Writer protocol:**
+/// Writer protocol:
 /// 1. Write payload bytes to the data region
 /// 2. Publish sequence with `Ordering::Release`
 ///
-/// **Reader protocol:**
+/// Reader protocol:
 /// 1. Load sequence with `Ordering::Acquire`
 /// 2. If sequence changed, payload is guaranteed visible
 ///
@@ -17,7 +17,7 @@ use std::sync::atomic::AtomicU64;
 /// - All sequence loads happen-before payload reads
 /// - No torn reads on x86, ARM, or other architectures
 ///
-/// **Alignment:**
+/// Alignment:
 /// The `#[repr(C, align(8))]` ensures AtomicU64 is always 8-byte aligned,
 /// which is required for atomic operations. This prevents UB even if the
 /// mmap offset changes.

@@ -13,26 +13,26 @@ pub struct FrameWriter {
 impl FrameWriter {
     /// Create a new mmap file and initialize it for IPC.
     ///
-    /// **CRITICAL SAFETY REQUIREMENT:**
-    /// This method uses `truncate(true)` which **WILL CAUSE SIGBUS** in concurrent readers!
+    /// Critical safety requirement:
+    /// This method uses `truncate(true)` which will cause sigbus in concurrent readers
     ///
     /// On Linux, if readers have this file mmap'ed when truncate happens:
     /// - Readers will crash with SIGBUS
     /// - Undefined behavior at runtime
     /// - Data corruption possible
     ///
-    /// **Only use this when:**
+    /// Only use this when:
     /// - System is starting up (no readers exist yet)
     /// - In tests where you control the lifecycle
-    /// - You can **guarantee** no concurrent readers
+    /// - You can guarantee no concurrent readers
     ///
-    /// **Production safe pattern:**
+    /// Production safe pattern:
     /// ```no_run
     /// # use bridge::FrameWriter;
-    /// // At system init (no readers yet) - SAFE
+    /// // At system init (no readers yet), it's safe
     /// let writer = FrameWriter::create_and_init("/dev/shm/frames", 4096).unwrap();
     ///
-    /// // Later, writer restarts but readers may be active - use open_existing()
+    /// // Later, writer restarts but readers may be active, use open_existing()
     /// let writer = FrameWriter::open_existing("/dev/shm/frames").unwrap();
     /// ```
     pub fn create_and_init(path: impl AsRef<Path>, size: usize) -> Result<Self, BridgeError> {
@@ -56,21 +56,21 @@ impl FrameWriter {
 
     /// Open an existing mmap file for writing (safe with concurrent readers).
     ///
-    /// **SAFE with concurrent readers:**
-    /// - Does NOT truncate the file
-    /// - Will NOT cause SIGBUS
+    /// Safe with concurrent readers:
+    /// - Does not truncate the file
+    /// - Will not cause SIGBUS
     /// - Readers can remain active
     ///
-    /// **Use this when:**
+    /// Use this when:
     /// - Writer process restarts in production
     /// - Hot-swapping the writer
     /// - Any time readers might have the file open
     ///
-    /// **Requirements:**
+    /// Requirements:
     /// - File must already exist (created by `create_and_init()`)
     /// - File must be properly initialized with header
     ///
-    /// **Example:**
+    /// Example:
     /// ```no_run
     /// # use bridge::FrameWriter;
     /// // Safe even if readers are actively reading:
@@ -91,7 +91,7 @@ impl FrameWriter {
 
     /// Write data to the buffer and publish with sequence increment.
     ///
-    /// SAFETY: This function ensures correct memory ordering:
+    /// Safety: this function ensures correct memory ordering:
     /// 1. Payload is written first via copy_from_slice
     /// 2. Sequence is published with Ordering::Release
     ///
@@ -115,7 +115,7 @@ impl FrameWriter {
 
     /// Returns mutable buffer for direct writes.
     ///
-    /// IMPORTANT: After writing directly to this buffer, you must manually
+    /// After writing directly to this buffer, you must manually
     /// publish the sequence number to signal readers. Use with caution.
     pub fn buffer_mut(&mut self) -> &mut [u8] {
         &mut self.mmap[Header::SIZE..]
