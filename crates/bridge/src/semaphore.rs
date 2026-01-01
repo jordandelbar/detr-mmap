@@ -11,10 +11,12 @@ use std::ffi::CString;
 /// This uses message queues to signal when new frames are available.
 /// The gateway posts to the queue after writing each frame,
 /// signaling both inference and gateway processes.
+///
+/// Note: Message queues are treated as persistent system resources.
+/// They are not automatically deleted when this struct is dropped,
+/// allowing seamless pod restarts in Kubernetes.
 pub struct FrameSemaphore {
     mqd: Option<MqdT>,
-    name: CString,
-    is_owner: bool,
 }
 
 unsafe impl Send for FrameSemaphore {}
@@ -50,11 +52,7 @@ impl FrameSemaphore {
         )
         .map_err(|e| BridgeError::SemaphoreError(format!("Failed to create queue: {}", e)))?;
 
-        Ok(Self {
-            mqd: Some(mqd),
-            name: c_name,
-            is_owner: true,
-        })
+        Ok(Self { mqd: Some(mqd) })
     }
 
     /// Open an existing message queue
@@ -72,11 +70,7 @@ impl FrameSemaphore {
         let mqd = mq_open(c_name.as_c_str(), MQ_OFlag::O_RDWR, Mode::empty(), None)
             .map_err(|e| BridgeError::SemaphoreError(format!("Failed to open queue: {}", e)))?;
 
-        Ok(Self {
-            mqd: Some(mqd),
-            name: c_name,
-            is_owner: false,
-        })
+        Ok(Self { mqd: Some(mqd) })
     }
 
     /// Wait for a signal
@@ -95,6 +89,32 @@ impl FrameSemaphore {
                 Err(e) => {
                     return Err(BridgeError::SemaphoreError(format!(
                         "Queue receive failed: {}",
+                        e
+                    )));
+                }
+            }
+        }
+    }
+
+    /// Wait for a signal with a timeout
+    ///
+    /// This will block until a message (signal) is available or the timeout expires.
+    /// Returns Ok(true) if a signal was received, Ok(false) if timeout occurred.
+    /// Automatically retries if interrupted by signals.
+    pub fn wait_timeout(&self, timeout_secs: u64) -> Result<bool, BridgeError> {
+        let mut buf = [0u8; 1];
+        let mut prio = 0u32;
+        let mqd = self.mqd.as_ref().expect("Message queue descriptor is None");
+        let timeout = TimeSpec::new(timeout_secs as i64, 0);
+
+        loop {
+            match mq_timedreceive(mqd, &mut buf, &mut prio, &timeout) {
+                Ok(_) => return Ok(true),
+                Err(nix::errno::Errno::EINTR) => continue, // Retry on interrupt
+                Err(nix::errno::Errno::ETIMEDOUT) => return Ok(false), // Timeout
+                Err(e) => {
+                    return Err(BridgeError::SemaphoreError(format!(
+                        "Queue timed receive failed: {}",
                         e
                     )));
                 }
@@ -151,15 +171,22 @@ impl FrameSemaphore {
 
 impl Drop for FrameSemaphore {
     fn drop(&mut self) {
-        // Close the message queue
+        // Close the message queue descriptor
         if let Some(mqd) = self.mqd.take() {
             let _ = mq_close(mqd);
         }
 
-        // Only unlink if this instance created the queue
-        if self.is_owner {
-            let _ = mq_unlink(self.name.as_c_str());
-        }
+        // NOTE: We intentionally DO NOT unlink the queue here.
+        // Message queues are treated as persistent system resources that survive pod restarts.
+        // This allows:
+        // - Capture pod can restart without breaking gateway/inference listeners
+        // - Gateway/inference keep their file descriptors and continue receiving messages
+        // - No need for complex reconnection logic
+        //
+        // Cleanup should happen via:
+        // - Init containers in Kubernetes
+        // - Manual cleanup during system maintenance
+        // - Or automatic cleanup on host reboot (queues are in /dev/mqueue)
     }
 }
 

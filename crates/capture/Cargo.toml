@@ -19,3 +19,4 @@ common = { path = "../common" }
 flatbuffers = "24.3"
 anyhow = "1.0"
 tracing = { version = "0.1.44", default-features = false }
+signal-hook = "0.3"

@@ -6,6 +6,53 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use std::time::Duration;
 
+/// Retry a function with exponential backoff
+///
+/// # Arguments
+/// * `f` - The function to retry
+/// * `max_retries` - Maximum number of retry attempts
+/// * `base_delay_ms` - Initial delay in milliseconds (doubles each retry)
+/// * `operation_name` - Human-readable name for logging
+fn retry_with_backoff<F, T, E>(
+    mut f: F,
+    max_retries: u32,
+    base_delay_ms: u64,
+    operation_name: &str,
+) -> Result<T, E>
+where
+    F: FnMut() -> Result<T, E>,
+    E: std::fmt::Display,
+{
+    for attempt in 0..max_retries {
+        match f() {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                if attempt < max_retries - 1 {
+                    let delay_ms = base_delay_ms * 2_u64.pow(attempt);
+                    tracing::warn!(
+                        "{} failed (attempt {}/{}): {}. Retrying in {}ms...",
+                        operation_name,
+                        attempt + 1,
+                        max_retries,
+                        e,
+                        delay_ms
+                    );
+                    std::thread::sleep(Duration::from_millis(delay_ms));
+                } else {
+                    tracing::error!(
+                        "{} failed after {} attempts: {}",
+                        operation_name,
+                        max_retries,
+                        e
+                    );
+                    return Err(e);
+                }
+            }
+        }
+    }
+    unreachable!()
+}
+
 /// Scan for available video devices
 ///
 /// Tries device indices 0-9 and returns the first available camera.
@@ -17,7 +64,7 @@ fn find_available_camera(
     for device_idx in 0..10 {
         let index = CameraIndex::Index(device_idx);
 
-        match NokhwaCamera::new(index, requested_format.clone()) {
+        match NokhwaCamera::new(index, *requested_format) {
             Ok(mut cam) => match cam.open_stream() {
                 Ok(_) => {
                     tracing::info!("Found available camera at /dev/video{}", device_idx);
@@ -57,42 +104,48 @@ impl Camera {
         let requested_format =
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
-        // Try configured device first
-        tracing::info!(
-            "Attempting to open camera at /dev/video{}",
-            config.device_id
-        );
+        // Wrap camera opening in retry logic to handle kernel delays after pod restart
+        let (cam, actual_device_id) = retry_with_backoff(
+            || {
+                // Try configured device first
+                tracing::info!(
+                    "Attempting to open camera at /dev/video{}",
+                    config.device_id
+                );
 
-        let (cam, actual_device_id) = {
-            let index = CameraIndex::Index(config.device_id);
-            match NokhwaCamera::new(index, requested_format.clone()) {
-                Ok(mut cam) => match cam.open_stream() {
-                    Ok(_) => {
-                        tracing::info!(
-                            "Successfully opened configured camera /dev/video{}",
-                            config.device_id
-                        );
-                        (cam, config.device_id)
-                    }
+                let index = CameraIndex::Index(config.device_id);
+                match NokhwaCamera::new(index, requested_format) {
+                    Ok(mut cam) => match cam.open_stream() {
+                        Ok(_) => {
+                            tracing::info!(
+                                "Successfully opened configured camera /dev/video{}",
+                                config.device_id
+                            );
+                            Ok((cam, config.device_id))
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "Configured camera /dev/video{} busy: {}. Scanning alternatives...",
+                                config.device_id,
+                                e
+                            );
+                            find_available_camera(&requested_format)
+                        }
+                    },
                     Err(e) => {
-                        tracing::warn!(
-                            "Failed to open configured camera /dev/video{}: {}. Scanning for available cameras...",
+                        tracing::debug!(
+                            "Configured camera /dev/video{} not found: {}. Scanning alternatives...",
                             config.device_id,
                             e
                         );
-                        find_available_camera(&requested_format)?
+                        find_available_camera(&requested_format)
                     }
-                },
-                Err(e) => {
-                    tracing::warn!(
-                        "Configured camera /dev/video{} not found: {}. Scanning for available cameras...",
-                        config.device_id,
-                        e
-                    );
-                    find_available_camera(&requested_format)?
                 }
-            }
-        };
+            },
+            10,  // max retries
+            200, // base delay ms (200ms, 400ms, 800ms, 1600ms, 3200ms...)
+            "Camera initialization",
+        )?;
 
         tracing::info!(
             "Camera opened successfully at /dev/video{}",
@@ -120,9 +173,28 @@ impl Camera {
             config.mmap_size / 1024 / 1024
         );
 
-        let inference_semaphore = FrameSemaphore::create("/bridge_frame_inference")?;
-        let gateway_semaphore = FrameSemaphore::create("/bridge_frame_gateway")?;
-        tracing::info!("Created frame synchronization semaphores (inference + gateway)");
+        // Try to open existing semaphores first (allows seamless restart)
+        let inference_semaphore = match FrameSemaphore::open("/bridge_frame_inference") {
+            Ok(sem) => {
+                tracing::info!("Reconnected to existing inference semaphore");
+                sem
+            }
+            Err(_) => {
+                tracing::info!("Creating new inference semaphore");
+                FrameSemaphore::create("/bridge_frame_inference")?
+            }
+        };
+
+        let gateway_semaphore = match FrameSemaphore::open("/bridge_frame_gateway") {
+            Ok(sem) => {
+                tracing::info!("Reconnected to existing gateway semaphore");
+                sem
+            }
+            Err(_) => {
+                tracing::info!("Creating new gateway semaphore");
+                FrameSemaphore::create("/bridge_frame_gateway")?
+            }
+        };
 
         Ok(Self {
             camera_id: config.camera_id,
@@ -136,13 +208,16 @@ impl Camera {
         })
     }
 
-    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(
+        &mut self,
+        shutdown: &std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("frame buffer ready - writing at camera rate");
 
         let mut frame_count = 0u64;
         let mut dropped_frames = 0u64;
 
-        loop {
+        while !shutdown.load(std::sync::atomic::Ordering::Relaxed) {
             let frame = match self.cam.frame() {
                 Ok(f) => f,
                 Err(e) => {
@@ -206,5 +281,13 @@ impl Camera {
 
             std::thread::sleep(self.frame_duration);
         }
+
+        tracing::info!(
+            "Shutdown signal received. Captured {} frames, dropped {}. Releasing camera...",
+            frame_count,
+            dropped_frames
+        );
+
+        Ok(())
     }
 }

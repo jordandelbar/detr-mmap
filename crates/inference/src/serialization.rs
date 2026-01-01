@@ -1,5 +1,6 @@
 use crate::processing::post::Detection;
 use bridge::FrameWriter;
+use std::path::Path;
 
 pub struct DetectionSerializer {
     writer: FrameWriter,
@@ -8,7 +9,11 @@ pub struct DetectionSerializer {
 
 impl DetectionSerializer {
     pub fn build(mmap_path: &str, mmap_size: usize) -> anyhow::Result<Self> {
-        let writer = FrameWriter::create_and_init(mmap_path, mmap_size)?;
+        let writer = if Path::new(mmap_path).exists() {
+            FrameWriter::open_existing(mmap_path)?
+        } else {
+            FrameWriter::create_and_init(mmap_path, mmap_size)?
+        };
         let builder = flatbuffers::FlatBufferBuilder::new();
         Ok(Self { writer, builder })
     }

@@ -1,5 +1,6 @@
 use bridge::FrameWriter;
 use schema::{ColorFormat, FrameArgs};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct FrameSerializer {
@@ -9,7 +10,11 @@ pub struct FrameSerializer {
 
 impl FrameSerializer {
     pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self, Box<dyn std::error::Error>> {
-        let writer = FrameWriter::create_and_init(mmap_path, mmap_size)?;
+        let writer = if Path::new(mmap_path).exists() {
+            FrameWriter::open_existing(mmap_path)?
+        } else {
+            FrameWriter::create_and_init(mmap_path, mmap_size)?
+        };
         let builder = flatbuffers::FlatBufferBuilder::new();
         Ok(Self { writer, builder })
     }

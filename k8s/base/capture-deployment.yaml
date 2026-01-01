@@ -42,6 +42,9 @@ spec:
             path: /dev
             type: Directory
 
+      # Reduce grace period since capture handles SIGTERM quickly
+      terminationGracePeriodSeconds: 5
+
       containers:
         - name: capture
           image: bridge-rt-capture:latest
