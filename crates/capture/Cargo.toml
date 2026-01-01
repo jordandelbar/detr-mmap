@@ -1,5 +1,5 @@
 [package]
-name = "gateway"
+name = "capture"
 version = "0.1.0"
 edition = "2024"
 
@@ -8,7 +8,7 @@ path = "src/lib.rs"
 
 [[bin]]
 path = "src/main.rs"
-name = "gateway"
+name = "capture"
 
 [dependencies]
 nokhwa = { version = "0.10", features = ["input-native"] }

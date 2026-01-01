@@ -25,7 +25,7 @@ spec:
             type: Directory
 
       containers:
-        - name: gateway
+        - name: capture
           imagePullPolicy: IfNotPresent
 
           # Enable for development/debugging

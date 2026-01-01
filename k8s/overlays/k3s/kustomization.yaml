@@ -3,16 +3,19 @@ kind: Kustomization
 
 namespace: bridge-rt
 
-bases:
+resources:
   - ../../base
 
-patchesStrategicMerge:
-  - deployment-patch.yaml
+patches:
+  - path: deployment-patch.yaml
 
 images:
-  - name: bridge-rt-gateway
-    newName: localhost:5000/bridge-rt-gateway
+  - name: bridge-rt-capture
+    newName: localhost:5000/bridge-rt-capture
     newTag: latest
   - name: bridge-rt-inference
     newName: localhost:5000/bridge-rt-inference
+    newTag: latest
+  - name: bridge-rt-logic
+    newName: localhost:5000/bridge-rt-logic
     newTag: latest

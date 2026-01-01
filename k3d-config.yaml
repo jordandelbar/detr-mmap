@@ -2,7 +2,7 @@ apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: bridge-rt
-image: k3s-gpu:v1.28.8-k3s1
+image: k3s-gpu:v1.31.5-k3s1
 servers: 1
 agents: 0
 ports:

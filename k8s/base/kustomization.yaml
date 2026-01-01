@@ -7,6 +7,7 @@ resources:
   - namespace.yaml
   - deployment.yaml
 
-commonLabels:
-  project: bridge-rt
-  managed-by: kustomize
+labels:
+  - pairs:
+      project: bridge-rt
+      managed-by: kustomize

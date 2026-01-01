@@ -335,6 +335,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b35204fbdc0b3f4446b89fc1ac2cf84a8a68971995d0bf2e925ec7cd960f9cb3"
 
 [[package]]
+name = "capture"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bridge",
+ "common",
+ "flatbuffers",
+ "nokhwa",
+ "schema",
+ "thiserror 2.0.17",
+ "tracing",
+]
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -939,20 +953,6 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
-]
-
-[[package]]
-name = "gateway"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bridge",
- "common",
- "flatbuffers",
- "nokhwa",
- "schema",
- "thiserror 2.0.17",
- "tracing",
 ]
 
 [[package]]

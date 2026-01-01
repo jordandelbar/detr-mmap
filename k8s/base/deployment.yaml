@@ -33,8 +33,8 @@ spec:
             type: Directory
 
       containers:
-        - name: gateway
-          image: bridge-rt-gateway:latest
+        - name: capture
+          image: bridge-rt-capture:latest
           imagePullPolicy: Never
 
           volumeMounts:
@@ -58,7 +58,7 @@ spec:
 
           env:
             - name: RUST_LOG
-              value: "warn"
+              value: "info"
             - name: ENVIRONMENT
               value: "production"
 
@@ -83,7 +83,7 @@ spec:
 
           env:
             - name: RUST_LOG
-              value: "warn"
+              value: "info"
             - name: ENVIRONMENT
               value: "production"
 

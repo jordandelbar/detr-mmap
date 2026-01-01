@@ -6,7 +6,7 @@ spec:
   template:
     spec:
       containers:
-        - name: gateway
+        - name: capture
           imagePullPolicy: Always
 
           resources:

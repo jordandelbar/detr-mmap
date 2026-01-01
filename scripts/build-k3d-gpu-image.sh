@@ -5,8 +5,8 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Configuration
-K3S_TAG="${K3S_TAG:-v1.28.8-k3s1}"
-CUDA_TAG="${CUDA_TAG:-12.0.0-base-ubuntu22.04}"
+K3S_TAG="${K3S_TAG:-v1.31.5-k3s1}"
+CUDA_TAG="${CUDA_TAG:-12.9.1-base-ubuntu22.04}"
 IMAGE_NAME="${IMAGE_NAME:-k3s-gpu}"
 IMAGE_TAG="${IMAGE_TAG:-${K3S_TAG}}"
 

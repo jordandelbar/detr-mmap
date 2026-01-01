@@ -21,7 +21,7 @@ docker buildx bake gpu-base --set "*.platform=linux/amd64"
 docker buildx bake gpu-inference --set "*.platform=linux/amd64"
 
 echo "Pushing images to k3d registry..."
-docker push ${REGISTRY}/bridge-rt-gateway:latest
+docker push ${REGISTRY}/bridge-rt-capture:latest
 docker push ${REGISTRY}/bridge-rt-inference-gpu:latest
 docker push ${REGISTRY}/bridge-rt-logic:latest
 
@@ -33,7 +33,7 @@ echo "=== Deployment complete ==="
 echo ""
 echo "Check status:"
 echo "  kubectl get pods -n bridge-rt"
-echo "  kubectl logs -n bridge-rt -l app=bridge-rt -c gateway --follow"
+echo "  kubectl logs -n bridge-rt -l app=bridge-rt -c capture --follow"
 echo "  kubectl logs -n bridge-rt -l app=bridge-rt -c inference --follow"
 echo "  kubectl logs -n bridge-rt -l app=bridge-rt -c logic --follow"
 echo ""

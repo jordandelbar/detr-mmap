@@ -1,4 +1,4 @@
-.PHONY: build up down open-webpage coverage
+.PHONY: build build-gpu up down open-webpage test coverage
 
 #######
 # Run #

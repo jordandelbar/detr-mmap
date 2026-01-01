@@ -1,4 +1,4 @@
-use gateway::{camera::Camera, config::CameraConfig, logging::setup_logging};
+use capture::{camera::Camera, config::CameraConfig, logging::setup_logging};
 
 fn main() -> anyhow::Result<()> {
     let config = CameraConfig::from_env()?;

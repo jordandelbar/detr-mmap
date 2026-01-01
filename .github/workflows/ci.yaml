@@ -231,7 +231,7 @@ jobs:
     strategy:
       matrix:
         service:
-          - gateway
+          - capture
           - inference
           - logic
 

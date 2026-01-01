@@ -14,7 +14,7 @@ if k3d cluster list | grep -q "^${CLUSTER_NAME}"; then
     exit 1
 fi
 
-echo "Creating k3d cluster with models volume mount and registry..."
+echo "Creating k3d cluster..."
 k3d cluster create --config k3d-config.yaml
 
 echo ""
