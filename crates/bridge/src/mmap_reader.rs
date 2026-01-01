@@ -277,7 +277,7 @@ mod tests {
         let writer_path = Arc::clone(&path);
         let writer_barrier = Arc::clone(&barrier);
         let writer_handle = thread::spawn(move || {
-            let mut writer = FrameWriter::create_and_init(writer_path.as_ref(), 1024).unwrap();
+            let mut writer = FrameWriter::open_existing(writer_path.as_ref()).unwrap();
             writer_barrier.wait(); // Wait for all threads to be ready
 
             for i in 1..=100 {
