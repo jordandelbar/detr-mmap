@@ -319,7 +319,7 @@ fn test_reader_handles_stale_data() {
 
 /// Test multiple readers can read from same writer
 ///
-/// Simulates scenario: inference and logic both reading from gateway
+/// Simulates scenario: inference and gateway both reading from capture
 #[test]
 fn test_multiple_concurrent_readers() {
     let dir = tempdir().unwrap();

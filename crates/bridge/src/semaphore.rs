@@ -10,7 +10,7 @@ use std::ffi::CString;
 ///
 /// This uses message queues to signal when new frames are available.
 /// The gateway posts to the queue after writing each frame,
-/// signaling both inference and logic processes.
+/// signaling both inference and gateway processes.
 pub struct FrameSemaphore {
     mqd: Option<MqdT>,
     name: CString,
@@ -57,7 +57,7 @@ impl FrameSemaphore {
         })
     }
 
-    /// Open an existing message queue (for consumers/inference/logic)
+    /// Open an existing message queue
     ///
     /// # Arguments
     /// * `name` - Name of the message queue (e.g., "/bridge_frame_ready")
@@ -127,7 +127,7 @@ impl FrameSemaphore {
     /// Signal the queue (send a message)
     ///
     /// Gateway calls this after writing a frame.
-    /// It should be called twice per frame (once for inference, once for logic)
+    /// It should be called twice per frame (once for inference, once for gateway)
     /// to implement the fan-out pattern.
     pub fn post(&self) -> Result<(), BridgeError> {
         let msg = [1u8]; // Simple 1-byte message

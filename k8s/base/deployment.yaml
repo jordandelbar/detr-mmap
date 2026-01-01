@@ -87,8 +87,8 @@ spec:
             - name: ENVIRONMENT
               value: "production"
 
-        - name: logic
-          image: bridge-rt-logic:latest
+        - name: gateway
+          image: bridge-rt-gateway:latest
           imagePullPolicy: Never
 
           ports:

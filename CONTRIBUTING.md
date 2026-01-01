@@ -41,10 +41,10 @@
 
 | Magic Number | Location                                   | What It Is                       | Impact                     |
 |--------------|--------------------------------------------|----------------------------------|----------------------------|
-| 500          | crates/logic/src/polling.rs:23, 36, 50     | Retry delay (ms) when connecting | Connection retry backoff   |
-| 100          | crates/logic/src/polling.rs:64, 70         | Error recovery delay (ms)        | Error handling sleep       |
+| 500          | crates/gateway/src/polling.rs:23, 36, 50     | Retry delay (ms) when connecting | Connection retry backoff   |
+| 100          | crates/gateway/src/polling.rs:64, 70         | Error recovery delay (ms)        | Error handling sleep       |
 | 100          | crates/inference/src/service.rs:48, 72, 87 | Inference poll interval (ms)     | Duplicated from config!    |
-| 16           | crates/logic/src/config.rs:29, 56          | Logic poll interval (~60 FPS)    | Default frame polling rate |
+| 16           | crates/gateway/src/config.rs:29, 56          | Gateway poll interval (~60 FPS)    | Default frame polling rate |
 
 4. Memory/Buffer Sizes
 
@@ -52,11 +52,11 @@
 |------------------|---------------------------------------|---------------------------------|-----------------------------|
 | 8                | crates/bridge/src/mmap_writer.rs:7    | DATA_OFFSET (already constant!) | Atomic u64 sequence header  |
 | 1024 * 1024      | crates/inference/src/config.rs:34, 76 | 1MB detection buffer default    | Mmap size                   |
-| 32 * 1024 * 1024 | crates/gateway/src/main.rs:15         | 32MB frame buffer               | Hardcoded, not from config! |
-| 10               | crates/logic/src/config.rs:37, 59     | Broadcast channel capacity      | WebSocket channel buffer    |
+| 32 * 1024 * 1024 | crates/capture/src/main.rs:15         | 32MB frame buffer               | Hardcoded, not from config! |
+| 10               | crates/gateway/src/config.rs:37, 59     | Broadcast channel capacity      | WebSocket channel buffer    |
 
 5. Network Configuration
 
 | Magic Number   | Location                          | What It Is                | Impact         |
 |----------------|-----------------------------------|---------------------------|----------------|
-| "0.0.0.0:8080" | crates/logic/src/config.rs:32, 57 | Default WebSocket address | Hardcoded port |
+| "0.0.0.0:8080" | crates/gateway/src/config.rs:32, 57 | Default WebSocket address | Hardcoded port |

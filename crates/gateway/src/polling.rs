@@ -1,4 +1,4 @@
-use crate::config::LogicConfig;
+use crate::config::GatewayConfig;
 use crate::state::{Detection, FrameMessage, FramePacket};
 use bridge::{FrameSemaphore, MmapReader};
 use image::{ImageBuffer, RgbImage};
@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use tokio::time;
 
 pub async fn poll_buffers(
-    config: LogicConfig,
+    config: GatewayConfig,
     tx: Arc<broadcast::Sender<FramePacket>>,
 ) -> anyhow::Result<()> {
     let mut frame_reader = loop {
@@ -38,15 +38,15 @@ pub async fn poll_buffers(
         }
     };
 
-    tracing::info!("Opening logic frame synchronization semaphore");
+    tracing::info!("Opening gateway frame synchronization semaphore");
     let frame_semaphore = loop {
-        match FrameSemaphore::open("/bridge_frame_logic") {
+        match FrameSemaphore::open("/bridge_frame_gateway") {
             Ok(sem) => {
-                tracing::info!("Logic semaphore connected successfully");
+                tracing::info!("Gateway semaphore connected successfully");
                 break Arc::new(sem);
             }
             Err(_) => {
-                tracing::debug!("Waiting for logic semaphore...");
+                tracing::debug!("Waiting for gateway semaphore...");
                 time::sleep(Duration::from_millis(500)).await;
             }
         }

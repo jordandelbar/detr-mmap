@@ -16,6 +16,6 @@ images:
   - name: bridge-rt-inference
     newName: localhost:5000/bridge-rt-inference-gpu
     newTag: latest
-  - name: bridge-rt-logic
-    newName: localhost:5000/bridge-rt-logic
+  - name: bridge-rt-gateway
+    newName: localhost:5000/bridge-rt-gateway
     newTag: latest

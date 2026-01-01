@@ -7,7 +7,7 @@ variable "TAG" {
 }
 
 group "default" {
-  targets = ["capture", "inference", "logic"]
+  targets = ["capture", "inference", "gateway"]
 }
 
 target "common" {
@@ -32,11 +32,11 @@ target "inference" {
   }
 }
 
-target "logic" {
+target "gateway" {
   inherits = ["common"]
-  tags = ["bridge-rt-logic:${TAG}", "${REGISTRY}/bridge-rt-logic:${TAG}"]
+  tags = ["bridge-rt-gateway:${TAG}", "${REGISTRY}/bridge-rt-gateway:${TAG}"]
   args = {
-    BINARY_NAME = "logic"
+    BINARY_NAME = "gateway"
   }
 }
 

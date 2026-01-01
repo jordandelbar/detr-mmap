@@ -42,5 +42,5 @@ spec:
           # stdin: true
           # tty: true
 
-        - name: logic
+        - name: gateway
           imagePullPolicy: IfNotPresent

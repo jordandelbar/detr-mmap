@@ -1,4 +1,4 @@
-use crate::config::LogicConfig;
+use crate::config::GatewayConfig;
 use crate::state::AppState;
 use axum::{
     Router,
@@ -8,7 +8,7 @@ use axum::{
 };
 use tower_http::cors::CorsLayer;
 
-pub async fn run_server(config: LogicConfig, state: AppState) -> anyhow::Result<()> {
+pub async fn run_server(config: GatewayConfig, state: AppState) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .layer(CorsLayer::permissive())

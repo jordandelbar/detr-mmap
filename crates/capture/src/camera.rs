@@ -14,7 +14,7 @@ pub struct Camera {
     frame_duration: Duration,
     frame_serializer: FrameSerializer,
     inference_semaphore: FrameSemaphore,
-    logic_semaphore: FrameSemaphore,
+    gateway_semaphore: FrameSemaphore,
 }
 
 impl Camera {
@@ -55,8 +55,8 @@ impl Camera {
         );
 
         let inference_semaphore = FrameSemaphore::create("/bridge_frame_inference")?;
-        let logic_semaphore = FrameSemaphore::create("/bridge_frame_logic")?;
-        tracing::info!("Created frame synchronization semaphores (inference + logic)");
+        let gateway_semaphore = FrameSemaphore::create("/bridge_frame_gateway")?;
+        tracing::info!("Created frame synchronization semaphores (inference + gateway)");
 
         Ok(Self {
             camera_id: config.camera_id,
@@ -66,7 +66,7 @@ impl Camera {
             frame_duration,
             frame_serializer,
             inference_semaphore,
-            logic_semaphore,
+            gateway_semaphore,
         })
     }
 
@@ -121,8 +121,8 @@ impl Camera {
             if let Err(e) = self.inference_semaphore.post() {
                 tracing::warn!("Failed to signal inference: {}", e);
             }
-            if let Err(e) = self.logic_semaphore.post() {
-                tracing::warn!("Failed to signal logic: {}", e);
+            if let Err(e) = self.gateway_semaphore.post() {
+                tracing::warn!("Failed to signal gateway: {}", e);
             }
 
             frame_count += 1;

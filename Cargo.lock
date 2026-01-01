@@ -499,6 +499,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "controller"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bridge",
+ "common",
+ "flatbuffers",
+ "schema",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,6 +967,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "bridge",
+ "common",
+ "flatbuffers",
+ "image",
+ "schema",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1325,26 +1356,6 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
-
-[[package]]
-name = "logic"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "bridge",
- "common",
- "flatbuffers",
- "image",
- "schema",
- "serde",
- "serde_json",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
-]
 
 [[package]]
 name = "loop9"

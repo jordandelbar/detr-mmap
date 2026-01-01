@@ -3,7 +3,7 @@ use std::env;
 pub use common::Environment;
 
 #[derive(Debug, Clone)]
-pub struct LogicConfig {
+pub struct GatewayConfig {
     pub environment: Environment,
     pub frame_mmap_path: String,
     pub detection_mmap_path: String,
@@ -12,25 +12,25 @@ pub struct LogicConfig {
     pub channel_capacity: usize,
 }
 
-impl LogicConfig {
+impl GatewayConfig {
     /// Load configuration from environment variables with sensible defaults
     pub fn from_env() -> Self {
         let environment = Environment::from_env();
 
-        let frame_mmap_path = env::var("LOGIC_FRAME_MMAP_PATH")
+        let frame_mmap_path = env::var("GATEWAY_FRAME_MMAP_PATH")
             .unwrap_or_else(|_| "/dev/shm/bridge_frame_buffer".to_string());
 
-        let detection_mmap_path = env::var("LOGIC_DETECTION_MMAP_PATH")
+        let detection_mmap_path = env::var("GATEWAY_DETECTION_MMAP_PATH")
             .unwrap_or_else(|_| "/dev/shm/bridge_detection_buffer".to_string());
 
-        let poll_interval_ms = env::var("LOGIC_POLL_INTERVAL_MS")
+        let poll_interval_ms = env::var("GATEWAY_POLL_INTERVAL_MS")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(16); // ~60fps
 
-        let ws_addr = env::var("LOGIC_WS_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+        let ws_addr = env::var("GATEWAY_WS_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
 
-        let channel_capacity = env::var("LOGIC_CHANNEL_CAPACITY")
+        let channel_capacity = env::var("GATEWAY_CHANNEL_CAPACITY")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(10);

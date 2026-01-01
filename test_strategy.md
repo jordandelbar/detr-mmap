@@ -72,42 +72,42 @@
 
 ### 🟢 Cross-Service Communication
 
-**File:** `tests/gateway_to_inference_test.rs` (workspace-level)
+**File:** `tests/capture_to_inference_test.rs` (workspace-level)
 - [ ] test_frame_serialization_deserialization_pipeline
-  - Serialize frame (gateway) → Write mmap → Read (inference) → Preprocess
+  - Serialize frame (capture) → Write mmap → Read (inference) → Preprocess
   - Assert: No data corruption, dimensions match
 
-**File:** `tests/inference_to_logic_test.rs` (workspace-level)
+**File:** `tests/inference_to_gateway_test.rs` (workspace-level)
 - [ ] test_detection_serialization_via_mmap
-  - Create detections → Serialize FlatBuffers → Write mmap → Logic reads
+  - Create detections → Serialize FlatBuffers → Write mmap → Gateway reads
   - Assert: All detections present, coordinates correct
 
 ---
 
-### 🟢 Crate: `gateway` (Serialization)
+### 🟢 Crate: `capture` (Serialization)
 
-**File:** `crates/gateway/src/serialization.rs` (inline unit tests)
+**File:** `crates/capture/src/serialization.rs` (inline unit tests)
 - [ ] test_serialize_frame_includes_metadata
 - [ ] test_serialize_frame_includes_pixel_data
 - [ ] test_deserialize_serialized_frame_roundtrip
 - [ ] test_flatbuffers_zero_copy_access
 
-**File:** `crates/gateway/src/camera.rs` (inline unit tests - requires mocking)
+**File:** `crates/capture/src/camera.rs` (inline unit tests - requires mocking)
 - [ ] test_camera_initialization_with_index
 - [ ] test_frame_capture_returns_expected_dimensions
 - [ ] test_camera_handles_capture_errors_gracefully
 
 ---
 
-### 🟢 Crate: `logic` (WebSocket Streaming)
+### 🟢 Crate: `gateway` (WebSocket Streaming)
 
-**File:** `crates/logic/src/polling.rs` (inline unit tests)
+**File:** `crates/gateway/src/polling.rs` (inline unit tests)
 - [ ] test_jpeg_encoding_quality
 - [ ] test_polling_detects_new_frames
 - [ ] test_polling_combines_frame_and_detections
 - [ ] test_polling_handles_mismatched_sequences
 
-**File:** `crates/logic/src/ws.rs` (inline unit tests)
+**File:** `crates/gateway/src/ws.rs` (inline unit tests)
 - [ ] test_websocket_handler_sends_frames
 - [ ] test_websocket_handles_client_disconnect
 - [ ] test_broadcast_to_multiple_clients
@@ -170,7 +170,7 @@ Benchmarks:
 - [ ] benchmark_mmap_write (1KB, 10KB, 100KB, 1MB)
 - [ ] benchmark_mmap_read
 
-**File:** `crates/logic/benches/jpeg_encoding.rs`
+**File:** `crates/gateway/benches/jpeg_encoding.rs`
 - [ ] benchmark_jpeg_encoding_quality_80
 - [ ] benchmark_jpeg_encoding_quality_95
 
@@ -267,8 +267,8 @@ wiremock = "0.6"
 |-----------|--------|---------|-----------------------------------|
 | bridge    | 90%+   | 94.31%  | ✅ GOAL EXCEEDED!                 |
 | inference | 80%+   | 96.20%  | ✅ GOAL EXCEEDED!                 |
-| gateway   | 60%+   | 0%      | ⚠️  Serialization                  |
-| logic     | 75%+   | 0%      | WebSocket handling                |
+| capture   | 60%+   | 0%      | ⚠️  Serialization                  |
+| gateway     | 75%+   | 0%      | WebSocket handling                |
 | common    | 90%+   | 0%      | Logging configuration             |
 | schema    | 100%   | 0%      | ⚪ Generated code (skip)          |
 
@@ -283,8 +283,8 @@ cargo test --workspace
 # Run specific crate
 cargo test -p bridge
 cargo test -p inference
+cargo test -p capture
 cargo test -p gateway
-cargo test -p logic
 
 # Run with output
 cargo test -- --nocapture
@@ -343,7 +343,7 @@ test_data/
 
 **Next Up:**
 1. [ ] Serialization roundtrip tests (gateway) 🟢
-2. [ ] WebSocket tests (logic) 🟢
+2. [ ] WebSocket tests (gateway) 🟢
 3. [ ] Cross-service communication tests 🟢
 
 ---

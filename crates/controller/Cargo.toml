@@ -1,0 +1,11 @@
+[package]
+name = "controller"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+schema = { path = "../schema" }
+bridge = { path = "../bridge" }
+common = { path = "../common" }
+flatbuffers = "24.3"
+anyhow = "1.0"

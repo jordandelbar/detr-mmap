@@ -1,14 +1,14 @@
-use logic::{config::LogicConfig, logging::setup_logging, polling, state::AppState, ws};
+use gateway::{config::GatewayConfig, logging::setup_logging, polling, state::AppState, ws};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let config = LogicConfig::from_env();
+    let config = GatewayConfig::from_env();
 
     setup_logging(&config);
 
-    tracing::info!("Logic service starting");
+    tracing::info!("Gateway service starting");
     tracing::info!("Frame source: {}", config.frame_mmap_path);
     tracing::info!("Detection source: {}", config.detection_mmap_path);
     tracing::info!("WebSocket endpoint: ws://{}/ws", config.ws_addr);
