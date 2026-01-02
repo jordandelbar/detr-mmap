@@ -1,58 +1,19 @@
 use crate::config::CameraConfig;
 use crate::serialization::FrameSerializer;
 use bridge::FrameSemaphore;
+use common::retry::retry_with_backoff;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
-use std::time::Duration;
+use std::{
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 use v4l::{Device, capability::Flags, context};
-
-/// Retry a function with exponential backoff
-///
-/// # Arguments
-/// * `f` - The function to retry
-/// * `max_retries` - Maximum number of retry attempts
-/// * `base_delay_ms` - Initial delay in milliseconds (doubles each retry)
-/// * `operation_name` - Human-readable name for logging
-fn retry_with_backoff<F, T, E>(
-    mut f: F,
-    max_retries: u32,
-    base_delay_ms: u64,
-    operation_name: &str,
-) -> Result<T, E>
-where
-    F: FnMut() -> Result<T, E>,
-    E: std::fmt::Display,
-{
-    for attempt in 0..max_retries {
-        match f() {
-            Ok(result) => return Ok(result),
-            Err(e) => {
-                if attempt < max_retries - 1 {
-                    let delay_ms = base_delay_ms * 2_u64.pow(attempt);
-                    tracing::warn!(
-                        "{} failed (attempt {}/{}): {}. Retrying in {}ms...",
-                        operation_name,
-                        attempt + 1,
-                        max_retries,
-                        e,
-                        delay_ms
-                    );
-                    std::thread::sleep(Duration::from_millis(delay_ms));
-                } else {
-                    tracing::error!(
-                        "{} failed after {} attempts: {}",
-                        operation_name,
-                        max_retries,
-                        e
-                    );
-                    return Err(e);
-                }
-            }
-        }
-    }
-    unreachable!()
-}
 
 fn find_usable_camera() -> Option<u32> {
     context::enum_devices()
@@ -61,7 +22,7 @@ fn find_usable_camera() -> Option<u32> {
         .map(|dev| dev.index() as u32)
 }
 
-fn is_usable_camera(path: &std::path::Path) -> bool {
+fn is_usable_camera(path: &Path) -> bool {
     Device::with_path(path)
         .and_then(|dev| dev.query_caps())
         .map(|caps| caps.capabilities.contains(Flags::VIDEO_CAPTURE))
@@ -149,86 +110,73 @@ impl Camera {
         })
     }
 
-    pub fn run(
+    fn process_single_frame(
         &mut self,
-        shutdown: &std::sync::Arc<std::sync::atomic::AtomicBool>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        tracing::info!("frame buffer ready - writing at camera rate");
+        frame_count: u64,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
+        let frame = self.cam.frame()?;
+        let decoded = frame.decode_image::<RgbFormat>()?;
+        let pixel_data = decoded.as_raw();
+
+        self.frame_serializer.write(
+            pixel_data,
+            self.camera_id,
+            frame_count,
+            self.width,
+            self.height,
+        )?;
+
+        Ok(pixel_data.len())
+    }
+
+    pub fn run(&mut self, shutdown: &Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+        tracing::info!(
+            "Starting camera stream at {}x{}...",
+            self.width,
+            self.height
+        );
 
         let mut frame_count = 0u64;
         let mut dropped_frames = 0u64;
 
-        while !shutdown.load(std::sync::atomic::Ordering::Relaxed) {
-            let frame = match self.cam.frame() {
-                Ok(f) => f,
+        while !shutdown.load(Ordering::Relaxed) {
+            let start_time = std::time::Instant::now();
+
+            match self.process_single_frame(frame_count) {
+                Ok(_bytes) => {
+                    let _ = self.inference_semaphore.post();
+                    let _ = self.gateway_semaphore.post();
+
+                    frame_count += 1;
+                }
                 Err(e) => {
-                    tracing::warn!("Failed to capture frame: {}", e);
                     dropped_frames += 1;
-                    std::thread::sleep(self.frame_duration);
-                    continue;
+                    tracing::warn!("Frame #{} pipeline error: {}", frame_count, e);
                 }
             };
 
-            let decoded = match frame.decode_image::<RgbFormat>() {
-                Ok(d) => d,
-                Err(e) => {
-                    tracing::warn!("Failed to decode frame: {}", e);
-                    dropped_frames += 1;
-                    std::thread::sleep(self.frame_duration);
-                    continue;
-                }
-            };
-
-            let pixel_data = decoded.as_raw();
-
-            if let Err(e) = self.frame_serializer.write(
-                pixel_data,
-                self.camera_id,
-                frame_count,
-                self.width,
-                self.height,
-            ) {
-                tracing::error!(
-                    "Failed to write frame #{} (size: {} bytes): {}",
-                    frame_count,
-                    pixel_data.len(),
-                    e
-                );
-                dropped_frames += 1;
-                std::thread::sleep(self.frame_duration);
-                continue;
-            }
-
-            // Signal each consumer's dedicated queue
-            if let Err(e) = self.inference_semaphore.post() {
-                tracing::warn!("Failed to signal inference: {}", e);
-            }
-            if let Err(e) = self.gateway_semaphore.post() {
-                tracing::warn!("Failed to signal gateway: {}", e);
-            }
-
-            frame_count += 1;
-
-            if frame_count.is_multiple_of(30) {
+            if frame_count > 0 && frame_count % 30 == 0 {
                 tracing::debug!(
-                    "Frame #{} (seq: {}), Size: {}x{}, Dropped: {}",
+                    "Status: [Frames: {}] [Dropped: {}] [Seq: {}]",
                     frame_count,
-                    self.frame_serializer.sequence(),
-                    self.width,
-                    self.height,
-                    dropped_frames
+                    dropped_frames,
+                    self.frame_serializer.sequence()
                 );
             }
 
-            std::thread::sleep(self.frame_duration);
+            let elapsed = start_time.elapsed();
+            if elapsed < self.frame_duration {
+                std::thread::sleep(self.frame_duration - elapsed);
+            } else {
+                tracing::trace!("Processing took longer than frame budget: {:?}", elapsed);
+            }
         }
 
         tracing::info!(
-            "Shutdown signal received. Captured {} frames, dropped {}. Releasing camera...",
+            "Shutdown: {} frames captured, {} dropped.",
             frame_count,
             dropped_frames
         );
-
         Ok(())
     }
 }
