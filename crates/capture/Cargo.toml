@@ -11,6 +11,7 @@ path = "src/main.rs"
 name = "capture"
 
 [dependencies]
+v4l = "0.14.0"
 nokhwa = { version = "0.10", features = ["input-native"] }
 thiserror = "2.0.17"
 schema = { path = "../schema" }

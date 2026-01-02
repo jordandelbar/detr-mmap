@@ -5,6 +5,7 @@ use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraIndex, RequestedFormat, RequestedFormatType};
 use std::time::Duration;
+use v4l::{Device, capability::Flags, context};
 
 /// Retry a function with exponential backoff
 ///
@@ -53,39 +54,41 @@ where
     unreachable!()
 }
 
-/// Scan for available video devices
-///
-/// Tries device indices 0-9 and returns the first available camera.
-/// This handles cases where cameras reconnect as /dev/video1, /dev/video2, etc.
-fn find_available_camera(
-    requested_format: &RequestedFormat,
-) -> Result<(NokhwaCamera, u32), Box<dyn std::error::Error>> {
-    // Try indices 0-9 (covers /dev/video0 through /dev/video9)
-    for device_idx in 0..10 {
-        let index = CameraIndex::Index(device_idx);
+fn find_usable_camera() -> Option<u32> {
+    context::enum_devices()
+        .into_iter()
+        .find(|dev| is_usable_camera(dev.path()))
+        .map(|dev| dev.index() as u32)
+}
 
-        match NokhwaCamera::new(index, *requested_format) {
-            Ok(mut cam) => match cam.open_stream() {
-                Ok(_) => {
-                    tracing::info!("Found available camera at /dev/video{}", device_idx);
-                    return Ok((cam, device_idx));
-                }
-                Err(e) => {
-                    tracing::debug!(
-                        "Camera at /dev/video{} exists but failed to open: {}",
-                        device_idx,
-                        e
-                    );
-                    continue;
-                }
-            },
-            Err(_) => {
-                continue;
-            }
+fn is_usable_camera(path: &std::path::Path) -> bool {
+    Device::with_path(path)
+        .and_then(|dev| dev.query_caps())
+        .map(|caps| caps.capabilities.contains(Flags::VIDEO_CAPTURE))
+        .unwrap_or(false)
+}
+
+fn open_camera(
+    index: u32,
+    format: RequestedFormat,
+) -> Result<(NokhwaCamera, u32), Box<dyn std::error::Error>> {
+    let cam_index = CameraIndex::Index(index);
+    if let Ok(mut cam) = NokhwaCamera::new(cam_index, format) {
+        if cam.open_stream().is_ok() {
+            return Ok((cam, index));
         }
     }
 
-    Err("No available camera found in /dev/video0-9".into())
+    tracing::debug!(
+        "Camera index {} busy or missing, scanning alternatives...",
+        index
+    );
+    let best_idx = find_usable_camera().ok_or("No usable video devices found")?;
+
+    let mut cam = NokhwaCamera::new(CameraIndex::Index(best_idx), format)?;
+    cam.open_stream()?;
+
+    Ok((cam, best_idx))
 }
 
 pub struct Camera {
@@ -104,47 +107,11 @@ impl Camera {
         let requested_format =
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
-        // Wrap camera opening in retry logic to handle kernel delays after pod restart
         let (cam, actual_device_id) = retry_with_backoff(
-            || {
-                // Try configured device first
-                tracing::info!(
-                    "Attempting to open camera at /dev/video{}",
-                    config.device_id
-                );
-
-                let index = CameraIndex::Index(config.device_id);
-                match NokhwaCamera::new(index, requested_format) {
-                    Ok(mut cam) => match cam.open_stream() {
-                        Ok(_) => {
-                            tracing::info!(
-                                "Successfully opened configured camera /dev/video{}",
-                                config.device_id
-                            );
-                            Ok((cam, config.device_id))
-                        }
-                        Err(e) => {
-                            tracing::debug!(
-                                "Configured camera /dev/video{} busy: {}. Scanning alternatives...",
-                                config.device_id,
-                                e
-                            );
-                            find_available_camera(&requested_format)
-                        }
-                    },
-                    Err(e) => {
-                        tracing::debug!(
-                            "Configured camera /dev/video{} not found: {}. Scanning alternatives...",
-                            config.device_id,
-                            e
-                        );
-                        find_available_camera(&requested_format)
-                    }
-                }
-            },
-            10,  // max retries
-            200, // base delay ms (200ms, 400ms, 800ms, 1600ms, 3200ms...)
-            "Camera initialization",
+            || open_camera(config.device_id, requested_format),
+            10,
+            200,
+            "Camera Init",
         )?;
 
         tracing::info!(
@@ -152,18 +119,8 @@ impl Camera {
             actual_device_id
         );
 
-        let camera_format = cam.camera_format();
-        let width = camera_format.width();
-        let height = camera_format.height();
-        let fps = camera_format.frame_rate();
-        let frame_duration = std::time::Duration::from_secs_f64(1.0 / fps as f64);
-
-        tracing::info!(
-            "camera properties: Resolution: {}x{}, FPS: {}",
-            width,
-            height,
-            fps
-        );
+        let format = cam.camera_format();
+        let frame_duration = Duration::from_secs_f64(1.0 / format.frame_rate() as f64);
 
         let frame_serializer = FrameSerializer::build(&config.mmap_path, config.mmap_size)?;
 
@@ -173,38 +130,22 @@ impl Camera {
             config.mmap_size / 1024 / 1024
         );
 
-        // Try to open existing semaphores first (allows seamless restart)
-        let inference_semaphore = match FrameSemaphore::open("/bridge_frame_inference") {
-            Ok(sem) => {
-                tracing::info!("Reconnected to existing inference semaphore");
-                sem
-            }
-            Err(_) => {
-                tracing::info!("Creating new inference semaphore");
-                FrameSemaphore::create("/bridge_frame_inference")?
-            }
-        };
-
-        let gateway_semaphore = match FrameSemaphore::open("/bridge_frame_gateway") {
-            Ok(sem) => {
-                tracing::info!("Reconnected to existing gateway semaphore");
-                sem
-            }
-            Err(_) => {
-                tracing::info!("Creating new gateway semaphore");
-                FrameSemaphore::create("/bridge_frame_gateway")?
-            }
+        let get_sem = |path, name| {
+            FrameSemaphore::open(path).or_else(|_| {
+                tracing::info!("Creating new {} semaphore", name);
+                FrameSemaphore::create(path)
+            })
         };
 
         Ok(Self {
             camera_id: config.camera_id,
             cam,
-            width,
-            height,
+            width: format.width(),
+            height: format.height(),
             frame_duration,
             frame_serializer,
-            inference_semaphore,
-            gateway_semaphore,
+            inference_semaphore: get_sem("/bridge_frame_inference", "inference")?,
+            gateway_semaphore: get_sem("/bridge_frame_gateway", "gateway")?,
         })
     }
 
