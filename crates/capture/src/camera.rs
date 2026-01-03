@@ -57,7 +57,8 @@ pub struct Camera {
     cam: NokhwaCamera,
     width: u32,
     height: u32,
-    frame_duration: Duration,
+    max_frame_rate: f64,
+    sentry_mode_rate: f64,
     frame_serializer: FrameSerializer,
     inference_semaphore: FrameSemaphore,
     gateway_semaphore: FrameSemaphore,
@@ -81,8 +82,6 @@ impl Camera {
         );
 
         let format = cam.camera_format();
-        let frame_duration = Duration::from_secs_f64(1.0 / format.frame_rate() as f64);
-
         let frame_serializer = FrameSerializer::build(&config.mmap_path, config.mmap_size)?;
 
         tracing::info!(
@@ -103,7 +102,8 @@ impl Camera {
             cam,
             width: format.width(),
             height: format.height(),
-            frame_duration,
+            max_frame_rate: format.frame_rate() as f64,
+            sentry_mode_rate: config.sentry_mode_fps,
             frame_serializer,
             inference_semaphore: get_sem("/bridge_frame_inference", "inference")?,
             gateway_semaphore: get_sem("/bridge_frame_gateway", "gateway")?,
@@ -129,7 +129,11 @@ impl Camera {
         Ok(pixel_data.len())
     }
 
-    pub fn run(&mut self, shutdown: &Arc<AtomicBool>, sentry: &SentryControl) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(
+        &mut self,
+        shutdown: &Arc<AtomicBool>,
+        sentry: &SentryControl,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!(
             "Starting camera stream at {}x{}...",
             self.width,
@@ -141,13 +145,12 @@ impl Camera {
         let mut current_mode = SentryMode::Standby;
 
         // FPS configuration
-        let standby_fps = 1.0;
-        let alarmed_fps = 30.0;
+        let standby_fps = self.sentry_mode_rate;
+        let alarmed_fps = self.max_frame_rate;
 
         while !shutdown.load(Ordering::Relaxed) {
             let start_time = std::time::Instant::now();
 
-            // Check for mode changes
             let mode = sentry.get_mode();
             if mode != current_mode {
                 current_mode = mode;
@@ -158,11 +161,12 @@ impl Camera {
                 tracing::info!("Sentry mode changed to {:?} ({} FPS)", mode, fps);
             }
 
-            // Calculate frame duration based on current mode
-            let frame_duration = Duration::from_secs_f64(1.0 / match current_mode {
-                SentryMode::Standby => standby_fps,
-                SentryMode::Alarmed => alarmed_fps,
-            });
+            let frame_duration = Duration::from_secs_f64(
+                1.0 / match current_mode {
+                    SentryMode::Standby => standby_fps,
+                    SentryMode::Alarmed => alarmed_fps,
+                },
+            );
 
             match self.process_single_frame(frame_count) {
                 Ok(_bytes) => {

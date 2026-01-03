@@ -1,15 +1,17 @@
-use capture::{camera::Camera, config::CameraConfig, logging::setup_logging};
 use bridge::SentryControl;
-use signal_hook::consts::{SIGINT, SIGTERM};
-use signal_hook::flag;
-use std::sync::atomic::AtomicBool;
+use capture::{camera::Camera, config::CameraConfig, logging::setup_logging};
+use signal_hook::{
+    consts::{SIGINT, SIGTERM},
+    flag,
+};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 fn main() -> anyhow::Result<()> {
     let config = CameraConfig::from_env()?;
     setup_logging(&config);
 
-    // Set up graceful shutdown on SIGTERM (Kubernetes) and SIGINT (Ctrl+C)
+    // Set up graceful shutdown on SIGTERM and SIGINT
     let shutdown = Arc::new(AtomicBool::new(false));
 
     flag::register(SIGTERM, Arc::clone(&shutdown))?;

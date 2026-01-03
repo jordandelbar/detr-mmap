@@ -7,6 +7,7 @@ pub struct CameraConfig {
     pub environment: Environment,
     pub camera_id: u32,
     pub device_id: u32,
+    pub sentry_mode_fps: f64,
     pub mmap_path: String,
     pub mmap_size: usize,
 }
@@ -25,6 +26,11 @@ impl CameraConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(0);
 
+        let sentry_mode_fps = env::var("SENTRY_MODE_FPS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1.0);
+
         let mmap_path = env::var("FRAME_MMAP_PATH")
             .unwrap_or_else(|_| "/dev/shm/bridge_frame_buffer".to_string());
 
@@ -37,6 +43,7 @@ impl CameraConfig {
             environment,
             camera_id,
             device_id,
+            sentry_mode_fps,
             mmap_path,
             mmap_size,
         })
