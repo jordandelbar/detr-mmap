@@ -82,6 +82,27 @@ impl<B: InferenceBackend> InferenceService<B> {
             }
         };
 
+        tracing::info!("Opening controller semaphore for detection notifications");
+        let controller_semaphore = loop {
+            match FrameSemaphore::open(&self.config.controller_semaphore_name) {
+                Ok(sem) => {
+                    tracing::info!("Controller semaphore connected successfully");
+                    break sem;
+                }
+                Err(_) => {
+                    match FrameSemaphore::create(&self.config.controller_semaphore_name) {
+                        Ok(sem) => {
+                            tracing::info!("Controller semaphore created successfully");
+                            break sem;
+                        }
+                        Err(_) => {
+                            thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
+                        }
+                    }
+                }
+            }
+        };
+
         tracing::info!("Starting inference loop (event-driven)");
 
         let mut total_detections = 0usize;
@@ -113,6 +134,10 @@ impl<B: InferenceBackend> InferenceService<B> {
                 Ok(detections) => {
                     frames_processed += 1;
                     total_detections += detections;
+
+                    if let Err(e) = controller_semaphore.post() {
+                        tracing::warn!(error = %e, "Failed to signal controller");
+                    }
 
                     if frames_processed.is_multiple_of(10) {
                         tracing::debug!(

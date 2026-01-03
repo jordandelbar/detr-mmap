@@ -1,0 +1,111 @@
+use crate::{
+    config::ControllerConfig, detection_reader::DetectionReader, state_machine::StateContext,
+};
+use anyhow::Result;
+use bridge::{FrameSemaphore, SentryControl};
+use std::{thread, time::Duration};
+
+pub struct ControllerService {
+    config: ControllerConfig,
+    state_context: StateContext,
+    detection_reader: DetectionReader,
+    detection_semaphore: FrameSemaphore,
+    sentry_control: SentryControl,
+}
+
+impl ControllerService {
+    pub fn new(config: ControllerConfig) -> Result<Self> {
+        let detection_reader = loop {
+            match DetectionReader::new(&config.detection_mmap_path) {
+                Ok(reader) => {
+                    tracing::info!("Detection buffer connected");
+                    break reader;
+                }
+                Err(_) => {
+                    tracing::debug!("Waiting for detection buffer...");
+                    thread::sleep(Duration::from_millis(config.poll_interval_ms));
+                }
+            }
+        };
+
+        let detection_semaphore = loop {
+            match FrameSemaphore::open(&config.controller_semaphore_name) {
+                Ok(sem) => {
+                    tracing::info!("Detection semaphore connected");
+                    break sem;
+                }
+                Err(_) => {
+                    tracing::debug!("Waiting for detection semaphore...");
+                    thread::sleep(Duration::from_millis(config.poll_interval_ms));
+                }
+            }
+        };
+
+        let sentry_control = SentryControl::new(&config.sentry_control_path)?;
+        tracing::info!("Sentry control connected");
+
+        Ok(Self {
+            config,
+            state_context: StateContext::new(),
+            detection_reader,
+            detection_semaphore,
+            sentry_control,
+        })
+    }
+
+    pub fn run(mut self) -> Result<()> {
+        tracing::info!("Controller service starting");
+        tracing::info!(
+            "State machine config - Validation frames: {}, Tracking exit frames: {}",
+            self.config.validation_frames,
+            self.config.tracking_exit_frames
+        );
+
+        let mut frames_processed = 0u64;
+
+        loop {
+            if let Err(e) = self.detection_semaphore.wait() {
+                tracing::error!(error = %e, "Semaphore wait failed");
+                thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
+                continue;
+            }
+
+            let person_detected = match self.detection_reader.check_person_detected() {
+                Ok(detected) => detected,
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to read detections");
+                    continue;
+                }
+            };
+
+            let state_changed = self.state_context.update(
+                person_detected,
+                self.config.validation_frames,
+                self.config.tracking_exit_frames,
+            );
+
+            if let Some(new_state) = state_changed {
+                let sentry_mode = self.state_context.to_sentry_mode();
+                self.sentry_control.set_mode(sentry_mode);
+
+                tracing::info!(
+                    state = ?new_state,
+                    sentry_mode = ?sentry_mode,
+                    "State transition"
+                );
+            }
+
+            frames_processed += 1;
+            if frames_processed.is_multiple_of(30) {
+                tracing::debug!(
+                    frames_processed,
+                    current_state = ?self.state_context.current_state(),
+                    person_detected,
+                    "Controller status"
+                );
+            }
+
+            self.detection_reader.mark_read();
+        }
+    }
+}
