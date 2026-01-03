@@ -1,5 +1,6 @@
 use crate::config::CameraConfig;
 use crate::serialization::FrameSerializer;
+use anyhow::{Context, Result, anyhow};
 use bridge::{FrameSemaphore, SentryControl, SentryMode};
 use common::retry::retry_with_backoff;
 use nokhwa::Camera as NokhwaCamera;
@@ -32,7 +33,7 @@ fn is_usable_camera(path: &Path) -> bool {
 fn open_camera(
     index: u32,
     format: RequestedFormat,
-) -> Result<(NokhwaCamera, u32), Box<dyn std::error::Error>> {
+) -> Result<(NokhwaCamera, u32)> {
     let cam_index = CameraIndex::Index(index);
     if let Ok(mut cam) = NokhwaCamera::new(cam_index, format) {
         if cam.open_stream().is_ok() {
@@ -44,7 +45,7 @@ fn open_camera(
         "Camera index {} busy or missing, scanning alternatives...",
         index
     );
-    let best_idx = find_usable_camera().ok_or("No usable video devices found")?;
+    let best_idx = find_usable_camera().ok_or_else(|| anyhow!("No usable video devices found"))?;
 
     let mut cam = NokhwaCamera::new(CameraIndex::Index(best_idx), format)?;
     cam.open_stream()?;
@@ -65,7 +66,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn build(config: CameraConfig) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn build(config: CameraConfig) -> Result<Self> {
         let requested_format =
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
@@ -82,7 +83,8 @@ impl Camera {
         );
 
         let format = cam.camera_format();
-        let frame_serializer = FrameSerializer::build(&config.mmap_path, config.mmap_size)?;
+        let frame_serializer = FrameSerializer::build(&config.mmap_path, config.mmap_size)
+            .context("Failed to initialize frame serializer")?;
 
         tracing::info!(
             "Created mmap at {} ({} MB)",
@@ -90,10 +92,10 @@ impl Camera {
             config.mmap_size / 1024 / 1024
         );
 
-        let get_sem = |path, name| {
+        let get_sem = |path: &str, name: &str| -> Result<FrameSemaphore> {
             FrameSemaphore::open(path).or_else(|_| {
                 tracing::info!("Creating new {} semaphore", name);
-                FrameSemaphore::create(path)
+                FrameSemaphore::create(path).map_err(|e| anyhow!("Failed to create semaphore {}: {}", name, e))
             })
         };
 
@@ -105,15 +107,15 @@ impl Camera {
             max_frame_rate: format.frame_rate() as f64,
             sentry_mode_rate: config.sentry_mode_fps,
             frame_serializer,
-            inference_semaphore: get_sem("/bridge_frame_inference", "inference")?,
-            gateway_semaphore: get_sem("/bridge_frame_gateway", "gateway")?,
+            inference_semaphore: get_sem(&config.inference_semaphore_name, "inference")?,
+            gateway_semaphore: get_sem(&config.gateway_semaphore_name, "gateway")?,
         })
     }
 
     fn process_single_frame(
         &mut self,
         frame_count: u64,
-    ) -> Result<usize, Box<dyn std::error::Error>> {
+    ) -> Result<usize> {
         let frame = self.cam.frame()?;
         let decoded = frame.decode_image::<RgbFormat>()?;
         let pixel_data = decoded.as_raw();
@@ -133,7 +135,7 @@ impl Camera {
         &mut self,
         shutdown: &Arc<AtomicBool>,
         sentry: &SentryControl,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         tracing::info!(
             "Starting camera stream at {}x{}...",
             self.width,

@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use bridge::FrameWriter;
 use schema::{ColorFormat, FrameArgs};
 use std::path::Path;
@@ -9,11 +10,12 @@ pub struct FrameSerializer {
 }
 
 impl FrameSerializer {
-    pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self> {
         let writer = if Path::new(mmap_path).exists() {
-            FrameWriter::open_existing(mmap_path)?
+            FrameWriter::open_existing(mmap_path).context("Failed to open existing frame writer")?
         } else {
-            FrameWriter::create_and_init(mmap_path, mmap_size)?
+            FrameWriter::create_and_init(mmap_path, mmap_size)
+                .context("Failed to create new frame writer")?
         };
         let builder = flatbuffers::FlatBufferBuilder::new();
         Ok(Self { writer, builder })
@@ -26,8 +28,11 @@ impl FrameSerializer {
         frame_count: u64,
         width: u32,
         height: u32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let timestamp_ns = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos() as u64;
+    ) -> Result<()> {
+        let timestamp_ns = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("Time went backwards")?
+            .as_nanos() as u64;
 
         self.builder.reset();
         let pixels_vec = self.builder.create_vector(pixel_data);
@@ -49,7 +54,7 @@ impl FrameSerializer {
         self.builder.finish(frame_fb, None);
         let data = self.builder.finished_data();
 
-        self.writer.write(data)?;
+        self.writer.write(data).context("Failed to write frame data")?;
 
         Ok(())
     }
