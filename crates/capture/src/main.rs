@@ -10,8 +10,6 @@ use std::sync::atomic::AtomicBool;
 fn main() -> anyhow::Result<()> {
     let config = CameraConfig::from_env()?;
     setup_logging(&config);
-
-    // Set up graceful shutdown on SIGTERM and SIGINT
     let shutdown = Arc::new(AtomicBool::new(false));
 
     flag::register(SIGTERM, Arc::clone(&shutdown))?;
@@ -21,7 +19,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut camera = Camera::build(config).expect("failed to build camera");
 
-    // Create sentry control in shared memory
     let sentry_control = SentryControl::new("/dev/shm/bridge_sentry_control")
         .expect("failed to create sentry control");
 

@@ -143,10 +143,9 @@ impl Camera {
         let mut frame_count = 0u64;
         let mut dropped_frames = 0u64;
         let mut current_mode = SentryMode::Standby;
-
-        // FPS configuration
-        let standby_fps = self.sentry_mode_rate;
-        let alarmed_fps = self.max_frame_rate;
+        let standby_duration = Duration::from_secs_f64(1.0 / self.sentry_mode_rate);
+        let alarmed_duration = Duration::from_secs_f64(1.0 / self.max_frame_rate);
+        let mut frame_duration = standby_duration;
 
         while !shutdown.load(Ordering::Relaxed) {
             let start_time = std::time::Instant::now();
@@ -154,19 +153,12 @@ impl Camera {
             let mode = sentry.get_mode();
             if mode != current_mode {
                 current_mode = mode;
-                let fps = match mode {
-                    SentryMode::Standby => standby_fps,
-                    SentryMode::Alarmed => alarmed_fps,
+                frame_duration = match mode {
+                    SentryMode::Standby => standby_duration,
+                    SentryMode::Alarmed => alarmed_duration,
                 };
-                tracing::info!("Sentry mode changed to {:?} ({} FPS)", mode, fps);
+                tracing::info!("Sentry mode changed to {:?} ({:?})", mode, frame_duration);
             }
-
-            let frame_duration = Duration::from_secs_f64(
-                1.0 / match current_mode {
-                    SentryMode::Standby => standby_fps,
-                    SentryMode::Alarmed => alarmed_fps,
-                },
-            );
 
             match self.process_single_frame(frame_count) {
                 Ok(_bytes) => {

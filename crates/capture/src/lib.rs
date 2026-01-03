@@ -3,4 +3,4 @@ pub mod config;
 pub mod logging;
 pub mod serialization;
 
-pub use camera::*;
+pub use camera::Camera;
