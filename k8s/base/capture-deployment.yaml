@@ -25,7 +25,7 @@ spec:
       nodeSelector:
         node-role: edge
 
-      # Share host IPC namespace for POSIX message queues (/dev/mqueue)
+      # Share host IPC namespace for shared memory (/dev/shm)
       # This enables mmap/semaphore IPC between capture/inference/gateway pods
       # Appropriate for single-tenant edge deployment (Raspberry Pi, Jetson, etc.)
       hostIPC: true

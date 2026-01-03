@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: inference
+  name: controller
   labels:
     app: bridge-rt
-    component: inference
+    component: controller
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: bridge-rt
-      component: inference
+      component: controller
   template:
     metadata:
       labels:
         app: bridge-rt
-        component: inference
+        component: controller
     spec:
       # Node selector for edge simulation (can be overridden in overlays)
       nodeSelector:
@@ -31,30 +31,23 @@ spec:
           hostPath:
             path: /dev/shm
             type: Directory
-        - name: models
-          hostPath:
-            path: /models
-            type: Directory
 
       containers:
-        - name: inference
-          image: bridge-rt-inference:latest
+        - name: controller
+          image: bridge-rt-controller:latest
           imagePullPolicy: Never
 
           volumeMounts:
             - name: shm-bridge
               mountPath: /dev/shm
-            - name: models
-              mountPath: /models
-              readOnly: true
 
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "1000m"
+              memory: "64Mi"
+              cpu: "100m"
             limits:
-              memory: "2Gi"
-              cpu: "4000m"
+              memory: "256Mi"
+              cpu: "500m"
 
           env:
             - name: RUST_LOG

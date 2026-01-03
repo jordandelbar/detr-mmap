@@ -15,6 +15,9 @@ images:
   - name: bridge-rt-capture
     newName: localhost:5000/bridge-rt-capture
     newTag: latest
+  - name: bridge-rt-controller
+    newName: localhost:5000/bridge-rt-controller
+    newTag: latest
   - name: bridge-rt-inference
     newName: localhost:5000/bridge-rt-inference
     newTag: latest

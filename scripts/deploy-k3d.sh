@@ -24,6 +24,7 @@ echo "Pushing images to k3d registry..."
 docker push ${REGISTRY}/bridge-rt-capture:latest
 docker push ${REGISTRY}/bridge-rt-inference-gpu:latest
 docker push ${REGISTRY}/bridge-rt-gateway:latest
+docker push ${REGISTRY}/bridge-rt-controller:latest
 
 echo "Applying Kubernetes manifests..."
 kubectl apply -k k8s/overlays/k3d

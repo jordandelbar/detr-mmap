@@ -6,6 +6,7 @@ namespace: bridge-rt
 resources:
   - namespace.yaml
   - capture-deployment.yaml
+  - controller-deployment.yaml
   - inference-deployment.yaml
   - gateway-deployment.yaml
   - gateway-service.yaml

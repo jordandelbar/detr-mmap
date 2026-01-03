@@ -1,4 +1,5 @@
 use capture::{camera::Camera, config::CameraConfig, logging::setup_logging};
+use bridge::SentryControl;
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::flag;
 use std::sync::atomic::AtomicBool;
@@ -18,7 +19,13 @@ fn main() -> anyhow::Result<()> {
 
     let mut camera = Camera::build(config).expect("failed to build camera");
 
-    match camera.run(&shutdown) {
+    // Create sentry control in shared memory
+    let sentry_control = SentryControl::new("/dev/shm/bridge_sentry_control")
+        .expect("failed to create sentry control");
+
+    tracing::info!("Sentry control initialized in shared memory");
+
+    match camera.run(&shutdown, &sentry_control) {
         Ok(_) => {
             tracing::info!("Camera capture stopped gracefully");
             Ok(())

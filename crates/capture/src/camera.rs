@@ -1,6 +1,6 @@
 use crate::config::CameraConfig;
 use crate::serialization::FrameSerializer;
-use bridge::FrameSemaphore;
+use bridge::{FrameSemaphore, SentryControl, SentryMode};
 use common::retry::retry_with_backoff;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
@@ -129,7 +129,7 @@ impl Camera {
         Ok(pixel_data.len())
     }
 
-    pub fn run(&mut self, shutdown: &Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(&mut self, shutdown: &Arc<AtomicBool>, sentry: &SentryControl) -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!(
             "Starting camera stream at {}x{}...",
             self.width,
@@ -138,9 +138,31 @@ impl Camera {
 
         let mut frame_count = 0u64;
         let mut dropped_frames = 0u64;
+        let mut current_mode = SentryMode::Standby;
+
+        // FPS configuration
+        let standby_fps = 1.0;
+        let alarmed_fps = 30.0;
 
         while !shutdown.load(Ordering::Relaxed) {
             let start_time = std::time::Instant::now();
+
+            // Check for mode changes
+            let mode = sentry.get_mode();
+            if mode != current_mode {
+                current_mode = mode;
+                let fps = match mode {
+                    SentryMode::Standby => standby_fps,
+                    SentryMode::Alarmed => alarmed_fps,
+                };
+                tracing::info!("Sentry mode changed to {:?} ({} FPS)", mode, fps);
+            }
+
+            // Calculate frame duration based on current mode
+            let frame_duration = Duration::from_secs_f64(1.0 / match current_mode {
+                SentryMode::Standby => standby_fps,
+                SentryMode::Alarmed => alarmed_fps,
+            });
 
             match self.process_single_frame(frame_count) {
                 Ok(_bytes) => {
@@ -157,16 +179,17 @@ impl Camera {
 
             if frame_count > 0 && frame_count % 30 == 0 {
                 tracing::debug!(
-                    "Status: [Frames: {}] [Dropped: {}] [Seq: {}]",
+                    "Status: [Frames: {}] [Dropped: {}] [Seq: {}] [Mode: {:?}]",
                     frame_count,
                     dropped_frames,
-                    self.frame_serializer.sequence()
+                    self.frame_serializer.sequence(),
+                    current_mode
                 );
             }
 
             let elapsed = start_time.elapsed();
-            if elapsed < self.frame_duration {
-                std::thread::sleep(self.frame_duration - elapsed);
+            if elapsed < frame_duration {
+                std::thread::sleep(frame_duration - elapsed);
             } else {
                 tracing::trace!("Processing took longer than frame budget: {:?}", elapsed);
             }
