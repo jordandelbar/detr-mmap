@@ -1,5 +1,6 @@
 use crate::{
-    config::ControllerConfig, detection_reader::DetectionReader, state_machine::StateContext,
+    config::ControllerConfig, detection_reader::DetectionReader,
+    mqtt_notifier::MqttNotifier, state_machine::StateContext,
 };
 use anyhow::Result;
 use bridge::{FrameSemaphore, SentryControl};
@@ -11,6 +12,7 @@ pub struct ControllerService {
     detection_reader: DetectionReader,
     detection_semaphore: FrameSemaphore,
     sentry_control: SentryControl,
+    mqtt_notifier: MqttNotifier,
 }
 
 impl ControllerService {
@@ -44,12 +46,20 @@ impl ControllerService {
         let sentry_control = SentryControl::new(&config.sentry_control_path)?;
         tracing::info!("Sentry control connected");
 
+        let mqtt_notifier = MqttNotifier::new(
+            &config.mqtt_broker_host,
+            config.mqtt_broker_port,
+            config.mqtt_topic.clone(),
+            config.mqtt_device_id.clone(),
+        )?;
+
         Ok(Self {
             config,
             state_context: StateContext::new(),
             detection_reader,
             detection_semaphore,
             sentry_control,
+            mqtt_notifier,
         })
     }
 
@@ -78,6 +88,8 @@ impl ControllerService {
                 }
             };
 
+            let previous_state = self.state_context.current_state();
+
             let state_changed = self.state_context.update(
                 person_detected,
                 self.config.validation_frames,
@@ -93,6 +105,20 @@ impl ControllerService {
                     sentry_mode = ?sentry_mode,
                     "State transition"
                 );
+
+                // Send MQTT notifications only for:
+                // 1. Entering Tracking state (human presence validated)
+                // 2. Tracking -> Standby transition (human left)
+                use crate::state_machine::ControllerState;
+                let should_notify = matches!(new_state, ControllerState::Tracking)
+                    || (matches!(new_state, ControllerState::Standby)
+                        && matches!(previous_state, ControllerState::Tracking));
+
+                if should_notify {
+                    if let Err(e) = self.mqtt_notifier.notify_state_change(new_state, Some(previous_state)) {
+                        tracing::error!(error = %e, "Failed to send MQTT notification");
+                    }
+                }
             }
 
             frames_processed += 1;

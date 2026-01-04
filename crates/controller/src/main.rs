@@ -1,5 +1,6 @@
 mod config;
 mod detection_reader;
+mod mqtt_notifier;
 mod service;
 mod state_machine;
 

@@ -8,6 +8,30 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
 
+/// Safely deserialize flatbuffers with bounds checking
+fn safe_flatbuffers_root<'a, T>(buffer: &'a [u8]) -> anyhow::Result<T::Inner>
+where
+    T: flatbuffers::Follow<'a> + flatbuffers::Verifiable + 'a,
+{
+    // Check minimum buffer size
+    if buffer.len() < 8 {
+        return Err(anyhow::anyhow!(
+            "Buffer too small for flatbuffers: {} bytes",
+            buffer.len()
+        ));
+    }
+
+    // Attempt to get the root with proper error handling
+    match flatbuffers::root::<T>(buffer) {
+        Ok(root) => Ok(root),
+        Err(e) => Err(anyhow::anyhow!(
+            "Flatbuffers deserialization failed: {:?}, buffer size: {}",
+            e,
+            buffer.len()
+        )),
+    }
+}
+
 pub async fn poll_buffers(
     config: GatewayConfig,
     tx: Arc<broadcast::Sender<FramePacket>>,
@@ -78,7 +102,20 @@ pub async fn poll_buffers(
             continue;
         }
 
-        let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
+        // Safely deserialize frame with error handling
+        let frame = match safe_flatbuffers_root::<schema::Frame>(frame_reader.buffer()) {
+            Ok(f) => f,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    sequence = frame_seq,
+                    "Failed to deserialize frame buffer - skipping"
+                );
+                frame_reader.mark_read();
+                continue;
+            }
+        };
+
         let frame_num = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let width = frame.width();
@@ -86,11 +123,24 @@ pub async fn poll_buffers(
 
         let jpeg_data = if let Some(pixels) = frame.pixels() {
             let format = frame.format();
-            match pixels_to_jpeg(pixels.bytes(), width, height, format) {
-                Ok(data) => data,
-                Err(e) => {
-                    tracing::error!("Image encoding error: {}", e);
-                    Vec::new()
+            let pixel_bytes = pixels.bytes();
+
+            // Validate pixel data size
+            let expected_size = (width * height * 3) as usize; // RGB = 3 bytes per pixel
+            if pixel_bytes.len() < expected_size && format != schema::ColorFormat::GRAY {
+                tracing::error!(
+                    expected = expected_size,
+                    actual = pixel_bytes.len(),
+                    "Pixel buffer size mismatch - skipping JPEG encoding"
+                );
+                Vec::new()
+            } else {
+                match pixels_to_jpeg(pixel_bytes, width, height, format) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        tracing::error!("Image encoding error: {}", e);
+                        Vec::new()
+                    }
                 }
             }
         } else {
@@ -98,28 +148,40 @@ pub async fn poll_buffers(
         };
 
         let (detections, status) = if detection_seq > 0 {
-            let detection =
-                flatbuffers::root::<schema::DetectionResult>(detection_reader.buffer())?;
-            let dets = detection.detections().map(|d| {
-                d.iter()
-                    .map(|det| Detection {
-                        x1: det.x1(),
-                        y1: det.y1(),
-                        x2: det.x2(),
-                        y2: det.y2(),
-                        confidence: det.confidence(),
-                        class_id: det.class_id(),
-                    })
-                    .collect()
-            });
+            // Safely deserialize detection buffer with error handling
+            match safe_flatbuffers_root::<schema::DetectionResult>(detection_reader.buffer()) {
+                Ok(detection) => {
+                    let dets = detection.detections().map(|d| {
+                        d.iter()
+                            .map(|det| Detection {
+                                x1: det.x1(),
+                                y1: det.y1(),
+                                x2: det.x2(),
+                                y2: det.y2(),
+                                confidence: det.confidence(),
+                                class_id: det.class_id(),
+                            })
+                            .collect()
+                    });
 
-            let status = if !jpeg_data.is_empty() {
-                "complete"
-            } else {
-                "detection_only"
-            };
+                    let status = if !jpeg_data.is_empty() {
+                        "complete"
+                    } else {
+                        "detection_only"
+                    };
 
-            (dets, status.to_string())
+                    (dets, status.to_string())
+                }
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        sequence = detection_seq,
+                        "Failed to deserialize detection buffer - skipping detections"
+                    );
+                    // Continue with frame-only data
+                    (None, "frame_only".to_string())
+                }
+            }
         } else {
             (None, "frame_only".to_string())
         };

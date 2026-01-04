@@ -59,8 +59,14 @@ spec:
               value: "true"
             - name: MQTT_BROKER_ADDRESS
               value: "mosquitto.bridge-rt.svc.cluster.local"
+            - name: MQTT_BROKER_HOST
+              value: "mosquitto"
             - name: MQTT_PORT
               value: "1883"
+            - name: MQTT_BROKER_PORT
+              value: "1883"
+            - name: MQTT_TOPIC
+              value: "bridge-rt/controller/state"
             - name: MQTT_DEVICE_ID
               valueFrom:
                 fieldRef:
