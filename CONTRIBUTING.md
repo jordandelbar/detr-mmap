@@ -1,18 +1,17 @@
 # Contributing Guide
 
-## To Fix
+## Purpose
 
-- [ ] Magic numbers scattered (CONFIDENCE_THRESHOLD: 0.5, poll intervals)
-- [ ] Could use more newtype patterns for domain concepts
-- [x] Some code duplication:
-  - [x] Dockerfiles
-  - [x] config patterns
-- [ ] Input validation beyond basic assertions
-- [ ] Comprehensive test suite (unit, integration, property-based)
-- [ ] Architecture documentation with diagrams
-- [x] GitHub Actions for CI/CD
-- [ ] Health checks and metrics endpoints
-- [x] Benchmark suite for performance regression detection
-- [x] No automated image builds/publishing
-- [ ] No Helm charts for production deployments
-- [ ] Security scanning not integrated (Trivy, Dependabot)
+This project demonstrates the capabilities of Rust for edge AI applications.
+
+## How to Contribute
+
+Contributions are welcome! If you have discovered a bug or would like to propose an optimization, please open a pull request.
+
+## Benchmarking
+
+We are actively seeking benchmarking results on the following platforms:
+- Raspberry Pi (all models)
+- NVIDIA Jetson (Nano, Xavier NX, Orin, etc.)
+
+If you have access to these devices, please consider running the benchmark suite and sharing your results.
