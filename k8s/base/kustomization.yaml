@@ -10,6 +10,9 @@ resources:
   - inference-deployment.yaml
   - gateway-deployment.yaml
   - gateway-service.yaml
+  - mosquitto-configmap.yaml
+  - mosquitto-statefulset.yaml
+  - mosquitto-service.yaml
 
 labels:
   - pairs:

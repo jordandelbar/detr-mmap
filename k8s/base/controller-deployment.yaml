@@ -54,5 +54,20 @@ spec:
               value: "info"
             - name: ENVIRONMENT
               value: "production"
+            # MQTT Configuration
+            - name: MQTT_ENABLED
+              value: "true"
+            - name: MQTT_BROKER_ADDRESS
+              value: "mosquitto.bridge-rt.svc.cluster.local"
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_DEVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: MQTT_QOS
+              value: "1"
+            - name: MQTT_DEBOUNCE_INTERVAL_MS
+              value: "5000"
 
       restartPolicy: Always

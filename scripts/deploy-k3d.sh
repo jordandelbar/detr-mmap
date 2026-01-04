@@ -26,6 +26,10 @@ docker push ${REGISTRY}/bridge-rt-inference-gpu:latest
 docker push ${REGISTRY}/bridge-rt-gateway:latest
 docker push ${REGISTRY}/bridge-rt-controller:latest
 
+echo "Ensuring node labels are set..."
+kubectl label node k3d-bridge-rt-agent-0 node-role=edge --overwrite
+kubectl label node k3d-bridge-rt-server-0 node-role=central --overwrite
+
 echo "Applying Kubernetes manifests..."
 kubectl apply -k k8s/overlays/k3d
 

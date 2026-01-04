@@ -17,11 +17,13 @@ fi
 echo "Creating k3d cluster..."
 k3d cluster create --config k3d-config.yaml
 
-echo "Labeling agent node as edge device..."
+echo "Labeling nodes..."
 # Wait for nodes to be ready
 sleep 5
 # Label the agent node to simulate an edge device (e.g., Raspberry Pi)
 kubectl label node k3d-bridge-rt-agent-0 node-role=edge --overwrite
+# Label the server node as central (for MQTT broker and other central services)
+kubectl label node k3d-bridge-rt-server-0 node-role=central --overwrite
 
 echo ""
 echo "=== k3d cluster created successfully ==="
