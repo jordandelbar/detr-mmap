@@ -8,11 +8,6 @@ spec:
       runtimeClassName: nvidia
       containers:
         - name: inference
-          imagePullPolicy: IfNotPresent
           resources:
             limits:
               nvidia.com/gpu: 1
-
-          # Enable for development/debugging
-          # stdin: true
-          # tty: true
