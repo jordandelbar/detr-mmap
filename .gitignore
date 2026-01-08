@@ -23,6 +23,7 @@ target
 # Onnx model
 *.onnx
 *.onnx.data
+*.engine
 
 # FlatBuffers generated files
 crates/schema/src/*_generated.rs
