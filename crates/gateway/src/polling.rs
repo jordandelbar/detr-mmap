@@ -1,36 +1,12 @@
 use crate::config::GatewayConfig;
-use crate::state::{Detection, FrameMessage, FramePacket};
-use bridge::{FrameSemaphore, MmapReader};
+use crate::state::{FrameMessage, FramePacket};
+use bridge::{DetectionReader, FrameSemaphore, MmapReader};
 use image::{ImageBuffer, RgbImage};
 use std::io::Cursor;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
-
-/// Safely deserialize flatbuffers with bounds checking
-fn safe_flatbuffers_root<'a, T>(buffer: &'a [u8]) -> anyhow::Result<T::Inner>
-where
-    T: flatbuffers::Follow<'a> + flatbuffers::Verifiable + 'a,
-{
-    // Check minimum buffer size
-    if buffer.len() < 8 {
-        return Err(anyhow::anyhow!(
-            "Buffer too small for flatbuffers: {} bytes",
-            buffer.len()
-        ));
-    }
-
-    // Attempt to get the root with proper error handling
-    match flatbuffers::root::<T>(buffer) {
-        Ok(root) => Ok(root),
-        Err(e) => Err(anyhow::anyhow!(
-            "Flatbuffers deserialization failed: {:?}, buffer size: {}",
-            e,
-            buffer.len()
-        )),
-    }
-}
 
 pub async fn poll_buffers(
     config: GatewayConfig,
@@ -50,7 +26,7 @@ pub async fn poll_buffers(
     };
 
     let mut detection_reader = loop {
-        match MmapReader::new(&config.detection_mmap_path) {
+        match DetectionReader::new(&config.detection_mmap_path) {
             Ok(reader) => {
                 tracing::info!("Detection buffer connected");
                 break reader;
@@ -103,7 +79,7 @@ pub async fn poll_buffers(
         }
 
         // Safely deserialize frame with error handling
-        let frame = match safe_flatbuffers_root::<schema::Frame>(frame_reader.buffer()) {
+        let frame = match flatbuffers::root::<schema::Frame>(frame_reader.buffer()) {
             Ok(f) => f,
             Err(e) => {
                 tracing::error!(
@@ -148,29 +124,20 @@ pub async fn poll_buffers(
         };
 
         let (detections, status) = if detection_seq > 0 {
-            // Safely deserialize detection buffer with error handling
-            match safe_flatbuffers_root::<schema::DetectionResult>(detection_reader.buffer()) {
-                Ok(detection) => {
-                    let dets = detection.detections().map(|d| {
-                        d.iter()
-                            .map(|det| Detection {
-                                x1: det.x1(),
-                                y1: det.y1(),
-                                x2: det.x2(),
-                                y2: det.y2(),
-                                confidence: det.confidence(),
-                                class_id: det.class_id(),
-                            })
-                            .collect()
-                    });
-
+            // Use DetectionReader to safely deserialize detection buffer
+            match detection_reader.get_detections() {
+                Ok(Some(dets)) => {
                     let status = if !jpeg_data.is_empty() {
                         "complete"
                     } else {
                         "detection_only"
                     };
 
-                    (dets, status.to_string())
+                    (Some(dets), status.to_string())
+                }
+                Ok(None) => {
+                    // No detections available
+                    (None, "frame_only".to_string())
                 }
                 Err(e) => {
                     tracing::error!(

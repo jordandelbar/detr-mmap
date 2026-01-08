@@ -299,10 +299,14 @@ dependencies = [
 name = "bridge"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "criterion",
+ "flatbuffers",
  "libc",
  "memmap2",
  "nix",
+ "schema",
+ "serde",
  "tempfile",
  "thiserror 2.0.17",
 ]

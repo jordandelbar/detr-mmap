@@ -1,16 +1,7 @@
+use bridge::types::Detection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::broadcast;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Detection {
-    pub x1: f32,
-    pub y1: f32,
-    pub x2: f32,
-    pub y2: f32,
-    pub confidence: f32,
-    pub class_id: u32,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrameMessage {

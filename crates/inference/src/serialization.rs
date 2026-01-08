@@ -1,5 +1,4 @@
-use crate::processing::post::Detection;
-use bridge::FrameWriter;
+use bridge::{FrameWriter, types::Detection};
 use std::path::Path;
 
 pub struct DetectionSerializer {

@@ -7,6 +7,5 @@ pub mod service;
 
 pub use backend::{InferenceBackend, InferenceOutput};
 pub use config::InferenceConfig;
-pub use processing::post::Detection;
 pub use serialization::DetectionSerializer;
 pub use service::InferenceService;
