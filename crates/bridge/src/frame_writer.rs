@@ -1,4 +1,4 @@
-use crate::mmap_writer::MmapWriter;
+use crate::{mmap_writer::MmapWriter, paths};
 use anyhow::{Context, Result};
 use schema::{ColorFormat, FrameArgs};
 use std::{
@@ -12,7 +12,11 @@ pub struct FrameWriter {
 }
 
 impl FrameWriter {
-    pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self> {
+    pub fn build() -> Result<Self> {
+        Self::build_with_path(paths::FRAME_BUFFER_PATH, paths::DEFAULT_FRAME_BUFFER_SIZE)
+    }
+
+    fn build_with_path(mmap_path: &str, mmap_size: usize) -> Result<Self> {
         let writer = if Path::new(mmap_path).exists() {
             MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")
         } else {

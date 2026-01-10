@@ -1,4 +1,4 @@
-use crate::MmapReader;
+use crate::{MmapReader, paths};
 use anyhow::Result;
 
 pub struct FrameReader {
@@ -30,9 +30,12 @@ where
 }
 
 impl FrameReader {
-    pub fn build(mmap_path: &str) -> Result<Self> {
-        let reader = MmapReader::build(mmap_path)?;
+    pub fn build() -> Result<Self> {
+        Self::with_path(paths::FRAME_BUFFER_PATH)
+    }
 
+    pub fn with_path(frame_mmap_path: &str) -> Result<Self> {
+        let reader = MmapReader::build(frame_mmap_path)?;
         Ok(Self { reader })
     }
 

@@ -6,6 +6,7 @@ pub mod frame_writer;
 pub mod header;
 pub mod mmap_reader;
 pub mod mmap_writer;
+pub mod paths;
 pub mod semaphore;
 pub mod sentry_control;
 pub mod types;

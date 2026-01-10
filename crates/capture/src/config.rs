@@ -8,8 +8,6 @@ pub struct CameraConfig {
     pub camera_id: u32,
     pub device_id: u32,
     pub sentry_mode_fps: f64,
-    pub mmap_path: String,
-    pub mmap_size: usize,
     pub inference_semaphore_name: String,
     pub gateway_semaphore_name: String,
 }
@@ -33,14 +31,6 @@ impl CameraConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(1.0);
 
-        let mmap_path = env::var("FRAME_MMAP_PATH")
-            .unwrap_or_else(|_| "/dev/shm/bridge_frame_buffer".to_string());
-
-        let mmap_size = env::var("DETECTION_MMAP_SIZE")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(32 * 1024 * 1024);
-
         let inference_semaphore_name = env::var("INFERENCE_SEMAPHORE_NAME")
             .unwrap_or_else(|_| "/bridge_frame_inference".to_string());
 
@@ -52,8 +42,6 @@ impl CameraConfig {
             camera_id,
             device_id,
             sentry_mode_fps,
-            mmap_path,
-            mmap_size,
             inference_semaphore_name,
             gateway_semaphore_name,
         })

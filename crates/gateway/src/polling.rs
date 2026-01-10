@@ -13,7 +13,7 @@ pub async fn poll_buffers(
     tx: Arc<broadcast::Sender<FramePacket>>,
 ) -> anyhow::Result<()> {
     let mut frame_reader = loop {
-        match FrameReader::build(&config.frame_mmap_path) {
+        match FrameReader::build() {
             Ok(reader) => {
                 tracing::info!("Frame buffer connected");
                 break reader;

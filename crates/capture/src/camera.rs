@@ -79,14 +79,7 @@ impl Camera {
         );
 
         let format = cam.camera_format();
-        let frame_writer = FrameWriter::build(&config.mmap_path, config.mmap_size)
-            .context("Failed to initialize frame writer")?;
-
-        tracing::info!(
-            "Created mmap at {} ({} MB)",
-            config.mmap_path,
-            config.mmap_size / 1024 / 1024
-        );
+        let frame_writer = FrameWriter::build().context("Failed to initialize frame writer")?;
 
         let get_sem = |path: &str, name: &str| -> Result<FrameSemaphore> {
             FrameSemaphore::open(path).or_else(|_| {
