@@ -19,7 +19,7 @@ fn test_writer_reader_synchronization() {
 
     // Initialize writer and reader
     let mut writer = MmapWriter::create_and_init(&path, 4096).unwrap();
-    let mut reader = MmapReader::new(&path).unwrap();
+    let mut reader = MmapReader::build(&path).unwrap();
 
     // TEST 1: Initially, reader should have no data
     // Sequence starts at 0, which means "no data written yet"
@@ -185,7 +185,7 @@ fn test_concurrent_producer_consumer() {
         // Wait for producer to create and initialize file
         thread::sleep(Duration::from_millis(20));
 
-        let mut reader = MmapReader::new(&path_consumer).unwrap();
+        let mut reader = MmapReader::build(&path_consumer).unwrap();
         let mut frames_seen = Vec::new();
 
         // Keep reading until we've seen the final frame
@@ -301,7 +301,7 @@ fn test_reader_handles_stale_data() {
 
     // Create writer but don't write anything
     let _writer = MmapWriter::create_and_init(&path, 1024).unwrap();
-    let reader = MmapReader::new(&path).unwrap();
+    let reader = MmapReader::build(&path).unwrap();
 
     // Poll multiple times - should never indicate new data
     for _ in 0..10 {
@@ -331,9 +331,9 @@ fn test_multiple_concurrent_readers() {
     let mut writer = MmapWriter::create_and_init(&path, 1024).unwrap();
 
     // Create 3 readers
-    let mut reader1 = MmapReader::new(&path).unwrap();
-    let mut reader2 = MmapReader::new(&path).unwrap();
-    let mut reader3 = MmapReader::new(&path).unwrap();
+    let mut reader1 = MmapReader::build(&path).unwrap();
+    let mut reader2 = MmapReader::build(&path).unwrap();
+    let mut reader3 = MmapReader::build(&path).unwrap();
 
     // Write frames and verify all readers see them
     for i in 1..=NUM_FRAMES {

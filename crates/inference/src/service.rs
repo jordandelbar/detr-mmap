@@ -46,7 +46,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         );
 
         let mut frame_reader = loop {
-            match MmapReader::new(&self.config.frame_mmap_path) {
+            match MmapReader::build(&self.config.frame_mmap_path) {
                 Ok(reader) => {
                     tracing::info!("Frame buffer connected successfully");
                     break reader;

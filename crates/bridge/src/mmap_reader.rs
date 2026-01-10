@@ -12,7 +12,7 @@ pub struct MmapReader {
 }
 
 impl MmapReader {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, BridgeError> {
+    pub fn build(path: impl AsRef<Path>) -> Result<Self, BridgeError> {
         let file = File::open(path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
 
@@ -100,7 +100,7 @@ mod tests {
         let _writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Create reader and verify it starts with sequence 0
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         assert_eq!(
             reader.last_sequence(),
             0,
@@ -117,7 +117,7 @@ mod tests {
         let _writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Reader should report no new data when sequence is 0
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         assert!(
             reader.has_new_data().is_none(),
             "has_new_data should return None when sequence is 0"
@@ -130,7 +130,7 @@ mod tests {
         let path = temp_file.path();
 
         let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
 
         // Initially no new data
         assert!(reader.has_new_data().is_none());
@@ -152,7 +152,7 @@ mod tests {
         let path = temp_file.path();
 
         let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
-        let mut reader = MmapReader::new(path).unwrap();
+        let mut reader = MmapReader::build(path).unwrap();
 
         // Write data (sequence becomes 1)
         writer.write(&[1, 2, 3]).unwrap();
@@ -188,7 +188,7 @@ mod tests {
         let test_data = b"Hello, World!";
         writer.write(test_data).unwrap();
 
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         let buffer = reader.buffer();
 
         // Buffer should skip the 8-byte header and start with our data
@@ -205,7 +205,7 @@ mod tests {
         let path = temp_file.path();
 
         let _writer = MmapWriter::create_and_init(path, 1024).unwrap();
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
 
         // No data written yet
         assert!(
@@ -220,7 +220,7 @@ mod tests {
         let path = temp_file.path();
 
         let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
-        let mut reader = MmapReader::new(path).unwrap();
+        let mut reader = MmapReader::build(path).unwrap();
 
         // Write data
         writer.write(b"test data").unwrap();
@@ -286,7 +286,7 @@ mod tests {
                 let path = Arc::clone(&path);
                 let barrier = Arc::clone(&barrier);
                 thread::spawn(move || {
-                    let mut reader = MmapReader::new(path.as_ref()).unwrap();
+                    let mut reader = MmapReader::build(path.as_ref()).unwrap();
                     barrier.wait(); // Wait for all threads to be ready
 
                     let mut last_seq = 0;

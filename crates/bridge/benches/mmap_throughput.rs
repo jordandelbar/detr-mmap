@@ -50,7 +50,7 @@ fn benchmark_mmap_read(c: &mut Criterion) {
         let data = vec![42u8; *size];
         writer.write(&data).unwrap();
 
-        let mut reader = MmapReader::new(path).unwrap();
+        let mut reader = MmapReader::build(path).unwrap();
 
         group.bench_with_input(BenchmarkId::new("read", label), size, |b, _| {
             b.iter(|| {
@@ -78,7 +78,7 @@ fn benchmark_write_read_roundtrip(c: &mut Criterion) {
         let path = temp_file.path();
 
         let mut writer = MmapWriter::create_and_init(path, size + 8).unwrap();
-        let mut reader = MmapReader::new(path).unwrap();
+        let mut reader = MmapReader::build(path).unwrap();
         let data = vec![128u8; *size];
 
         group.bench_with_input(BenchmarkId::new("write_read_cycle", label), size, |b, _| {
@@ -103,7 +103,7 @@ fn benchmark_sequence_check(c: &mut Criterion) {
     let path = temp_file.path();
 
     let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
-    let reader = MmapReader::new(path).unwrap();
+    let reader = MmapReader::build(path).unwrap();
     let data = vec![0u8; 1000];
 
     // Write some data
@@ -122,7 +122,7 @@ fn benchmark_atomic_sequence_read(c: &mut Criterion) {
     let path = temp_file.path();
 
     let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
-    let reader = MmapReader::new(path).unwrap();
+    let reader = MmapReader::build(path).unwrap();
     let data = vec![0u8; 1000];
 
     writer.write(&data).unwrap();

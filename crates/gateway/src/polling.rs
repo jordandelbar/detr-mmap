@@ -1,6 +1,6 @@
 use crate::config::GatewayConfig;
 use crate::state::{FrameMessage, FramePacket};
-use bridge::{DetectionReader, FrameSemaphore, MmapReader};
+use bridge::{DetectionReader, FrameReader, FrameSemaphore};
 use image::{ImageBuffer, RgbImage};
 use std::io::Cursor;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub async fn poll_buffers(
     tx: Arc<broadcast::Sender<FramePacket>>,
 ) -> anyhow::Result<()> {
     let mut frame_reader = loop {
-        match MmapReader::new(&config.frame_mmap_path) {
+        match FrameReader::build(&config.frame_mmap_path) {
             Ok(reader) => {
                 tracing::info!("Frame buffer connected");
                 break reader;
@@ -74,19 +74,13 @@ pub async fn poll_buffers(
         let frame_seq = frame_reader.current_sequence();
         let detection_seq = detection_reader.current_sequence();
 
-        if frame_seq == 0 {
-            continue;
-        }
-
-        // Safely deserialize frame with error handling
-        let frame = match flatbuffers::root::<schema::Frame>(frame_reader.buffer()) {
-            Ok(f) => f,
+        let frame = match frame_reader.get_frame() {
+            Ok(Some(f)) => f,
+            Ok(None) => {
+                continue;
+            }
             Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    sequence = frame_seq,
-                    "Failed to deserialize frame buffer - skipping"
-                );
+                tracing::error!(error = %e, sequence = frame_seq, "Failed to read frame buffer - skipping");
                 frame_reader.mark_read();
                 continue;
             }

@@ -31,7 +31,7 @@ where
 
 impl DetectionReader {
     pub fn new(detection_mmap_path: &str) -> Result<Self> {
-        let reader = MmapReader::new(detection_mmap_path)?;
+        let reader = MmapReader::build(detection_mmap_path)?;
         Ok(Self { reader })
     }
 

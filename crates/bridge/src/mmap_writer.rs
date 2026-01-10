@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(writer.sequence(), 0, "New writer should have sequence = 0");
 
         // Sequence in mmap should also be 0
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         assert_eq!(
             reader.current_sequence(),
             0,
@@ -183,7 +183,7 @@ mod tests {
         );
 
         // Verify reader sees the atomic updates
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         assert_eq!(
             reader.current_sequence(),
             2,
@@ -203,7 +203,7 @@ mod tests {
         writer.write(test_data).unwrap();
 
         // Reader should see both the updated sequence AND the data
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         assert_eq!(reader.current_sequence(), 1, "Sequence should be updated");
 
         let buffer = reader.buffer();
@@ -227,7 +227,7 @@ mod tests {
 
         // Create a new reader (forces re-reading from disk)
         drop(writer);
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
 
         assert_eq!(
             reader.current_sequence(),
@@ -263,7 +263,7 @@ mod tests {
         header.sequence.store(writer.sequence, Ordering::Release);
 
         // Verify data is readable
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         let read_buffer = reader.buffer();
         assert_eq!(read_buffer[0], 42);
         assert_eq!(read_buffer[1], 43);
@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(writer.sequence(), 4);
 
         // Reader should see sequence 4
-        let reader = MmapReader::new(path).unwrap();
+        let reader = MmapReader::build(path).unwrap();
         assert_eq!(reader.current_sequence(), 4);
     }
 
@@ -314,7 +314,7 @@ mod tests {
         drop(writer);
 
         // Reader opens file and stays open
-        let mut reader = MmapReader::new(path).unwrap();
+        let mut reader = MmapReader::build(path).unwrap();
         assert_eq!(reader.current_sequence(), 1);
 
         // Writer restarts using open_existing() - should NOT cause SIGBUS
