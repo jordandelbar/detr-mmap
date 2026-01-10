@@ -1,7 +1,6 @@
 use crate::config::CameraConfig;
-use crate::serialization::FrameSerializer;
 use anyhow::{Context, Result, anyhow};
-use bridge::{FrameSemaphore, SentryControl, SentryMode};
+use bridge::{FrameSemaphore, FrameWriter, SentryControl, SentryMode};
 use common::retry::retry_with_backoff;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
@@ -30,10 +29,7 @@ fn is_usable_camera(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn open_camera(
-    index: u32,
-    format: RequestedFormat,
-) -> Result<(NokhwaCamera, u32)> {
+fn open_camera(index: u32, format: RequestedFormat) -> Result<(NokhwaCamera, u32)> {
     let cam_index = CameraIndex::Index(index);
     if let Ok(mut cam) = NokhwaCamera::new(cam_index, format) {
         if cam.open_stream().is_ok() {
@@ -60,7 +56,7 @@ pub struct Camera {
     height: u32,
     max_frame_rate: f64,
     sentry_mode_rate: f64,
-    frame_serializer: FrameSerializer,
+    frame_writer: FrameWriter,
     inference_semaphore: FrameSemaphore,
     gateway_semaphore: FrameSemaphore,
 }
@@ -83,8 +79,8 @@ impl Camera {
         );
 
         let format = cam.camera_format();
-        let frame_serializer = FrameSerializer::build(&config.mmap_path, config.mmap_size)
-            .context("Failed to initialize frame serializer")?;
+        let frame_writer = FrameWriter::build(&config.mmap_path, config.mmap_size)
+            .context("Failed to initialize frame writer")?;
 
         tracing::info!(
             "Created mmap at {} ({} MB)",
@@ -95,7 +91,8 @@ impl Camera {
         let get_sem = |path: &str, name: &str| -> Result<FrameSemaphore> {
             FrameSemaphore::open(path).or_else(|_| {
                 tracing::info!("Creating new {} semaphore", name);
-                FrameSemaphore::create(path).map_err(|e| anyhow!("Failed to create semaphore {}: {}", name, e))
+                FrameSemaphore::create(path)
+                    .map_err(|e| anyhow!("Failed to create semaphore {}: {}", name, e))
             })
         };
 
@@ -106,21 +103,18 @@ impl Camera {
             height: format.height(),
             max_frame_rate: format.frame_rate() as f64,
             sentry_mode_rate: config.sentry_mode_fps,
-            frame_serializer,
+            frame_writer,
             inference_semaphore: get_sem(&config.inference_semaphore_name, "inference")?,
             gateway_semaphore: get_sem(&config.gateway_semaphore_name, "gateway")?,
         })
     }
 
-    fn process_single_frame(
-        &mut self,
-        frame_count: u64,
-    ) -> Result<usize> {
+    fn process_single_frame(&mut self, frame_count: u64) -> Result<usize> {
         let frame = self.cam.frame()?;
         let decoded = frame.decode_image::<RgbFormat>()?;
         let pixel_data = decoded.as_raw();
 
-        self.frame_serializer.write(
+        self.frame_writer.write(
             pixel_data,
             self.camera_id,
             frame_count,
@@ -131,11 +125,7 @@ impl Camera {
         Ok(pixel_data.len())
     }
 
-    pub fn run(
-        &mut self,
-        shutdown: &Arc<AtomicBool>,
-        sentry: &SentryControl,
-    ) -> Result<()> {
+    pub fn run(&mut self, shutdown: &Arc<AtomicBool>, sentry: &SentryControl) -> Result<()> {
         tracing::info!(
             "Starting camera stream at {}x{}...",
             self.width,
@@ -180,7 +170,7 @@ impl Camera {
                     "Status: [Frames: {}] [Dropped: {}] [Seq: {}] [Mode: {:?}]",
                     frame_count,
                     dropped_frames,
-                    self.frame_serializer.sequence(),
+                    self.frame_writer.sequence(),
                     current_mode
                 );
             }

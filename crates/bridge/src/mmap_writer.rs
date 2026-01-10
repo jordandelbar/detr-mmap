@@ -5,12 +5,12 @@ use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-pub struct FrameWriter {
+pub struct MmapWriter {
     mmap: MmapMut,
     sequence: u64,
 }
 
-impl FrameWriter {
+impl MmapWriter {
     /// Create a new mmap file and initialize it for IPC.
     ///
     /// Critical safety requirement:
@@ -28,12 +28,12 @@ impl FrameWriter {
     ///
     /// Production safe pattern:
     /// ```no_run
-    /// # use bridge::FrameWriter;
+    /// # use bridge::MmapWriter;
     /// // At system init (no readers yet), it's safe
-    /// let writer = FrameWriter::create_and_init("/dev/shm/frames", 4096).unwrap();
+    /// let writer = MmapWriter::create_and_init("/dev/shm/frames", 4096).unwrap();
     ///
     /// // Later, writer restarts but readers may be active, use open_existing()
-    /// let writer = FrameWriter::open_existing("/dev/shm/frames").unwrap();
+    /// let writer = MmapWriter::open_existing("/dev/shm/frames").unwrap();
     /// ```
     pub fn create_and_init(path: impl AsRef<Path>, size: usize) -> Result<Self, BridgeError> {
         let file = OpenOptions::new()
@@ -72,9 +72,9 @@ impl FrameWriter {
     ///
     /// Example:
     /// ```no_run
-    /// # use bridge::FrameWriter;
+    /// # use bridge::MmapWriter;
     /// // Safe even if readers are actively reading:
-    /// let mut writer = FrameWriter::open_existing("/dev/shm/frames").unwrap();
+    /// let mut writer = MmapWriter::open_existing("/dev/shm/frames").unwrap();
     /// writer.write(b"new frame").unwrap();
     /// ```
     pub fn open_existing(path: impl AsRef<Path>) -> Result<Self, BridgeError> {
@@ -143,7 +143,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Internal sequence should be 0
         assert_eq!(writer.sequence(), 0, "New writer should have sequence = 0");
@@ -162,7 +162,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         assert_eq!(writer.sequence(), 0);
 
@@ -196,7 +196,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
         let test_data = b"Memory ordering test";
 
         // Write data
@@ -219,7 +219,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Write and flush
         writer.write(b"flushed data").unwrap();
@@ -249,7 +249,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Write directly to buffer
         let buffer = writer.buffer_mut();
@@ -277,7 +277,7 @@ mod tests {
 
         // Initial writer creates and writes some frames
         {
-            let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+            let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
             writer.write(b"frame 1").unwrap();
             writer.write(b"frame 2").unwrap();
             writer.write(b"frame 3").unwrap();
@@ -285,7 +285,7 @@ mod tests {
         } // Writer drops
 
         // New writer opens existing file (simulates writer restart)
-        let mut writer = FrameWriter::open_existing(path).unwrap();
+        let mut writer = MmapWriter::open_existing(path).unwrap();
 
         // Sequence should be preserved from file
         assert_eq!(
@@ -309,7 +309,7 @@ mod tests {
         let path = temp_file.path();
 
         // Initial setup
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
         writer.write(b"initial").unwrap();
         drop(writer);
 
@@ -318,7 +318,7 @@ mod tests {
         assert_eq!(reader.current_sequence(), 1);
 
         // Writer restarts using open_existing() - should NOT cause SIGBUS
-        let mut writer = FrameWriter::open_existing(path).unwrap();
+        let mut writer = MmapWriter::open_existing(path).unwrap();
 
         // Write new data - reader should see it (no crash)
         writer.write(b"new data").unwrap();
@@ -329,7 +329,7 @@ mod tests {
 
         // Multiple reopens should all be safe
         drop(writer);
-        let mut writer = FrameWriter::open_existing(path).unwrap();
+        let mut writer = MmapWriter::open_existing(path).unwrap();
         writer.write(b"more data").unwrap();
 
         assert_eq!(reader.current_sequence(), 3);

@@ -86,7 +86,7 @@ impl MmapReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mmap_writer::FrameWriter;
+    use crate::mmap_writer::MmapWriter;
     use std::sync::Arc;
     use std::thread;
     use tempfile::NamedTempFile;
@@ -97,7 +97,7 @@ mod tests {
         let path = temp_file.path();
 
         // Create a writer to initialize the file
-        let _writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let _writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Create reader and verify it starts with sequence 0
         let reader = MmapReader::new(path).unwrap();
@@ -114,7 +114,7 @@ mod tests {
         let path = temp_file.path();
 
         // Create a writer but don't write any data
-        let _writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let _writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Reader should report no new data when sequence is 0
         let reader = MmapReader::new(path).unwrap();
@@ -129,7 +129,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
         let reader = MmapReader::new(path).unwrap();
 
         // Initially no new data
@@ -151,7 +151,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
         let mut reader = MmapReader::new(path).unwrap();
 
         // Write data (sequence becomes 1)
@@ -182,7 +182,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
 
         // Write known data
         let test_data = b"Hello, World!";
@@ -204,7 +204,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let _writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let _writer = MmapWriter::create_and_init(path, 1024).unwrap();
         let reader = MmapReader::new(path).unwrap();
 
         // No data written yet
@@ -219,7 +219,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
         let mut reader = MmapReader::new(path).unwrap();
 
         // Write data
@@ -259,7 +259,7 @@ mod tests {
 
         // Initialize file with proper size
         {
-            let writer = FrameWriter::create_and_init(path.as_ref(), 1024).unwrap();
+            let writer = MmapWriter::create_and_init(path.as_ref(), 1024).unwrap();
             drop(writer);
         }
 
@@ -270,7 +270,7 @@ mod tests {
         let writer_path = Arc::clone(&path);
         let writer_barrier = Arc::clone(&barrier);
         let writer_handle = thread::spawn(move || {
-            let mut writer = FrameWriter::open_existing(writer_path.as_ref()).unwrap();
+            let mut writer = MmapWriter::open_existing(writer_path.as_ref()).unwrap();
             writer_barrier.wait(); // Wait for all threads to be ready
 
             for i in 1..=100 {

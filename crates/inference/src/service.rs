@@ -5,9 +5,8 @@ use crate::{
         post::{PostProcessor, TransformParams},
         pre::PreProcessor,
     },
-    serialization::DetectionSerializer,
 };
-use bridge::{FrameSemaphore, MmapReader};
+use bridge::{DetectionWriter, FrameSemaphore, MmapReader};
 use ndarray::Array;
 use std::thread;
 use std::time::Duration;
@@ -64,7 +63,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             "Creating detection buffer"
         );
 
-        let mut detection_serializer = DetectionSerializer::build(
+        let mut detection_writer = DetectionWriter::build(
             &self.config.detection_mmap_path,
             self.config.detection_mmap_size,
         )?;
@@ -89,17 +88,15 @@ impl<B: InferenceBackend> InferenceService<B> {
                     tracing::info!("Controller semaphore connected successfully");
                     break sem;
                 }
-                Err(_) => {
-                    match FrameSemaphore::create(&self.config.controller_semaphore_name) {
-                        Ok(sem) => {
-                            tracing::info!("Controller semaphore created successfully");
-                            break sem;
-                        }
-                        Err(_) => {
-                            thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
-                        }
+                Err(_) => match FrameSemaphore::create(&self.config.controller_semaphore_name) {
+                    Ok(sem) => {
+                        tracing::info!("Controller semaphore created successfully");
+                        break sem;
                     }
-                }
+                    Err(_) => {
+                        thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
+                    }
+                },
             }
         };
 
@@ -130,7 +127,7 @@ impl<B: InferenceBackend> InferenceService<B> {
                 }
             }
 
-            match self.process_frame(&frame_reader, &mut detection_serializer) {
+            match self.process_frame(&frame_reader, &mut detection_writer) {
                 Ok(detections) => {
                     frames_processed += 1;
                     total_detections += detections;
@@ -161,7 +158,7 @@ impl<B: InferenceBackend> InferenceService<B> {
     fn process_frame(
         &mut self,
         frame_reader: &MmapReader,
-        detection_serializer: &mut DetectionSerializer,
+        detection_serializer: &mut DetectionWriter,
     ) -> anyhow::Result<usize> {
         let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
         let frame_num = frame.frame_number();

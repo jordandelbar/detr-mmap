@@ -1,22 +1,24 @@
+use crate::mmap_writer::MmapWriter;
 use anyhow::{Context, Result};
-use bridge::FrameWriter;
 use schema::{ColorFormat, FrameArgs};
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-pub struct FrameSerializer {
-    writer: FrameWriter,
+pub struct FrameWriter {
+    writer: MmapWriter,
     builder: flatbuffers::FlatBufferBuilder<'static>,
 }
 
-impl FrameSerializer {
+impl FrameWriter {
     pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self> {
         let writer = if Path::new(mmap_path).exists() {
-            FrameWriter::open_existing(mmap_path).context("Failed to open existing frame writer")?
+            MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")
         } else {
-            FrameWriter::create_and_init(mmap_path, mmap_size)
-                .context("Failed to create new frame writer")?
-        };
+            MmapWriter::create_and_init(mmap_path, mmap_size)
+                .context("Failed to create new mmap writer")
+        }?;
         let builder = flatbuffers::FlatBufferBuilder::new();
         Ok(Self { writer, builder })
     }
@@ -54,7 +56,9 @@ impl FrameSerializer {
         self.builder.finish(frame_fb, None);
         let data = self.builder.finished_data();
 
-        self.writer.write(data).context("Failed to write frame data")?;
+        self.writer
+            .write(data)
+            .context("Failed to write frame data")?;
 
         Ok(())
     }

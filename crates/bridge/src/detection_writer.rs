@@ -1,18 +1,22 @@
-use bridge::{FrameWriter, types::Detection};
+use crate::mmap_writer::MmapWriter;
+use crate::types::Detection;
+use anyhow::{Context, Result};
 use std::path::Path;
 
-pub struct DetectionSerializer {
-    writer: FrameWriter,
+pub struct DetectionWriter {
+    writer: MmapWriter,
     builder: flatbuffers::FlatBufferBuilder<'static>,
 }
 
-impl DetectionSerializer {
-    pub fn build(mmap_path: &str, mmap_size: usize) -> anyhow::Result<Self> {
+impl DetectionWriter {
+    pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self> {
         let writer = if Path::new(mmap_path).exists() {
-            FrameWriter::open_existing(mmap_path)?
+            MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")?
         } else {
-            FrameWriter::create_and_init(mmap_path, mmap_size)?
+            MmapWriter::create_and_init(mmap_path, mmap_size)
+                .context("Failed to create new mmap writer")?
         };
+
         let builder = flatbuffers::FlatBufferBuilder::new();
         Ok(Self { writer, builder })
     }
@@ -23,7 +27,7 @@ impl DetectionSerializer {
         timestamp_ns: u64,
         camera_id: u32,
         detections: &[Detection],
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         self.builder.reset();
 
         let bbox_vec: Vec<_> = detections
@@ -43,7 +47,7 @@ impl DetectionSerializer {
             })
             .collect();
 
-        let detections_offset = self.builder.create_vector(&bbox_vec);
+        let detection_offset = self.builder.create_vector(&bbox_vec);
 
         let detection_result = schema::DetectionResult::create(
             &mut self.builder,
@@ -51,14 +55,16 @@ impl DetectionSerializer {
                 frame_number,
                 timestamp_ns,
                 camera_id,
-                detections: Some(detections_offset),
+                detections: Some(detection_offset),
             },
         );
 
         self.builder.finish(detection_result, None);
         let data = self.builder.finished_data();
 
-        self.writer.write(data)?;
+        self.writer
+            .write(data)
+            .context("Failed to write detection data")?;
 
         Ok(())
     }

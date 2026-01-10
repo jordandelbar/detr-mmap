@@ -1,4 +1,4 @@
-use bridge::{FrameWriter, MmapReader};
+use bridge::{MmapReader, MmapWriter};
 use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -18,7 +18,7 @@ fn test_writer_reader_synchronization() {
     let path = dir.path().join("sync_test.mmap");
 
     // Initialize writer and reader
-    let mut writer = FrameWriter::create_and_init(&path, 4096).unwrap();
+    let mut writer = MmapWriter::create_and_init(&path, 4096).unwrap();
     let mut reader = MmapReader::new(&path).unwrap();
 
     // TEST 1: Initially, reader should have no data
@@ -153,7 +153,7 @@ fn test_concurrent_producer_consumer() {
 
     // Producer thread: Initializes file and writes frames
     let producer = thread::spawn(move || {
-        let mut writer = FrameWriter::create_and_init(&path_producer, FRAME_SIZE + 8).unwrap();
+        let mut writer = MmapWriter::create_and_init(&path_producer, FRAME_SIZE + 8).unwrap();
 
         // Give consumer time to open file after we initialize it
         thread::sleep(Duration::from_millis(50));
@@ -269,7 +269,7 @@ fn test_write_fails_when_data_exceeds_buffer() {
     let path = dir.path().join("size_test.mmap");
 
     // Create writer with small buffer (100 bytes)
-    let mut writer = FrameWriter::create_and_init(&path, 100).unwrap();
+    let mut writer = MmapWriter::create_and_init(&path, 100).unwrap();
 
     // Try to write data larger than buffer (200 bytes)
     let large_data = vec![0u8; 200];
@@ -300,7 +300,7 @@ fn test_reader_handles_stale_data() {
     let path = dir.path().join("stale_test.mmap");
 
     // Create writer but don't write anything
-    let _writer = FrameWriter::create_and_init(&path, 1024).unwrap();
+    let _writer = MmapWriter::create_and_init(&path, 1024).unwrap();
     let reader = MmapReader::new(&path).unwrap();
 
     // Poll multiple times - should never indicate new data
@@ -328,7 +328,7 @@ fn test_multiple_concurrent_readers() {
     const NUM_FRAMES: usize = 50;
 
     // Setup writer
-    let mut writer = FrameWriter::create_and_init(&path, 1024).unwrap();
+    let mut writer = MmapWriter::create_and_init(&path, 1024).unwrap();
 
     // Create 3 readers
     let mut reader1 = MmapReader::new(&path).unwrap();

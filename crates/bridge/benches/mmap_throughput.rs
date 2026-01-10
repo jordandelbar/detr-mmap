@@ -1,4 +1,4 @@
-use bridge::{FrameWriter, MmapReader};
+use bridge::{MmapReader, MmapWriter};
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use tempfile::NamedTempFile;
 
@@ -18,7 +18,7 @@ fn benchmark_mmap_write(c: &mut Criterion) {
         let path = temp_file.path();
 
         // Create writer with enough space (add 8 bytes for header)
-        let mut writer = FrameWriter::create_and_init(path, size + 8).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, size + 8).unwrap();
         let data = vec![0u8; *size];
 
         group.bench_with_input(BenchmarkId::new("write", label), size, |b, _| {
@@ -46,7 +46,7 @@ fn benchmark_mmap_read(c: &mut Criterion) {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, size + 8).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, size + 8).unwrap();
         let data = vec![42u8; *size];
         writer.write(&data).unwrap();
 
@@ -77,7 +77,7 @@ fn benchmark_write_read_roundtrip(c: &mut Criterion) {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let mut writer = FrameWriter::create_and_init(path, size + 8).unwrap();
+        let mut writer = MmapWriter::create_and_init(path, size + 8).unwrap();
         let mut reader = MmapReader::new(path).unwrap();
         let data = vec![128u8; *size];
 
@@ -102,7 +102,7 @@ fn benchmark_sequence_check(c: &mut Criterion) {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+    let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
     let reader = MmapReader::new(path).unwrap();
     let data = vec![0u8; 1000];
 
@@ -121,7 +121,7 @@ fn benchmark_atomic_sequence_read(c: &mut Criterion) {
     let temp_file = NamedTempFile::new().unwrap();
     let path = temp_file.path();
 
-    let mut writer = FrameWriter::create_and_init(path, 1024).unwrap();
+    let mut writer = MmapWriter::create_and_init(path, 1024).unwrap();
     let reader = MmapReader::new(path).unwrap();
     let data = vec![0u8; 1000];
 
