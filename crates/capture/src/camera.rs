@@ -31,10 +31,10 @@ fn is_usable_camera(path: &Path) -> bool {
 
 fn open_camera(index: u32, format: RequestedFormat) -> Result<(NokhwaCamera, u32)> {
     let cam_index = CameraIndex::Index(index);
-    if let Ok(mut cam) = NokhwaCamera::new(cam_index, format) {
-        if cam.open_stream().is_ok() {
-            return Ok((cam, index));
-        }
+    if let Ok(mut cam) = NokhwaCamera::new(cam_index, format)
+        && cam.open_stream().is_ok()
+    {
+        return Ok((cam, index));
     }
 
     tracing::debug!(
@@ -158,7 +158,7 @@ impl Camera {
                 }
             };
 
-            if frame_count > 0 && frame_count % 30 == 0 {
+            if frame_count > 0 && frame_count.is_multiple_of(30) {
                 tracing::debug!(
                     "Status: [Frames: {}] [Dropped: {}] [Seq: {}] [Mode: {:?}]",
                     frame_count,

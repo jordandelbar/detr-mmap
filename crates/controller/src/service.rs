@@ -111,13 +111,12 @@ impl ControllerService {
                     || (matches!(new_state, ControllerState::Standby)
                         && matches!(previous_state, ControllerState::Tracking));
 
-                if should_notify {
-                    if let Err(e) = self
+                if should_notify
+                    && let Err(e) = self
                         .mqtt_notifier
                         .notify_state_change(new_state, Some(previous_state))
-                    {
-                        tracing::error!(error = %e, "Failed to send MQTT notification");
-                    }
+                {
+                    tracing::error!(error = %e, "Failed to send MQTT notification");
                 }
             }
 
