@@ -21,5 +21,9 @@ tempfile = "3.24"
 criterion = { workspace = true }
 
 [[bench]]
-name = "mmap_throughput"
+name = "frame_throughput"
+harness = false
+
+[[bench]]
+name = "detection_throughput"
 harness = false

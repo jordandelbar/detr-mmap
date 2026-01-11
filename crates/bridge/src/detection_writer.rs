@@ -1,4 +1,5 @@
 use crate::mmap_writer::MmapWriter;
+use crate::paths;
 use crate::types::Detection;
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -9,7 +10,13 @@ pub struct DetectionWriter {
 }
 
 impl DetectionWriter {
-    pub fn build(mmap_path: &str, mmap_size: usize) -> Result<Self> {
+    /// Create a new DetectionWriter using the default detection buffer path and size
+    pub fn build() -> Result<Self> {
+        Self::build_with_path(paths::DETECTION_BUFFER_PATH, paths::DEFAULT_DETECTION_BUFFER_SIZE)
+    }
+
+    /// Create a new DetectionWriter with custom path and size (useful for tests and benchmarks)
+    pub fn build_with_path(mmap_path: &str, mmap_size: usize) -> Result<Self> {
         let writer = if Path::new(mmap_path).exists() {
             MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")?
         } else {

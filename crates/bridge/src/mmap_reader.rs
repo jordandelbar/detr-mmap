@@ -5,7 +5,7 @@ use std::fs::File;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-pub struct MmapReader {
+pub(crate) struct MmapReader {
     _file: File,
     mmap: Mmap,
     last_sequence: u64,

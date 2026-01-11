@@ -26,7 +26,7 @@ pub async fn poll_buffers(
     };
 
     let mut detection_reader = loop {
-        match DetectionReader::new(&config.detection_mmap_path) {
+        match DetectionReader::build() {
             Ok(reader) => {
                 tracing::info!("Detection buffer connected");
                 break reader;

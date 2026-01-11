@@ -5,7 +5,7 @@ use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-pub struct MmapWriter {
+pub(crate) struct MmapWriter {
     mmap: MmapMut,
     sequence: u64,
 }
@@ -27,8 +27,7 @@ impl MmapWriter {
     /// - You can guarantee no concurrent readers
     ///
     /// Production safe pattern:
-    /// ```no_run
-    /// # use bridge::MmapWriter;
+    /// ```ignore
     /// // At system init (no readers yet), it's safe
     /// let writer = MmapWriter::create_and_init("/dev/shm/frames", 4096).unwrap();
     ///
@@ -71,8 +70,7 @@ impl MmapWriter {
     /// - File must be properly initialized with header
     ///
     /// Example:
-    /// ```no_run
-    /// # use bridge::MmapWriter;
+    /// ```ignore
     /// // Safe even if readers are actively reading:
     /// let mut writer = MmapWriter::open_existing("/dev/shm/frames").unwrap();
     /// writer.write(b"new frame").unwrap();
@@ -333,5 +331,71 @@ mod tests {
         writer.write(b"more data").unwrap();
 
         assert_eq!(reader.current_sequence(), 3);
+    }
+
+    #[test]
+    fn test_concurrent_producer_consumer() {
+        use std::thread;
+        use std::time::Duration;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        const NUM_FRAMES: u64 = 30;
+        const FRAME_SIZE: usize = 256;
+
+        let path_producer = path.clone();
+        let path_consumer = path.clone();
+
+        // Producer thread
+        let producer = thread::spawn(move || {
+            let mut writer = MmapWriter::create_and_init(&path_producer, FRAME_SIZE + 8).unwrap();
+            thread::sleep(Duration::from_millis(50));
+
+            for i in 1..=NUM_FRAMES {
+                let mut data = vec![0u8; FRAME_SIZE];
+                data[..8].copy_from_slice(&i.to_le_bytes());
+                writer.write(&data).unwrap();
+                assert_eq!(writer.sequence(), i);
+                thread::sleep(Duration::from_millis(10));
+            }
+
+            writer.sequence()
+        });
+
+        // Consumer thread
+        let consumer = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(20));
+            let mut reader = MmapReader::build(&path_consumer).unwrap();
+            let mut frames_seen = Vec::new();
+
+            let start = std::time::Instant::now();
+            let timeout = Duration::from_secs(5);
+
+            while frames_seen.len() < NUM_FRAMES as usize {
+                if start.elapsed() > timeout {
+                    panic!("Consumer timeout: only saw {} frames", frames_seen.len());
+                }
+
+                if reader.has_new_data().is_some() {
+                    let buffer = reader.buffer();
+                    let mut frame_num_bytes = [0u8; 8];
+                    frame_num_bytes.copy_from_slice(&buffer[..8]);
+                    let frame_num = u64::from_le_bytes(frame_num_bytes);
+                    frames_seen.push(frame_num);
+                    reader.mark_read();
+                } else {
+                    thread::sleep(Duration::from_millis(5));
+                }
+            }
+
+            frames_seen.len() as u64
+        });
+
+        let final_producer_seq = producer.join().expect("Producer thread panicked");
+        let frames_consumed = consumer.join().expect("Consumer thread panicked");
+
+        assert_eq!(final_producer_seq, NUM_FRAMES);
+        assert_eq!(frames_consumed, NUM_FRAMES);
     }
 }

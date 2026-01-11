@@ -1,4 +1,4 @@
-use crate::{MmapReader, types::Detection};
+use crate::{mmap_reader::MmapReader, paths, types::Detection};
 use anyhow::Result;
 
 pub struct DetectionReader {
@@ -30,7 +30,13 @@ where
 }
 
 impl DetectionReader {
-    pub fn new(detection_mmap_path: &str) -> Result<Self> {
+    /// Create a new DetectionReader using the default detection buffer path
+    pub fn build() -> Result<Self> {
+        Self::with_path(paths::DETECTION_BUFFER_PATH)
+    }
+
+    /// Create a new DetectionReader with a custom path (useful for tests)
+    pub fn with_path(detection_mmap_path: &str) -> Result<Self> {
         let reader = MmapReader::build(detection_mmap_path)?;
         Ok(Self { reader })
     }

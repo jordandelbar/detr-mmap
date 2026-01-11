@@ -1,9 +1,6 @@
-use crate::{
-    config::ControllerConfig, detection_reader::DetectionReader,
-    mqtt_notifier::MqttNotifier, state_machine::StateContext,
-};
+use crate::{config::ControllerConfig, mqtt_notifier::MqttNotifier, state_machine::StateContext};
 use anyhow::Result;
-use bridge::{FrameSemaphore, SentryControl};
+use bridge::{DetectionReader, FrameSemaphore, SentryControl};
 use std::{thread, time::Duration};
 
 pub struct ControllerService {
@@ -18,7 +15,7 @@ pub struct ControllerService {
 impl ControllerService {
     pub fn new(config: ControllerConfig) -> Result<Self> {
         let detection_reader = loop {
-            match DetectionReader::new(&config.detection_mmap_path) {
+            match DetectionReader::build() {
                 Ok(reader) => {
                     tracing::info!("Detection buffer connected");
                     break reader;
@@ -115,7 +112,10 @@ impl ControllerService {
                         && matches!(previous_state, ControllerState::Tracking));
 
                 if should_notify {
-                    if let Err(e) = self.mqtt_notifier.notify_state_change(new_state, Some(previous_state)) {
+                    if let Err(e) = self
+                        .mqtt_notifier
+                        .notify_state_change(new_state, Some(previous_state))
+                    {
                         tracing::error!(error = %e, "Failed to send MQTT notification");
                     }
                 }

@@ -6,7 +6,7 @@ use crate::{
         pre::PreProcessor,
     },
 };
-use bridge::{DetectionWriter, FrameSemaphore, MmapReader};
+use bridge::{DetectionWriter, FrameReader, FrameSemaphore};
 use ndarray::Array;
 use std::thread;
 use std::time::Duration;
@@ -46,7 +46,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         );
 
         let mut frame_reader = loop {
-            match MmapReader::build(&self.config.frame_mmap_path) {
+            match FrameReader::build() {
                 Ok(reader) => {
                     tracing::info!("Frame buffer connected successfully");
                     break reader;
@@ -57,16 +57,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             }
         };
 
-        tracing::info!(
-            detection_buffer = %self.config.detection_mmap_path,
-            size_mb = self.config.detection_mmap_size / 1024 / 1024,
-            "Creating detection buffer"
-        );
-
-        let mut detection_writer = DetectionWriter::build(
-            &self.config.detection_mmap_path,
-            self.config.detection_mmap_size,
-        )?;
+        let mut detection_writer = DetectionWriter::build()?;
 
         tracing::info!("Opening inference frame synchronization semaphore");
         let frame_semaphore = loop {
@@ -157,10 +148,12 @@ impl<B: InferenceBackend> InferenceService<B> {
 
     fn process_frame(
         &mut self,
-        frame_reader: &MmapReader,
-        detection_serializer: &mut DetectionWriter,
+        frame_reader: &FrameReader,
+        detection_writer: &mut DetectionWriter,
     ) -> anyhow::Result<usize> {
-        let frame = flatbuffers::root::<schema::Frame>(frame_reader.buffer())?;
+        let frame = frame_reader
+            .get_frame()?
+            .ok_or_else(|| anyhow::anyhow!("No frame available"))?;
         let frame_num = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let camera_id = frame.camera_id();
@@ -210,7 +203,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             &transform,
         )?;
 
-        detection_serializer.write(frame_num, timestamp_ns, camera_id, &detections)?;
+        detection_writer.write(frame_num, timestamp_ns, camera_id, &detections)?;
 
         Ok(detections.len())
     }

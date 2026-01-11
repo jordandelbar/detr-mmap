@@ -37,6 +37,9 @@ spec:
           image: bridge-rt-gateway:latest
           imagePullPolicy: Never
 
+          securityContext:
+            runAsUser: 0
+
           ports:
             - containerPort: 8080
               name: websocket

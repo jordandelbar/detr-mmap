@@ -16,8 +16,6 @@ pub use detection_writer::DetectionWriter;
 pub use errors::BridgeError;
 pub use frame_reader::FrameReader;
 pub use frame_writer::FrameWriter;
-pub use mmap_reader::MmapReader;
-pub use mmap_writer::MmapWriter;
 pub use semaphore::FrameSemaphore;
 pub use sentry_control::{SentryControl, SentryMode};
 pub use types::{Detection, FrameMetadata};

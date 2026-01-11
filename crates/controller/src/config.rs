@@ -3,7 +3,6 @@ use std::env;
 
 #[derive(Debug, Clone)]
 pub struct ControllerConfig {
-    pub detection_mmap_path: String,
     pub controller_semaphore_name: String,
     pub sentry_control_path: String,
     pub validation_frames: u32,
@@ -17,9 +16,6 @@ pub struct ControllerConfig {
 
 impl ControllerConfig {
     pub fn from_env() -> Result<Self> {
-        let detection_mmap_path = env::var("DETECTION_MMAP_PATH")
-            .unwrap_or_else(|_| "/dev/shm/bridge_detection_buffer".to_string());
-
         let controller_semaphore_name = env::var("CONTROLLER_SEMAPHORE_NAME")
             .unwrap_or_else(|_| "/bridge_detection_controller".to_string());
 
@@ -41,22 +37,20 @@ impl ControllerConfig {
             .parse()
             .unwrap_or(500);
 
-        let mqtt_broker_host = env::var("MQTT_BROKER_HOST")
-            .unwrap_or_else(|_| "mosquitto".to_string());
+        let mqtt_broker_host =
+            env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "mosquitto".to_string());
 
         let mqtt_broker_port = env::var("MQTT_BROKER_PORT")
             .unwrap_or_else(|_| "1883".to_string())
             .parse()
             .unwrap_or(1883);
 
-        let mqtt_topic = env::var("MQTT_TOPIC")
-            .unwrap_or_else(|_| "bridge-rt/controller/state".to_string());
+        let mqtt_topic =
+            env::var("MQTT_TOPIC").unwrap_or_else(|_| "bridge-rt/controller/state".to_string());
 
-        let mqtt_device_id = env::var("MQTT_DEVICE_ID")
-            .unwrap_or_else(|_| "unknown".to_string());
+        let mqtt_device_id = env::var("MQTT_DEVICE_ID").unwrap_or_else(|_| "unknown".to_string());
 
         Ok(Self {
-            detection_mmap_path,
             controller_semaphore_name,
             sentry_control_path,
             validation_frames,

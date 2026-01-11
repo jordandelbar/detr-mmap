@@ -16,7 +16,8 @@ impl FrameWriter {
         Self::build_with_path(paths::FRAME_BUFFER_PATH, paths::DEFAULT_FRAME_BUFFER_SIZE)
     }
 
-    fn build_with_path(mmap_path: &str, mmap_size: usize) -> Result<Self> {
+    /// Create a new FrameWriter with custom path and size (useful for tests and benchmarks)
+    pub fn build_with_path(mmap_path: &str, mmap_size: usize) -> Result<Self> {
         let writer = if Path::new(mmap_path).exists() {
             MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")
         } else {

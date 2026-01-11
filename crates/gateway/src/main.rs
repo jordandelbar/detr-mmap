@@ -9,8 +9,6 @@ async fn main() -> anyhow::Result<()> {
     setup_logging(&config);
 
     tracing::info!("Gateway service starting");
-    tracing::info!("Frame source: {}", config.frame_mmap_path);
-    tracing::info!("Detection source: {}", config.detection_mmap_path);
     tracing::info!("WebSocket endpoint: ws://{}/ws", config.ws_addr);
 
     let (tx, _rx) = broadcast::channel(config.channel_capacity);
