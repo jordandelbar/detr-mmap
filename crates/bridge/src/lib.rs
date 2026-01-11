@@ -3,6 +3,10 @@ pub mod errors;
 pub mod paths;
 pub mod types;
 
+// Utility modules (internal)
+#[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
+pub(crate) mod utils;
+
 // Conditionally compiled modules
 #[cfg(feature = "detection-reader")]
 pub mod detection_reader;

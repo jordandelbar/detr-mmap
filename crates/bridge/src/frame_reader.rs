@@ -1,32 +1,8 @@
-use crate::{mmap_reader::MmapReader, paths};
+use crate::{mmap_reader::MmapReader, paths, utils::safe_flatbuffers_root};
 use anyhow::Result;
 
 pub struct FrameReader {
     reader: MmapReader,
-}
-
-/// Safely deserialize flatbuffers with bounds checking
-fn safe_flatbuffers_root<'a, T>(buffer: &'a [u8]) -> anyhow::Result<T::Inner>
-where
-    T: flatbuffers::Follow<'a> + flatbuffers::Verifiable + 'a,
-{
-    // Check minimum buffer size
-    if buffer.len() < 8 {
-        return Err(anyhow::anyhow!(
-            "Buffer too small for flatbuffers: {} bytes",
-            buffer.len()
-        ));
-    }
-
-    // Attempt to get the root with proper error handling
-    match flatbuffers::root::<T>(buffer) {
-        Ok(root) => Ok(root),
-        Err(e) => Err(anyhow::anyhow!(
-            "Flatbuffers deserialization failed: {:?}, buffer size: {}",
-            e,
-            buffer.len()
-        )),
-    }
 }
 
 impl FrameReader {
