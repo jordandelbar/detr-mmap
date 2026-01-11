@@ -14,7 +14,7 @@ impl PreProcessor {
         pixels: flatbuffers::Vector<u8>,
         width: u32,
         height: u32,
-        format: schema::ColorFormat,
+        format: bridge::ColorFormat,
     ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
         tracing::trace!(
             width,
@@ -29,10 +29,10 @@ impl PreProcessor {
         let mut rgb_data = Vec::with_capacity(expected_size);
 
         match format {
-            schema::ColorFormat::RGB => {
+            bridge::ColorFormat::RGB => {
                 rgb_data.extend_from_slice(pixels.bytes());
             }
-            schema::ColorFormat::BGR => {
+            bridge::ColorFormat::BGR => {
                 for i in (0..pixels.len()).step_by(3) {
                     let b = pixels.get(i);
                     let g = pixels.get(i + 1);
@@ -42,7 +42,7 @@ impl PreProcessor {
                     rgb_data.push(b);
                 }
             }
-            schema::ColorFormat::GRAY => {
+            bridge::ColorFormat::GRAY => {
                 return Err(anyhow::anyhow!("Grayscale format not supported"));
             }
             _ => {
@@ -129,7 +129,7 @@ mod tests {
     fn create_test_frame(
         width: u32,
         height: u32,
-        format: schema::ColorFormat,
+        format: bridge::ColorFormat,
         pixels: Vec<u8>,
     ) -> Vec<u8> {
         let mut builder = FlatBufferBuilder::new();
@@ -166,7 +166,7 @@ mod tests {
             128, 128, 128, // Gray pixel (BGR: 128,128,128 → RGB: 128,128,128)
         ];
 
-        let frame_data = create_test_frame(2, 2, schema::ColorFormat::BGR, pixels);
+        let frame_data = create_test_frame(2, 2, bridge::ColorFormat::BGR, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -212,7 +212,7 @@ mod tests {
             255, 255, 255, // White pixel
         ];
 
-        let frame_data = create_test_frame(2, 2, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(2, 2, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -233,7 +233,7 @@ mod tests {
     fn test_gray_format_returns_error() {
         let pixels = vec![128; 100]; // 10x10 grayscale
 
-        let frame_data = create_test_frame(10, 10, schema::ColorFormat::GRAY, pixels);
+        let frame_data = create_test_frame(10, 10, bridge::ColorFormat::GRAY, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -258,7 +258,7 @@ mod tests {
         // But provide only 200 bytes
         let pixels = vec![0u8; 200];
 
-        let frame_data = create_test_frame(10, 10, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(10, 10, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -282,7 +282,7 @@ mod tests {
         // 800x600 image (4:3 aspect ratio)
         let pixels = vec![128u8; 800 * 600 * 3];
 
-        let frame_data = create_test_frame(800, 600, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(800, 600, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -314,7 +314,7 @@ mod tests {
         // Small 100x100 image - will have lots of padding
         let pixels = vec![255u8; 100 * 100 * 3]; // All white
 
-        let frame_data = create_test_frame(100, 100, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(100, 100, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -351,7 +351,7 @@ mod tests {
 
         for (width, height) in test_cases {
             let pixels = vec![128u8; (width * height * 3) as usize];
-            let frame_data = create_test_frame(width, height, schema::ColorFormat::RGB, pixels);
+            let frame_data = create_test_frame(width, height, bridge::ColorFormat::RGB, pixels);
             let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
             let preprocessor = PreProcessor::default();
@@ -385,7 +385,7 @@ mod tests {
             64, 64, 64, // Dark gray (64/255 ≈ 0.251)
         ];
 
-        let frame_data = create_test_frame(2, 2, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(2, 2, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -414,7 +414,7 @@ mod tests {
         // 400x800 tall image
         let pixels = vec![128u8; 400 * 800 * 3];
 
-        let frame_data = create_test_frame(400, 800, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(400, 800, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();
@@ -445,7 +445,7 @@ mod tests {
         // 1280x720 wide image (16:9)
         let pixels = vec![128u8; 1280 * 720 * 3];
 
-        let frame_data = create_test_frame(1280, 720, schema::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(1280, 720, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let preprocessor = PreProcessor::default();

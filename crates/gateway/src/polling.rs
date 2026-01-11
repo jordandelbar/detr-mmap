@@ -93,7 +93,7 @@ pub async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Re
 
             // Validate pixel data size
             let expected_size = (width * height * 3) as usize; // RGB = 3 bytes per pixel
-            if pixel_bytes.len() < expected_size && format != schema::ColorFormat::GRAY {
+            if pixel_bytes.len() < expected_size && format != bridge::ColorFormat::GRAY {
                 tracing::error!(
                     expected = expected_size,
                     actual = pixel_bytes.len(),
@@ -182,14 +182,14 @@ fn pixels_to_jpeg(
     pixel_data: &[u8],
     width: u32,
     height: u32,
-    format: schema::ColorFormat,
+    format: bridge::ColorFormat,
 ) -> anyhow::Result<Vec<u8>> {
     let rgb_data = match format {
-        schema::ColorFormat::RGB => {
+        bridge::ColorFormat::RGB => {
             // Already RGB, use directly
             pixel_data.to_vec()
         }
-        schema::ColorFormat::BGR => {
+        bridge::ColorFormat::BGR => {
             // Convert BGR to RGB
             let mut rgb_data = Vec::with_capacity(pixel_data.len());
             for chunk in pixel_data.chunks_exact(3) {
@@ -199,7 +199,7 @@ fn pixels_to_jpeg(
             }
             rgb_data
         }
-        schema::ColorFormat::GRAY => {
+        bridge::ColorFormat::GRAY => {
             return Err(anyhow::anyhow!(
                 "Grayscale format not supported for JPEG encoding"
             ));

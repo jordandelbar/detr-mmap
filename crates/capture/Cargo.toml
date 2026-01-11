@@ -15,9 +15,8 @@ v4l = "0.14.0"
 nokhwa = { version = "0.10", features = ["input-native"] }
 thiserror = "2.0.17"
 schema = { path = "../schema" }
-bridge = { path = "../bridge" }
+bridge = { path = "../bridge", features = ["frame-writer", "sentry", "semaphores"] }
 common = { path = "../common" }
-flatbuffers = "24.3"
 anyhow = "1.0"
 tracing = { version = "0.1.44", default-features = false }
 signal-hook = "0.3"

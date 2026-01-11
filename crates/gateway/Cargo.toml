@@ -5,9 +5,8 @@ edition = "2024"
 
 [dependencies]
 schema = { path = "../schema" }
-bridge = { path = "../bridge" }
+bridge = { path = "../bridge", features = ["frame-reader", "detection-reader", "semaphores"] }
 common = { path = "../common" }
-flatbuffers = "24.3"
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["ws"] }
