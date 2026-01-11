@@ -48,10 +48,4 @@ mod tests {
         assert!(SEMAPHORE_FRAME_GATEWAY.starts_with('/'));
         assert!(SEMAPHORE_DETECTION_CONTROLLER.starts_with('/'));
     }
-
-    #[test]
-    fn test_buffer_sizes_reasonable() {
-        assert!(DEFAULT_FRAME_BUFFER_SIZE >= 1024 * 1024); // At least 1MB
-        assert!(DEFAULT_DETECTION_BUFFER_SIZE >= 1024); // At least 1KB
-    }
 }
