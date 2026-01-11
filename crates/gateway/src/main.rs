@@ -1,4 +1,6 @@
-use gateway::{config::GatewayConfig, logging::setup_logging, polling, state::AppState, ws};
+use gateway::{
+    config::GatewayConfig, logging::setup_logging, polling::BufferPoller, state::AppState, ws,
+};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -16,8 +18,15 @@ async fn main() -> anyhow::Result<()> {
     let poll_tx = state.tx.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = polling::poll_buffers(poll_tx).await {
-            tracing::error!("Buffer polling error: {}", e);
+        match BufferPoller::build(poll_tx).await {
+            Ok(poller) => {
+                if let Err(e) = poller.run().await {
+                    tracing::error!("Buffer polling error: {}", e);
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to build buffer poller: {}", e);
+            }
         }
     });
 

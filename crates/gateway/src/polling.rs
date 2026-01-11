@@ -7,161 +7,289 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
 
-pub async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result<()> {
-    let mut frame_reader = loop {
-        match FrameReader::build() {
-            Ok(reader) => {
-                tracing::info!("Frame buffer connected");
-                break reader;
-            }
-            Err(_) => {
-                tracing::debug!("Waiting for frame buffer...");
-                time::sleep(Duration::from_millis(500)).await;
+/// Frame data extracted from shared memory
+struct FrameData {
+    frame_number: u64,
+    timestamp_ns: u64,
+    width: u32,
+    height: u32,
+    pixel_data: Vec<u8>,
+    format: bridge::ColorFormat,
+}
+
+/// Detection data with status information
+struct DetectionData {
+    detections: Vec<bridge::Detection>,
+    has_jpeg: bool,
+}
+
+pub struct BufferPoller {
+    frame_reader: FrameReader,
+    detection_reader: DetectionReader,
+    frame_semaphore: Arc<BridgeSemaphore>,
+    tx: Arc<broadcast::Sender<FramePacket>>,
+}
+
+impl BufferPoller {
+    /// Build a new BufferPoller by connecting to shared memory buffers with retries
+    pub async fn build(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result<Self> {
+        let frame_reader = Self::connect_frame_reader().await;
+        let detection_reader = Self::connect_detection_reader().await;
+        let frame_semaphore = Self::connect_semaphore().await;
+
+        Ok(Self {
+            frame_reader,
+            detection_reader,
+            frame_semaphore,
+            tx,
+        })
+    }
+
+    /// Connect to frame buffer with retries
+    async fn connect_frame_reader() -> FrameReader {
+        loop {
+            match FrameReader::build() {
+                Ok(reader) => {
+                    tracing::info!("Frame buffer connected");
+                    break reader;
+                }
+                Err(_) => {
+                    tracing::debug!("Waiting for frame buffer...");
+                    time::sleep(Duration::from_millis(500)).await;
+                }
             }
         }
-    };
+    }
 
-    let mut detection_reader = loop {
-        match DetectionReader::build() {
-            Ok(reader) => {
-                tracing::info!("Detection buffer connected");
-                break reader;
-            }
-            Err(_) => {
-                tracing::debug!("Waiting for detection buffer...");
-                time::sleep(Duration::from_millis(500)).await;
-            }
-        }
-    };
-
-    tracing::info!("Opening gateway frame synchronization semaphore");
-    let frame_semaphore = loop {
-        match BridgeSemaphore::open(bridge::SemaphoreType::FrameCaptureToGateway) {
-            Ok(sem) => {
-                tracing::info!("Gateway semaphore connected successfully");
-                break Arc::new(sem);
-            }
-            Err(_) => {
-                tracing::debug!("Waiting for gateway semaphore...");
-                time::sleep(Duration::from_millis(500)).await;
+    /// Connect to detection buffer with retries
+    async fn connect_detection_reader() -> DetectionReader {
+        loop {
+            match DetectionReader::build() {
+                Ok(reader) => {
+                    tracing::info!("Detection buffer connected");
+                    break reader;
+                }
+                Err(_) => {
+                    tracing::debug!("Waiting for detection buffer...");
+                    time::sleep(Duration::from_millis(500)).await;
+                }
             }
         }
-    };
+    }
 
-    tracing::info!("Starting event-driven buffer processing (synchronized to camera)");
+    /// Connect to frame semaphore with retries
+    async fn connect_semaphore() -> Arc<BridgeSemaphore> {
+        tracing::info!("Opening gateway frame synchronization semaphore");
+        loop {
+            match BridgeSemaphore::open(bridge::SemaphoreType::FrameCaptureToGateway) {
+                Ok(sem) => {
+                    tracing::info!("Gateway semaphore connected successfully");
+                    break Arc::new(sem);
+                }
+                Err(_) => {
+                    tracing::debug!("Waiting for gateway semaphore...");
+                    time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        }
+    }
 
-    loop {
-        // Wait for frame ready signal in blocking task
-        let sem = frame_semaphore.clone();
+    /// Main polling loop
+    pub async fn run(mut self) -> anyhow::Result<()> {
+        tracing::info!("Starting event-driven buffer processing (synchronized to camera)");
+
+        loop {
+            // Wait for frame ready signal
+            if let Err(e) = self.wait_for_frame().await {
+                tracing::error!(error = %e, "Frame wait failed");
+                time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+
+            // Read current frame
+            let frame_data = match self.read_current_frame() {
+                Ok(data) => data,
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to read frame - skipping");
+                    continue;
+                }
+            };
+
+            // Encode frame to JPEG
+            let jpeg_data = self.encode_to_jpeg(&frame_data);
+
+            // Read detections if available
+            let detection_data = self.read_detections(!jpeg_data.is_empty());
+
+            // Build and broadcast packet
+            let packet = self.build_packet(frame_data, jpeg_data, detection_data);
+            self.broadcast_packet(packet);
+
+            // Mark buffers as read
+            self.frame_reader.mark_read();
+            self.detection_reader.mark_read();
+        }
+    }
+
+    /// Wait for frame ready signal from camera
+    async fn wait_for_frame(&self) -> anyhow::Result<()> {
+        let sem = self.frame_semaphore.clone();
         let wait_result = tokio::task::spawn_blocking(move || sem.wait()).await;
 
         match wait_result {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => {
-                tracing::error!(error = %e, "Semaphore wait failed");
-                time::sleep(Duration::from_millis(100)).await;
-                continue;
+                anyhow::bail!("Semaphore wait failed: {}", e)
             }
             Err(e) => {
-                tracing::error!(error = %e, "Semaphore wait task failed (task panicked or cancelled)");
-                time::sleep(Duration::from_millis(100)).await;
-                continue;
+                anyhow::bail!(
+                    "Semaphore wait task failed (task panicked or cancelled): {}",
+                    e
+                )
             }
         }
+    }
 
-        let frame_seq = frame_reader.current_sequence();
-        let detection_seq = detection_reader.current_sequence();
+    /// Read and validate current frame from shared memory
+    fn read_current_frame(&mut self) -> anyhow::Result<FrameData> {
+        let frame_seq = self.frame_reader.current_sequence();
 
-        let frame = match frame_reader.get_frame() {
+        let frame = match self.frame_reader.get_frame() {
             Ok(Some(f)) => f,
             Ok(None) => {
-                continue;
+                anyhow::bail!("No frame available")
             }
             Err(e) => {
-                tracing::error!(error = %e, sequence = frame_seq, "Failed to read frame buffer - skipping");
-                frame_reader.mark_read();
-                continue;
+                // Mark as read even on error to prevent getting stuck
+                self.frame_reader.mark_read();
+                anyhow::bail!(
+                    "Failed to read frame buffer (sequence {}): {}",
+                    frame_seq,
+                    e
+                )
             }
         };
 
-        let frame_num = frame.frame_number();
+        let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let width = frame.width();
         let height = frame.height();
+        let format = frame.format();
 
-        let jpeg_data = if let Some(pixels) = frame.pixels() {
-            let format = frame.format();
-            let pixel_bytes = pixels.bytes();
-
-            // Validate pixel data size
-            let expected_size = (width * height * 3) as usize; // RGB = 3 bytes per pixel
-            if pixel_bytes.len() < expected_size && format != bridge::ColorFormat::GRAY {
-                tracing::error!(
-                    expected = expected_size,
-                    actual = pixel_bytes.len(),
-                    "Pixel buffer size mismatch - skipping JPEG encoding"
-                );
-                Vec::new()
-            } else {
-                match pixels_to_jpeg(pixel_bytes, width, height, format) {
-                    Ok(data) => data,
-                    Err(e) => {
-                        tracing::error!("Image encoding error: {}", e);
-                        Vec::new()
-                    }
-                }
-            }
+        // Extract pixel data from frame
+        let pixel_data = if let Some(pixels) = frame.pixels() {
+            pixels.bytes().to_vec()
         } else {
             Vec::new()
         };
 
-        let (detections, status) = if detection_seq > 0 {
-            // Use DetectionReader to safely deserialize detection buffer
-            match detection_reader.get_detections() {
-                Ok(Some(dets)) => {
-                    let status = if !jpeg_data.is_empty() {
-                        "complete"
-                    } else {
-                        "detection_only"
-                    };
-
-                    (Some(dets), status.to_string())
-                }
-                Ok(None) => {
-                    // No detections available
-                    (None, "frame_only".to_string())
-                }
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        sequence = detection_seq,
-                        "Failed to deserialize detection buffer - skipping detections"
-                    );
-                    // Continue with frame-only data
-                    (None, "frame_only".to_string())
-                }
-            }
-        } else {
-            (None, "frame_only".to_string())
-        };
-
-        let metadata = FrameMessage {
-            frame_number: frame_num,
+        Ok(FrameData {
+            frame_number,
             timestamp_ns,
             width,
             height,
-            detections,
-            status: status.clone(),
+            pixel_data,
+            format,
+        })
+    }
+
+    /// Read detections from shared memory if available
+    fn read_detections(&mut self, has_jpeg: bool) -> Option<DetectionData> {
+        let detection_seq = self.detection_reader.current_sequence();
+
+        if detection_seq == 0 {
+            return None;
+        }
+
+        match self.detection_reader.get_detections() {
+            Ok(Some(detections)) => Some(DetectionData {
+                detections,
+                has_jpeg,
+            }),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    sequence = detection_seq,
+                    "Failed to deserialize detection buffer - skipping detections"
+                );
+                None
+            }
+        }
+    }
+
+    /// Encode frame pixels to JPEG
+    fn encode_to_jpeg(&self, frame_data: &FrameData) -> Vec<u8> {
+        if frame_data.pixel_data.is_empty() {
+            return Vec::new();
+        }
+
+        // Validate pixel data size
+        let expected_size = (frame_data.width * frame_data.height * 3) as usize;
+        if frame_data.pixel_data.len() < expected_size
+            && frame_data.format != bridge::ColorFormat::GRAY
+        {
+            tracing::error!(
+                expected = expected_size,
+                actual = frame_data.pixel_data.len(),
+                "Pixel buffer size mismatch - skipping JPEG encoding"
+            );
+            return Vec::new();
+        }
+
+        match pixels_to_jpeg(
+            &frame_data.pixel_data,
+            frame_data.width,
+            frame_data.height,
+            frame_data.format,
+        ) {
+            Ok(data) => data,
+            Err(e) => {
+                tracing::error!("Image encoding error: {}", e);
+                Vec::new()
+            }
+        }
+    }
+
+    /// Build packet for broadcast
+    fn build_packet(
+        &self,
+        frame_data: FrameData,
+        jpeg_data: Vec<u8>,
+        detection_data: Option<DetectionData>,
+    ) -> FramePacket {
+        let (detections, status) = match detection_data {
+            Some(DetectionData {
+                detections,
+                has_jpeg,
+            }) => {
+                let status = if has_jpeg {
+                    "complete"
+                } else {
+                    "detection_only"
+                };
+                (Some(detections), status.to_string())
+            }
+            None => (None, "frame_only".to_string()),
         };
 
-        let packet = FramePacket {
+        let metadata = FrameMessage {
+            frame_number: frame_data.frame_number,
+            timestamp_ns: frame_data.timestamp_ns,
+            width: frame_data.width,
+            height: frame_data.height,
+            detections,
+            status,
+        };
+
+        FramePacket {
             metadata,
             jpeg_data,
-        };
+        }
+    }
 
-        frame_reader.mark_read();
-        detection_reader.mark_read();
-
+    /// Broadcast packet to WebSocket clients
+    fn broadcast_packet(&self, packet: FramePacket) {
         let det_count = packet
             .metadata
             .detections
@@ -176,7 +304,7 @@ pub async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Re
             "Frame processed"
         );
 
-        let _ = tx.send(packet);
+        let _ = self.tx.send(packet);
     }
 }
 
