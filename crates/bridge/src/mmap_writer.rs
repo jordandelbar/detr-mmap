@@ -115,10 +115,12 @@ impl MmapWriter {
     ///
     /// After writing directly to this buffer, you must manually
     /// publish the sequence number to signal readers. Use with caution.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn buffer_mut(&mut self) -> &mut [u8] {
         &mut self.mmap[Header::SIZE..]
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn flush(&mut self) -> Result<(), BridgeError> {
         self.mmap.flush()?;
         Ok(())

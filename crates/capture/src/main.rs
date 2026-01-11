@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut camera = Camera::build(config).expect("failed to build camera");
 
-    let sentry_control = SentryControl::new("/dev/shm/bridge_sentry_control")
+    let sentry_control = SentryControl::build()
         .expect("failed to create sentry control");
 
     tracing::info!("Sentry control initialized in shared memory");

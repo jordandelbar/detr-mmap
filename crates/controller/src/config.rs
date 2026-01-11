@@ -3,7 +3,6 @@ use std::env;
 
 #[derive(Debug, Clone)]
 pub struct ControllerConfig {
-    pub sentry_control_path: String,
     pub validation_frames: u32,
     pub tracking_exit_frames: u32,
     pub poll_interval_ms: u64,
@@ -15,9 +14,6 @@ pub struct ControllerConfig {
 
 impl ControllerConfig {
     pub fn from_env() -> Result<Self> {
-        let sentry_control_path = env::var("SENTRY_CONTROL_PATH")
-            .unwrap_or_else(|_| "/dev/shm/bridge_sentry_control".to_string());
-
         let validation_frames = env::var("VALIDATION_FRAMES")
             .unwrap_or_else(|_| "3".to_string())
             .parse()
@@ -47,7 +43,6 @@ impl ControllerConfig {
         let mqtt_device_id = env::var("MQTT_DEVICE_ID").unwrap_or_else(|_| "unknown".to_string());
 
         Ok(Self {
-            sentry_control_path,
             validation_frames,
             tracking_exit_frames,
             poll_interval_ms,

@@ -40,7 +40,7 @@ impl ControllerService {
             }
         };
 
-        let sentry_control = SentryControl::new(&config.sentry_control_path)?;
+        let sentry_control = SentryControl::build()?;
         tracing::info!("Sentry control connected");
 
         let mqtt_notifier = MqttNotifier::new(

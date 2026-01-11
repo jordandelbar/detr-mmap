@@ -1,4 +1,5 @@
 use crate::errors::BridgeError;
+use crate::paths;
 use memmap2::MmapMut;
 use std::fs::OpenOptions;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -29,7 +30,12 @@ unsafe impl Send for SentryControl {}
 unsafe impl Sync for SentryControl {}
 
 impl SentryControl {
-    /// Create or open shared memory control
+    /// Create a new SentryControl using the default sentry control path
+    pub fn build() -> Result<Self, BridgeError> {
+        Self::new(paths::SENTRY_CONTROL_PATH)
+    }
+
+    /// Create or open shared memory control with custom path (useful for tests)
     ///
     /// This creates a shared memory segment in /dev/shm for the sentry mode.
     /// The segment is 1 byte containing an atomic U8.

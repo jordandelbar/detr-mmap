@@ -36,6 +36,7 @@ impl MmapReader {
     ///
     /// Returns Some(seq) if there is new data, None otherwise.
     /// This avoids double-loading the sequence number.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn has_new_data(&self) -> Option<u64> {
         let seq = self.current_sequence();
         if seq > self.last_sequence {
@@ -53,6 +54,7 @@ impl MmapReader {
     /// Returns the latest fully-published frame.
     /// The returned buffer may be newer than the returned sequence.
     /// Frames may be skipped.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn read_frame(&self) -> Option<(u64, &[u8])> {
         let seq1 = self.current_sequence();
         if seq1 <= self.last_sequence {
@@ -73,11 +75,13 @@ impl MmapReader {
     }
 
     /// Mark a specific sequence as read
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn mark_read_seq(&mut self, seq: u64) {
         self.last_sequence = seq;
     }
 
     /// Get last read sequence number
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn last_sequence(&self) -> u64 {
         self.last_sequence
     }
