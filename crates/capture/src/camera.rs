@@ -1,6 +1,6 @@
 use crate::config::CameraConfig;
 use anyhow::{Context, Result, anyhow};
-use bridge::{FrameSemaphore, FrameWriter, SentryControl, SentryMode};
+use bridge::{BridgeSemaphore, FrameWriter, SemaphoreType, SentryControl, SentryMode};
 use common::retry::retry_with_backoff;
 use nokhwa::Camera as NokhwaCamera;
 use nokhwa::pixel_format::RgbFormat;
@@ -57,8 +57,8 @@ pub struct Camera {
     max_frame_rate: f64,
     sentry_mode_rate: f64,
     frame_writer: FrameWriter,
-    inference_semaphore: FrameSemaphore,
-    gateway_semaphore: FrameSemaphore,
+    inference_semaphore: BridgeSemaphore,
+    gateway_semaphore: BridgeSemaphore,
 }
 
 impl Camera {
@@ -81,10 +81,10 @@ impl Camera {
         let format = cam.camera_format();
         let frame_writer = FrameWriter::build().context("Failed to initialize frame writer")?;
 
-        let get_sem = |path: &str, name: &str| -> Result<FrameSemaphore> {
-            FrameSemaphore::open(path).or_else(|_| {
+        let get_sem = |semaphore_type: SemaphoreType, name: &str| -> Result<BridgeSemaphore> {
+            BridgeSemaphore::open(semaphore_type).or_else(|_| {
                 tracing::info!("Creating new {} semaphore", name);
-                FrameSemaphore::create(path)
+                BridgeSemaphore::create(semaphore_type)
                     .map_err(|e| anyhow!("Failed to create semaphore {}: {}", name, e))
             })
         };
@@ -97,8 +97,8 @@ impl Camera {
             max_frame_rate: format.frame_rate() as f64,
             sentry_mode_rate: config.sentry_mode_fps,
             frame_writer,
-            inference_semaphore: get_sem(&config.inference_semaphore_name, "inference")?,
-            gateway_semaphore: get_sem(&config.gateway_semaphore_name, "gateway")?,
+            inference_semaphore: get_sem(SemaphoreType::FrameCaptureToInference, "inference")?,
+            gateway_semaphore: get_sem(SemaphoreType::FrameCaptureToGateway, "gateway")?,
         })
     }
 

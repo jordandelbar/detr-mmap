@@ -13,11 +13,10 @@ async fn main() -> anyhow::Result<()> {
 
     let (tx, _rx) = broadcast::channel(config.channel_capacity);
     let state = AppState { tx: Arc::new(tx) };
-
-    let poll_config = config.clone();
     let poll_tx = state.tx.clone();
+
     tokio::spawn(async move {
-        if let Err(e) = polling::poll_buffers(poll_config, poll_tx).await {
+        if let Err(e) = polling::poll_buffers(poll_tx).await {
             tracing::error!("Buffer polling error: {}", e);
         }
     });

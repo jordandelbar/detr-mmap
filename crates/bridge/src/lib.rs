@@ -16,6 +16,6 @@ pub use detection_writer::DetectionWriter;
 pub use errors::BridgeError;
 pub use frame_reader::FrameReader;
 pub use frame_writer::FrameWriter;
-pub use semaphore::FrameSemaphore;
+pub use semaphore::{BridgeSemaphore, SemaphoreType};
 pub use sentry_control::{SentryControl, SentryMode};
 pub use types::{Detection, FrameMetadata};

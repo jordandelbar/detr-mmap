@@ -6,6 +6,23 @@ use nix::sys::stat::Mode;
 use nix::sys::time::TimeSpec;
 use std::ffi::CString;
 
+#[derive(Copy, Clone)]
+pub enum SemaphoreType {
+    FrameCaptureToInference,
+    FrameCaptureToGateway,
+    DetectionInferenceToController,
+}
+
+impl SemaphoreType {
+    fn name(&self) -> &str {
+        match self {
+            Self::FrameCaptureToInference => "/bridge_frame_inference",
+            Self::FrameCaptureToGateway => "/bridge_frame_gateway",
+            Self::DetectionInferenceToController => "/bridge_detection_controller",
+        }
+    }
+}
+
 /// A wrapper around POSIX message queues for frame synchronization
 ///
 /// This uses message queues to signal when new frames are available.
@@ -15,14 +32,21 @@ use std::ffi::CString;
 /// Note: Message queues are treated as persistent system resources.
 /// They are not automatically deleted when this struct is dropped,
 /// allowing seamless pod restarts in Kubernetes.
-pub struct FrameSemaphore {
+pub struct BridgeSemaphore {
     mqd: Option<MqdT>,
 }
 
-unsafe impl Send for FrameSemaphore {}
-unsafe impl Sync for FrameSemaphore {}
+unsafe impl Send for BridgeSemaphore {}
+unsafe impl Sync for BridgeSemaphore {}
 
-impl FrameSemaphore {
+impl BridgeSemaphore {
+    pub fn create(semaphore_type: SemaphoreType) -> Result<Self, BridgeError> {
+        Self::create_with_name(semaphore_type.name())
+    }
+
+    pub fn open(semaphore_type: SemaphoreType) -> Result<Self, BridgeError> {
+        Self::open_with_name(semaphore_type.name())
+    }
     /// Create a new message queue
     ///
     /// This will create a new message queue or open an existing one.
@@ -32,8 +56,8 @@ impl FrameSemaphore {
     /// * `name` - Name of the message queue (e.g., "/bridge_frame_ready")
     ///
     /// # Returns
-    /// A new FrameSemaphore instance that owns the message queue
-    pub fn create(name: &str) -> Result<Self, BridgeError> {
+    /// A new BridgeSemaphore instance that owns the message queue
+    pub fn create_with_name(name: &str) -> Result<Self, BridgeError> {
         let c_name = CString::new(name)
             .map_err(|e| BridgeError::SemaphoreError(format!("Invalid queue name: {}", e)))?;
 
@@ -61,8 +85,8 @@ impl FrameSemaphore {
     /// * `name` - Name of the message queue (e.g., "/bridge_frame_ready")
     ///
     /// # Returns
-    /// A new FrameSemaphore instance connected to the existing queue
-    pub fn open(name: &str) -> Result<Self, BridgeError> {
+    /// A new BridgeSemaphore instance connected to the existing queue
+    pub fn open_with_name(name: &str) -> Result<Self, BridgeError> {
         let c_name = CString::new(name)
             .map_err(|e| BridgeError::SemaphoreError(format!("Invalid queue name: {}", e)))?;
 
@@ -169,7 +193,7 @@ impl FrameSemaphore {
     }
 }
 
-impl Drop for FrameSemaphore {
+impl Drop for BridgeSemaphore {
     fn drop(&mut self) {
         // Close the message queue descriptor
         if let Some(mqd) = self.mqd.take() {
@@ -199,10 +223,11 @@ mod tests {
         let queue_name = "/test_bridge_queue1";
 
         // Create queue
-        let creator = FrameSemaphore::create(queue_name).expect("Failed to create queue");
+        let creator =
+            BridgeSemaphore::create_with_name(queue_name).expect("Failed to create queue");
 
         // Open existing queue
-        let opener = FrameSemaphore::open(queue_name).expect("Failed to open queue");
+        let opener = BridgeSemaphore::open_with_name(queue_name).expect("Failed to open queue");
 
         // Post from creator
         creator.post().expect("Failed to post");
@@ -217,7 +242,7 @@ mod tests {
     fn test_mqueue_drain() {
         let queue_name = "/test_bridge_queue2";
 
-        let mq = FrameSemaphore::create(queue_name).expect("Failed to create queue");
+        let mq = BridgeSemaphore::create_with_name(queue_name).expect("Failed to create queue");
 
         // Post 5 times
         for _ in 0..5 {
@@ -237,7 +262,7 @@ mod tests {
     fn test_mqueue_try_wait() {
         let queue_name = "/test_bridge_queue3";
 
-        let mq = FrameSemaphore::create(queue_name).expect("Failed to create queue");
+        let mq = BridgeSemaphore::create_with_name(queue_name).expect("Failed to create queue");
 
         // Try wait without signal - should return false
         let result = mq.try_wait().expect("Failed to try_wait");
@@ -259,15 +284,15 @@ mod tests {
     fn test_mqueue_multiple_waiters() {
         let queue_name = "/test_bridge_queue4";
 
-        let mq = FrameSemaphore::create(queue_name).expect("Failed to create queue");
+        let mq = BridgeSemaphore::create_with_name(queue_name).expect("Failed to create queue");
 
         // Post twice (for two waiters)
         mq.post().expect("Failed to post");
         mq.post().expect("Failed to post");
 
         // Two opens of the same queue
-        let waiter1 = FrameSemaphore::open(queue_name).expect("Failed to open queue");
-        let waiter2 = FrameSemaphore::open(queue_name).expect("Failed to open queue");
+        let waiter1 = BridgeSemaphore::open_with_name(queue_name).expect("Failed to open queue");
+        let waiter2 = BridgeSemaphore::open_with_name(queue_name).expect("Failed to open queue");
 
         // Both should be able to wait once
         waiter1.wait().expect("Failed to wait");

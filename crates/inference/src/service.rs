@@ -6,7 +6,7 @@ use crate::{
         pre::PreProcessor,
     },
 };
-use bridge::{DetectionWriter, FrameReader, FrameSemaphore};
+use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType};
 use ndarray::Array;
 use std::thread;
 use std::time::Duration;
@@ -40,11 +40,6 @@ impl<B: InferenceBackend> InferenceService<B> {
             "Inference service starting"
         );
 
-        tracing::info!(
-            frame_buffer = %self.config.frame_mmap_path,
-            "Waiting for frame buffer connection"
-        );
-
         let mut frame_reader = loop {
             match FrameReader::build() {
                 Ok(reader) => {
@@ -61,7 +56,7 @@ impl<B: InferenceBackend> InferenceService<B> {
 
         tracing::info!("Opening inference frame synchronization semaphore");
         let frame_semaphore = loop {
-            match FrameSemaphore::open("/bridge_frame_inference") {
+            match BridgeSemaphore::open(SemaphoreType::FrameCaptureToInference) {
                 Ok(sem) => {
                     tracing::info!("Inference semaphore connected successfully");
                     break sem;
@@ -74,20 +69,22 @@ impl<B: InferenceBackend> InferenceService<B> {
 
         tracing::info!("Opening controller semaphore for detection notifications");
         let controller_semaphore = loop {
-            match FrameSemaphore::open(&self.config.controller_semaphore_name) {
+            match BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController) {
                 Ok(sem) => {
                     tracing::info!("Controller semaphore connected successfully");
                     break sem;
                 }
-                Err(_) => match FrameSemaphore::create(&self.config.controller_semaphore_name) {
-                    Ok(sem) => {
-                        tracing::info!("Controller semaphore created successfully");
-                        break sem;
+                Err(_) => {
+                    match BridgeSemaphore::create(SemaphoreType::DetectionInferenceToController) {
+                        Ok(sem) => {
+                            tracing::info!("Controller semaphore created successfully");
+                            break sem;
+                        }
+                        Err(_) => {
+                            thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
+                        }
                     }
-                    Err(_) => {
-                        thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
-                    }
-                },
+                }
             }
         };
 

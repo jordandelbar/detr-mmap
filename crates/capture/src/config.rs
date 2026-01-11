@@ -8,8 +8,6 @@ pub struct CameraConfig {
     pub camera_id: u32,
     pub device_id: u32,
     pub sentry_mode_fps: f64,
-    pub inference_semaphore_name: String,
-    pub gateway_semaphore_name: String,
 }
 
 impl CameraConfig {
@@ -31,19 +29,11 @@ impl CameraConfig {
             .and_then(|s| s.parse().ok())
             .unwrap_or(1.0);
 
-        let inference_semaphore_name = env::var("INFERENCE_SEMAPHORE_NAME")
-            .unwrap_or_else(|_| "/bridge_frame_inference".to_string());
-
-        let gateway_semaphore_name = env::var("GATEWAY_SEMAPHORE_NAME")
-            .unwrap_or_else(|_| "/bridge_frame_gateway".to_string());
-
         Ok(Self {
             environment,
             camera_id,
             device_id,
             sentry_mode_fps,
-            inference_semaphore_name,
-            gateway_semaphore_name,
         })
     }
 }

@@ -1,13 +1,13 @@
 use crate::{config::ControllerConfig, mqtt_notifier::MqttNotifier, state_machine::StateContext};
 use anyhow::Result;
-use bridge::{DetectionReader, FrameSemaphore, SentryControl};
+use bridge::{BridgeSemaphore, DetectionReader, SemaphoreType, SentryControl};
 use std::{thread, time::Duration};
 
 pub struct ControllerService {
     config: ControllerConfig,
     state_context: StateContext,
     detection_reader: DetectionReader,
-    detection_semaphore: FrameSemaphore,
+    detection_semaphore: BridgeSemaphore,
     sentry_control: SentryControl,
     mqtt_notifier: MqttNotifier,
 }
@@ -28,7 +28,7 @@ impl ControllerService {
         };
 
         let detection_semaphore = loop {
-            match FrameSemaphore::open(&config.controller_semaphore_name) {
+            match BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController) {
                 Ok(sem) => {
                     tracing::info!("Detection semaphore connected");
                     break sem;

@@ -6,8 +6,6 @@ pub use common::Environment;
 pub struct InferenceConfig {
     pub environment: Environment,
     pub model_path: String,
-    pub frame_mmap_path: String,
-    pub controller_semaphore_name: String,
     pub input_size: (u32, u32),
     pub poll_interval_ms: u64,
     pub confidence_threshold: f32,
@@ -20,12 +18,6 @@ impl InferenceConfig {
 
         let model_path =
             env::var("MODEL_PATH").unwrap_or_else(|_| "/models/model.onnx".to_string());
-
-        let frame_mmap_path = env::var("FRAME_MMAP_PATH")
-            .unwrap_or_else(|_| "/dev/shm/bridge_frame_buffer".to_string());
-
-        let controller_semaphore_name = env::var("CONTROLLER_SEMAPHORE_NAME")
-            .unwrap_or_else(|_| "/bridge_detection_controller".to_string());
 
         let input_width = env::var("INPUT_WIDTH")
             .ok()
@@ -50,8 +42,6 @@ impl InferenceConfig {
         Ok(Self {
             environment,
             model_path,
-            frame_mmap_path,
-            controller_semaphore_name,
             input_size: (input_width, input_height),
             poll_interval_ms,
             confidence_threshold,
@@ -64,8 +54,6 @@ impl InferenceConfig {
         Self {
             environment: Environment::Development,
             model_path: "/models/model.onnx".to_string(),
-            frame_mmap_path: "/dev/shm/bridge_frame_buffer".to_string(),
-            controller_semaphore_name: "/bridge_detection_controller".to_string(),
             input_size: (640, 640),
             poll_interval_ms: 100,
             confidence_threshold: 0.5,

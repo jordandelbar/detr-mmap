@@ -1,6 +1,5 @@
-use crate::config::GatewayConfig;
 use crate::state::{FrameMessage, FramePacket};
-use bridge::{DetectionReader, FrameReader, FrameSemaphore};
+use bridge::{BridgeSemaphore, DetectionReader, FrameReader};
 use image::{ImageBuffer, RgbImage};
 use std::io::Cursor;
 use std::sync::Arc;
@@ -8,10 +7,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
 
-pub async fn poll_buffers(
-    config: GatewayConfig,
-    tx: Arc<broadcast::Sender<FramePacket>>,
-) -> anyhow::Result<()> {
+pub async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result<()> {
     let mut frame_reader = loop {
         match FrameReader::build() {
             Ok(reader) => {
@@ -40,7 +36,7 @@ pub async fn poll_buffers(
 
     tracing::info!("Opening gateway frame synchronization semaphore");
     let frame_semaphore = loop {
-        match FrameSemaphore::open("/bridge_frame_gateway") {
+        match BridgeSemaphore::open(bridge::SemaphoreType::FrameCaptureToGateway) {
             Ok(sem) => {
                 tracing::info!("Gateway semaphore connected successfully");
                 break Arc::new(sem);
