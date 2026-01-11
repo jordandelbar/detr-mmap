@@ -55,16 +55,18 @@ pub async fn poll_buffers(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Re
         let sem = frame_semaphore.clone();
         let wait_result = tokio::task::spawn_blocking(move || sem.wait()).await;
 
-        if let Err(e) = wait_result {
-            tracing::error!(error = %e, "Semaphore wait task failed");
-            time::sleep(Duration::from_millis(100)).await;
-            continue;
-        }
-
-        if let Err(e) = wait_result.unwrap() {
-            tracing::error!(error = %e, "Semaphore wait failed");
-            time::sleep(Duration::from_millis(100)).await;
-            continue;
+        match wait_result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                tracing::error!(error = %e, "Semaphore wait failed");
+                time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "Semaphore wait task failed (task panicked or cancelled)");
+                time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
         }
 
         let frame_seq = frame_reader.current_sequence();

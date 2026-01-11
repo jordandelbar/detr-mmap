@@ -1,3 +1,4 @@
+use anyhow::Context;
 use bridge::SentryControl;
 use capture::{camera::Camera, config::CameraConfig, logging::setup_logging};
 use signal_hook::{
@@ -17,10 +18,11 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!("Signal handlers registered (SIGTERM, SIGINT)");
 
-    let mut camera = Camera::build(config).expect("failed to build camera");
+    let mut camera = Camera::build(config)
+        .context("Failed to initialize camera - check V4L2 device availability")?;
 
     let sentry_control = SentryControl::build()
-        .expect("failed to create sentry control");
+        .context("Failed to create sentry control in shared memory (/dev/shm)")?;
 
     tracing::info!("Sentry control initialized in shared memory");
 
