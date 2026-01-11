@@ -3,7 +3,7 @@
 [![Build](https://github.com/jordandelbar/bridge-rt/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/bridge-rt/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/jordandelbar/bridge-rt/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/bridge-rt)
 
-A RT-DERT implementation with Rust ort, FlatBuffers and k3d
+A RT-DERT implementation with Rust ORT, FlatBuffers and k3d
 
 ## 📝 Overview
 
@@ -12,7 +12,7 @@ This project implements a complete edge AI pipeline with RT-DETR v2 object detec
 ## Tech Stack
 
   - capture: Camera frame acquisition using [nokhwa] and V4L2
-  - inference: RT-DETR model inference via [Ort] with CUDA support
+  - inference: RT-DETR model inference via [ORT] with CUDA support
   - controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to MQTT
   - gateway: WebSocket server streaming frames + detections to connected clients
   - mosquitto: MQTT broker for centralized event collection (deployed on central node)
@@ -60,7 +60,7 @@ kubectl logs -n bridge-rt -l component=inference --follow
 [nokhwa]: (https://github.com/l1npengtul/nokhwa)
 [ONNX]: https://onnx.ai/
 [Axum]: https://docs.rs/axum/latest/axum/
-[Ort]: https://ort.pyke.io/
+[ORT]: https://ort.pyke.io/
 
 ## 🤝 Contributing
 
@@ -69,4 +69,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md)
 ## 📄 License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
-Fair use: this repository is aimed for civil and educational uses.
+
+Note: This project is intended for educational and research purposes.

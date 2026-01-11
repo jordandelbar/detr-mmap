@@ -27,7 +27,7 @@ impl CameraConfig {
         let sentry_mode_fps = env::var("SENTRY_MODE_FPS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(1.0);
+            .unwrap_or(3.0);
 
         Ok(Self {
             environment,
