@@ -12,7 +12,10 @@ pub struct DetectionWriter {
 impl DetectionWriter {
     /// Create a new DetectionWriter using the default detection buffer path and size
     pub fn build() -> Result<Self> {
-        Self::build_with_path(paths::DETECTION_BUFFER_PATH, paths::DEFAULT_DETECTION_BUFFER_SIZE)
+        Self::build_with_path(
+            paths::DETECTION_BUFFER_PATH,
+            paths::DEFAULT_DETECTION_BUFFER_SIZE,
+        )
     }
 
     /// Create a new DetectionWriter with custom path and size (useful for tests and benchmarks)

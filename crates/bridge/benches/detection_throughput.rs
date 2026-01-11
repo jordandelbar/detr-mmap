@@ -1,4 +1,4 @@
-use bridge::{DetectionReader, DetectionWriter, Detection};
+use bridge::{Detection, DetectionReader, DetectionWriter};
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use std::fs;
 
@@ -75,11 +75,7 @@ fn benchmark_detection_read(c: &mut Criterion) {
         let _ = fs::remove_file(&path);
 
         // Write detections first
-        let mut writer = DetectionWriter::build_with_path(
-            &path,
-            1024 * 1024,
-        )
-        .unwrap();
+        let mut writer = DetectionWriter::build_with_path(&path, 1024 * 1024).unwrap();
 
         let detections: Vec<Detection> = (0..*count)
             .map(|i| Detection {
@@ -97,12 +93,16 @@ fn benchmark_detection_read(c: &mut Criterion) {
         // Create reader
         let reader = DetectionReader::with_path(&path).unwrap();
 
-        group.bench_with_input(BenchmarkId::new("deserialize_read", label), label, |b, _| {
-            b.iter(|| {
-                let result = reader.get_detections().unwrap();
-                black_box(result);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("deserialize_read", label),
+            label,
+            |b, _| {
+                b.iter(|| {
+                    let result = reader.get_detections().unwrap();
+                    black_box(result);
+                });
+            },
+        );
 
         let _ = fs::remove_file(&path);
     }
@@ -126,11 +126,7 @@ fn benchmark_detection_roundtrip(c: &mut Criterion) {
         let path = format!("/tmp/bridge_bench_detection_roundtrip_{}", i);
         let _ = fs::remove_file(&path);
 
-        let mut writer = DetectionWriter::build_with_path(
-            &path,
-            1024 * 1024,
-        )
-        .unwrap();
+        let mut writer = DetectionWriter::build_with_path(&path, 1024 * 1024).unwrap();
 
         let mut reader = DetectionReader::with_path(&path).unwrap();
 

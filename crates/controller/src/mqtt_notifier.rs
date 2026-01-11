@@ -22,7 +22,12 @@ pub struct MqttNotifier {
 }
 
 impl MqttNotifier {
-    pub fn new(broker_host: &str, broker_port: u16, topic: String, device_id: String) -> Result<Self> {
+    pub fn new(
+        broker_host: &str,
+        broker_port: u16,
+        topic: String,
+        device_id: String,
+    ) -> Result<Self> {
         let mut mqtt_options = MqttOptions::new("bridge-rt-controller", broker_host, broker_port);
         mqtt_options.set_keep_alive(Duration::from_secs(30));
 
@@ -46,7 +51,11 @@ impl MqttNotifier {
             "MQTT notifier initialized"
         );
 
-        Ok(Self { client, topic, device_id })
+        Ok(Self {
+            client,
+            topic,
+            device_id,
+        })
     }
 
     pub fn notify_state_change(

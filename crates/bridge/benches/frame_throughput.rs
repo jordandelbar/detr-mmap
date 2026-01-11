@@ -8,9 +8,9 @@ fn benchmark_frame_write(c: &mut Criterion) {
 
     // Realistic frame sizes
     let sizes = [
-        (640, 480, "VGA"),           // 640x480x3 = ~900KB
-        (1280, 720, "HD"),           // 1280x720x3 = ~2.7MB
-        (1920, 1080, "Full HD"),     // 1920x1080x3 = ~6MB
+        (640, 480, "VGA"),       // 640x480x3 = ~900KB
+        (1280, 720, "HD"),       // 1280x720x3 = ~2.7MB
+        (1920, 1080, "Full HD"), // 1920x1080x3 = ~6MB
     ];
 
     for (i, (width, height, label)) in sizes.iter().enumerate() {
@@ -74,12 +74,16 @@ fn benchmark_frame_read(c: &mut Criterion) {
 
         let reader = FrameReader::with_path(&path).unwrap();
 
-        group.bench_with_input(BenchmarkId::new("deserialize_read", label), label, |b, _| {
-            b.iter(|| {
-                let frame = reader.get_frame().unwrap();
-                black_box(frame);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("deserialize_read", label),
+            label,
+            |b, _| {
+                b.iter(|| {
+                    let frame = reader.get_frame().unwrap();
+                    black_box(frame);
+                });
+            },
+        );
 
         let _ = fs::remove_file(&path);
     }
@@ -106,7 +110,15 @@ fn benchmark_frame_roundtrip(c: &mut Criterion) {
         // Initialize file
         {
             let mut writer = FrameWriter::build_with_path(&path, buffer_size).unwrap();
-            writer.write(&vec![0u8; (width * height * 3) as usize], 0, 0, *width, *height).unwrap();
+            writer
+                .write(
+                    &vec![0u8; (width * height * 3) as usize],
+                    0,
+                    0,
+                    *width,
+                    *height,
+                )
+                .unwrap();
         }
 
         let mut reader = FrameReader::with_path(&path).unwrap();

@@ -19,8 +19,7 @@ fn test_detection_writer_reader_synchronization() {
     let path_str = path.to_str().unwrap();
 
     // Initialize writer and reader
-    let mut writer =
-        DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
+    let mut writer = DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
     let mut reader = DetectionReader::with_path(path_str).unwrap();
 
     // TEST 1: Initially, reader should have no data
@@ -98,20 +97,13 @@ fn test_detection_writer_reader_synchronization() {
             })
             .collect();
 
-        writer
-            .write(i, 1234567890 + i, 0, &detections)
-            .unwrap();
+        writer.write(i, 1234567890 + i, 0, &detections).unwrap();
 
         let result = reader.get_detections().unwrap();
         assert!(result.is_some(), "Reader should detect batch {}", i);
 
         let dets = result.unwrap();
-        assert_eq!(
-            dets.len(),
-            i as usize,
-            "Should have {} detections",
-            i
-        );
+        assert_eq!(dets.len(), i as usize, "Should have {} detections", i);
 
         reader.mark_read();
     }
@@ -138,11 +130,8 @@ fn test_concurrent_detection_producer_consumer() {
 
     // Producer thread: Simulates inference writing detections
     let producer = thread::spawn(move || {
-        let mut writer = DetectionWriter::build_with_path(
-            path_producer.to_str().unwrap(),
-            BUFFER_SIZE,
-        )
-        .unwrap();
+        let mut writer =
+            DetectionWriter::build_with_path(path_producer.to_str().unwrap(), BUFFER_SIZE).unwrap();
 
         // Give consumer time to initialize
         thread::sleep(Duration::from_millis(50));
@@ -176,8 +165,7 @@ fn test_concurrent_detection_producer_consumer() {
     let consumer = thread::spawn(move || {
         thread::sleep(Duration::from_millis(20));
 
-        let mut reader =
-            DetectionReader::with_path(path_consumer.to_str().unwrap()).unwrap();
+        let mut reader = DetectionReader::with_path(path_consumer.to_str().unwrap()).unwrap();
         let mut batches_seen = Vec::new();
 
         let start = std::time::Instant::now();
@@ -253,8 +241,7 @@ fn test_multiple_detection_readers() {
     const NUM_BATCHES: usize = 20;
 
     // Setup writer
-    let mut writer =
-        DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
+    let mut writer = DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
 
     // Create 3 readers (simulating inference, controller, gateway)
     let mut reader1 = DetectionReader::with_path(path_str).unwrap();
@@ -352,8 +339,7 @@ fn test_detection_reader_handles_no_data() {
     let path_str = path.to_str().unwrap();
 
     // Create writer but don't write anything
-    let _writer =
-        DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
+    let _writer = DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
     let reader = DetectionReader::with_path(path_str).unwrap();
 
     // Poll multiple times - should never indicate new data
@@ -388,8 +374,7 @@ fn test_various_detection_counts() {
     ];
 
     for (count, label) in &detection_counts {
-        let mut writer =
-            DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
+        let mut writer = DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
         let reader = DetectionReader::with_path(path_str).unwrap();
 
         let detections: Vec<Detection> = (0..*count)
@@ -428,8 +413,7 @@ fn test_detection_float_precision() {
     let path = dir.path().join("detection_precision_test.mmap");
     let path_str = path.to_str().unwrap();
 
-    let mut writer =
-        DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
+    let mut writer = DetectionWriter::build_with_path(path_str, 1024 * 1024).unwrap();
     let reader = DetectionReader::with_path(path_str).unwrap();
 
     // Test with precise float values

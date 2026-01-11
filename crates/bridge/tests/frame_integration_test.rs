@@ -74,12 +74,7 @@ fn test_frame_writer_reader_synchronization() {
         assert!(frame.is_some(), "Reader should detect frame {}", i);
 
         let frame = frame.unwrap();
-        assert_eq!(
-            frame.frame_number(),
-            i,
-            "Frame number should be {}",
-            i
-        );
+        assert_eq!(frame.frame_number(), i, "Frame number should be {}", i);
 
         reader.mark_read();
     }
@@ -108,11 +103,8 @@ fn test_concurrent_frame_producer_consumer() {
 
     // Producer thread: Simulates capture writing frames
     let producer = thread::spawn(move || {
-        let mut writer = FrameWriter::build_with_path(
-            path_producer.to_str().unwrap(),
-            BUFFER_SIZE,
-        )
-        .unwrap();
+        let mut writer =
+            FrameWriter::build_with_path(path_producer.to_str().unwrap(), BUFFER_SIZE).unwrap();
 
         // Give consumer time to initialize
         thread::sleep(Duration::from_millis(50));
@@ -123,9 +115,7 @@ fn test_concurrent_frame_producer_consumer() {
             // Embed frame number in first 8 bytes for verification
             pixels[..8].copy_from_slice(&frame_num.to_le_bytes());
 
-            writer
-                .write(&pixels, 0, frame_num, WIDTH, HEIGHT)
-                .unwrap();
+            writer.write(&pixels, 0, frame_num, WIDTH, HEIGHT).unwrap();
 
             // Simulate realistic frame rate (~100 FPS)
             thread::sleep(Duration::from_millis(10));
@@ -138,8 +128,7 @@ fn test_concurrent_frame_producer_consumer() {
     let consumer = thread::spawn(move || {
         thread::sleep(Duration::from_millis(20));
 
-        let mut reader =
-            FrameReader::with_path(path_consumer.to_str().unwrap()).unwrap();
+        let mut reader = FrameReader::with_path(path_consumer.to_str().unwrap()).unwrap();
         let mut frames_seen = Vec::new();
 
         let start = std::time::Instant::now();
@@ -242,9 +231,7 @@ fn test_multiple_frame_readers() {
     // Write frames and verify all readers see them
     for i in 1..=NUM_FRAMES {
         let pixels = vec![(i * 13) as u8; (WIDTH * HEIGHT * 3) as usize];
-        writer
-            .write(&pixels, 0, i as u64, WIDTH, HEIGHT)
-            .unwrap();
+        writer.write(&pixels, 0, i as u64, WIDTH, HEIGHT).unwrap();
 
         // All readers should detect new frame
         let frame1 = reader1.get_frame().unwrap();
@@ -336,14 +323,15 @@ fn test_various_frame_resolutions() {
 
     for (i, (width, height, label)) in resolutions.iter().enumerate() {
         // Use unique path for each resolution
-        let path = dir.path().join(format!("frame_resolutions_test_{}.mmap", i));
+        let path = dir
+            .path()
+            .join(format!("frame_resolutions_test_{}.mmap", i));
         let path_str = path.to_str().unwrap();
 
         // Use appropriate buffer size for resolution
         let buffer_size = (*width as usize) * (*height as usize) * 3 + 8192;
 
-        let mut writer =
-            FrameWriter::build_with_path(path_str, buffer_size).unwrap();
+        let mut writer = FrameWriter::build_with_path(path_str, buffer_size).unwrap();
         let reader = FrameReader::with_path(path_str).unwrap();
 
         let pixels = vec![200u8; (*width * *height * 3) as usize];
