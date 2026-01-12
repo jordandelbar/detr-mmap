@@ -1,8 +1,17 @@
 use inference::{
     InferenceConfig, InferenceService,
-    backend::{InferenceBackend, ort::OrtBackend},
+    backend::InferenceBackend,
     logging::setup_logging,
 };
+
+#[cfg(all(feature = "ort-backend", not(feature = "trt-backend")))]
+use inference::backend::ort::OrtBackend as Backend;
+
+#[cfg(feature = "trt-backend")]
+use inference::backend::trt::TrtBackend as Backend;
+
+#[cfg(not(any(feature = "ort-backend", feature = "trt-backend")))]
+compile_error!("At least one backend feature must be enabled: 'ort-backend' or 'trt-backend'");
 
 fn main() -> anyhow::Result<()> {
     let config = InferenceConfig::from_env()?;
@@ -15,7 +24,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     tracing::info!("Loading inference model");
-    let backend = OrtBackend::load_model(&config.model_path)?;
+    let backend = Backend::load_model(&config.model_path)?;
     tracing::info!("Model loaded successfully");
 
     let service = InferenceService::new(backend, config);

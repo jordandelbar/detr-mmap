@@ -32,11 +32,25 @@ public:
     TensorRTBackend& operator=(TensorRTBackend&&) noexcept;
 
     /// Load TensorRT engine from file
-    bool load_engine(const std::string& engine_path);
+    bool load_engine(const char* engine_path);
 
     /// Run inference
     /// inputs: images [1, 3, 640, 640], orig_sizes [1, 2]
     bool infer(const float* images, const int64_t* orig_sizes, InferenceOutput& output);
+
+    /// Run inference with raw output pointers (FFI friendly)
+    /// labels: [num_detections]
+    /// boxes: [num_detections * 4]
+    /// scores: [num_detections]
+    bool infer_raw(
+        const float* images,
+        const int64_t* orig_sizes,
+        int64_t* out_labels,
+        float* out_boxes,
+        float* out_scores
+    );
+
+    int get_num_detections() const { return num_detections_; }
 
 private:
     bool allocate_buffers();
@@ -64,5 +78,8 @@ private:
     // Model info
     int num_detections_ = 300; // RT-DETR default
 };
+
+// Factory function for Rust FFI
+std::unique_ptr<TensorRTBackend> new_tensorrt_backend();
 
 } // namespace bridge

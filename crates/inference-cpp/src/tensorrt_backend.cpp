@@ -81,7 +81,7 @@ TensorRTBackend& TensorRTBackend::operator=(TensorRTBackend&& other) noexcept {
     return *this;
 }
 
-bool TensorRTBackend::load_engine(const std::string& engine_path) {
+bool TensorRTBackend::load_engine(const char* engine_path) {
     std::cout << "Loading TensorRT engine from: " << engine_path << std::endl;
 
     // Read engine file
@@ -211,6 +211,59 @@ bool TensorRTBackend::infer(const float* images, const int64_t* orig_sizes, Infe
     }
 
     return true;
+}
+
+bool TensorRTBackend::infer_raw(
+    const float* images,
+    const int64_t* orig_sizes,
+    int64_t* out_labels,
+    float* out_boxes,
+    float* out_scores
+) {
+    // Copy inputs to device
+    if (cudaMemcpy(d_images_, images, images_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
+        std::cerr << "Failed to copy images to device" << std::endl;
+        return false;
+    }
+    if (cudaMemcpy(d_orig_sizes_, orig_sizes, orig_sizes_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
+        std::cerr << "Failed to copy orig_sizes to device" << std::endl;
+        return false;
+    }
+
+    // Set input/output bindings
+    void* bindings[] = {
+        d_images_,      // images
+        d_orig_sizes_,  // orig_target_sizes
+        d_labels_,      // labels
+        d_boxes_,       // boxes
+        d_scores_       // scores
+    };
+
+    // Execute inference
+    if (!context_->executeV2(bindings)) {
+        std::cerr << "Failed to execute inference" << std::endl;
+        return false;
+    }
+
+    // Copy outputs from device directly to host pointers
+    if (cudaMemcpy(out_labels, d_labels_, labels_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        std::cerr << "Failed to copy labels from device" << std::endl;
+        return false;
+    }
+    if (cudaMemcpy(out_boxes, d_boxes_, boxes_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        std::cerr << "Failed to copy boxes from device" << std::endl;
+        return false;
+    }
+    if (cudaMemcpy(out_scores, d_scores_, scores_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        std::cerr << "Failed to copy scores from device" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+std::unique_ptr<TensorRTBackend> new_tensorrt_backend() {
+    return std::make_unique<TensorRTBackend>();
 }
 
 } // namespace bridge

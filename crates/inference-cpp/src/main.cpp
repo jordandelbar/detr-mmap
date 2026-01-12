@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     // Load TensorRT engine
     std::cout << "Loading TensorRT engine..." << std::endl;
     TensorRTBackend backend;
-    if (!backend.load_engine(model_path)) {
+    if (!backend.load_engine(model_path.c_str())) {
         std::cerr << "Failed to load TensorRT engine" << std::endl;
         return 1;
     }

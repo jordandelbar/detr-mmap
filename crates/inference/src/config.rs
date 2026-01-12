@@ -16,8 +16,9 @@ impl InferenceConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         let environment = Environment::from_env();
 
-        let model_path =
-            env::var("MODEL_PATH").unwrap_or_else(|_| "/models/model.onnx".to_string());
+        let model_path = env::var("MODEL_PATH").unwrap_or_else(|_| {
+            "/home/jdelbar/Documents/projects/bridge-rt/models/model_fp16.engine".to_string()
+        });
 
         let input_width = env::var("INPUT_WIDTH")
             .ok()

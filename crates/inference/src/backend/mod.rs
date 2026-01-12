@@ -1,6 +1,10 @@
 use ndarray::{Array, IxDyn};
 
+#[cfg(feature = "ort-backend")]
 pub mod ort;
+
+#[cfg(feature = "trt-backend")]
+pub mod trt;
 
 pub trait InferenceBackend {
     fn load_model(path: &str) -> anyhow::Result<Self>
