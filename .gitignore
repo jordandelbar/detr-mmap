@@ -47,6 +47,7 @@ compile_commands.json
 *.lib
 *.dll
 *.exe
+.cache
 
 # FlatBuffers generated C++ headers
 *_generated.h

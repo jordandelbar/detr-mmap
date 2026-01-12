@@ -1,12 +1,18 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use flatbuffers::FlatBufferBuilder;
 use inference::{
-    backend::{InferenceBackend, ort::OrtBackend},
+    backend::InferenceBackend,
     processing::{post::PostProcessor, pre::PreProcessor},
 };
 use ndarray::{Array, IxDyn};
 use schema::ColorFormat;
 use std::path::Path;
+
+#[cfg(feature = "ort-backend")]
+use inference::backend::ort::OrtBackend;
+
+#[cfg(feature = "trt-backend")]
+use inference::backend::trt::TrtBackend;
 
 /// Helper function to create a FlatBuffers Frame for benchmarking
 fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
@@ -177,6 +183,7 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "ort-backend")]
 fn benchmark_onnx_inference(c: &mut Criterion) {
     let model_path = "../../models/model.onnx";
 
@@ -188,12 +195,12 @@ fn benchmark_onnx_inference(c: &mut Criterion) {
         return;
     }
 
-    let mut group = c.benchmark_group("onnx_inference");
+    let mut group = c.benchmark_group("inference");
 
     let mut backend = match OrtBackend::load_model(model_path) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("Failed to load model: {}", e);
+            eprintln!("Failed to load ONNX model: {}", e);
             return;
         }
     };
@@ -206,7 +213,7 @@ fn benchmark_onnx_inference(c: &mut Criterion) {
         .unwrap()
         .into_dyn();
 
-    group.bench_function("rtdetr_640x640", |b| {
+    group.bench_function("ort_rtdetr_640x640", |b| {
         b.iter(|| {
             backend
                 .infer(black_box(&preprocessed), black_box(&orig_sizes))
@@ -217,6 +224,59 @@ fn benchmark_onnx_inference(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "trt-backend")]
+fn benchmark_tensorrt_inference(c: &mut Criterion) {
+    let model_path = "../../models/model_fp16.engine";
+
+    if !Path::new(model_path).exists() {
+        eprintln!(
+            "Skipping TensorRT inference benchmark: model not found at {}",
+            model_path
+        );
+        return;
+    }
+
+    let mut group = c.benchmark_group("inference");
+
+    let mut backend = match TrtBackend::load_model(model_path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to load TensorRT model: {}", e);
+            return;
+        }
+    };
+
+    // Create preprocessed input (640x640) - matches RT-DETR input
+    let preprocessed = Array::zeros(IxDyn(&[1, 3, 640, 640]));
+
+    // RT-DETR expects original target sizes
+    let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
+        .unwrap()
+        .into_dyn();
+
+    group.bench_function("trt_rtdetr_640x640", |b| {
+        b.iter(|| {
+            backend
+                .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                .unwrap()
+        });
+    });
+
+    group.finish();
+}
+
+// Conditionally include backend benchmarks based on features
+#[cfg(all(feature = "ort-backend", feature = "trt-backend"))]
+criterion_group!(
+    benches,
+    benchmark_preprocessing,
+    benchmark_postprocessing,
+    benchmark_bgr_conversion,
+    benchmark_onnx_inference,
+    benchmark_tensorrt_inference
+);
+
+#[cfg(all(feature = "ort-backend", not(feature = "trt-backend")))]
 criterion_group!(
     benches,
     benchmark_preprocessing,
@@ -224,4 +284,22 @@ criterion_group!(
     benchmark_bgr_conversion,
     benchmark_onnx_inference
 );
+
+#[cfg(all(not(feature = "ort-backend"), feature = "trt-backend"))]
+criterion_group!(
+    benches,
+    benchmark_preprocessing,
+    benchmark_postprocessing,
+    benchmark_bgr_conversion,
+    benchmark_tensorrt_inference
+);
+
+#[cfg(not(any(feature = "ort-backend", feature = "trt-backend")))]
+criterion_group!(
+    benches,
+    benchmark_preprocessing,
+    benchmark_postprocessing,
+    benchmark_bgr_conversion
+);
+
 criterion_main!(benches);

@@ -8,6 +8,9 @@ spec:
       runtimeClassName: nvidia
       containers:
         - name: inference
+          env:
+            - name: MODEL_PATH
+              value: "/models/model_fp16.engine"
           resources:
             limits:
               nvidia.com/gpu: 1
