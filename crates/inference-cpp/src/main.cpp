@@ -1,10 +1,14 @@
 #include "semaphore.hpp"
 #include "frame_reader.hpp"
 #include "detection_writer.hpp"
+#include "preprocessing.hpp"
+#include "tensorrt_backend.hpp"
+#include "postprocessing.hpp"
 #include "frame_generated.h"
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cstdlib>
 
 using namespace bridge;
 
@@ -17,8 +21,27 @@ static const char* format_to_string(schema::ColorFormat format) {
     }
 }
 
-int main() {
-    std::cout << "=== C++ Inference POC Starting ===" << std::endl;
+int main(int argc, char** argv) {
+    std::cout << "=== C++ TensorRT Inference Starting ===" << std::endl;
+
+    // Get model path from environment or use default
+    const char* model_path_env = std::getenv("MODEL_PATH");
+    std::string model_path = model_path_env ? model_path_env : "../../models/model_fp16.engine";
+
+    std::cout << "Model path: " << model_path << std::endl;
+
+    // Load TensorRT engine
+    std::cout << "Loading TensorRT engine..." << std::endl;
+    TensorRTBackend backend;
+    if (!backend.load_engine(model_path)) {
+        std::cerr << "Failed to load TensorRT engine" << std::endl;
+        return 1;
+    }
+    std::cout << "✓ TensorRT engine loaded" << std::endl;
+
+    // Initialize pre/post processors
+    PreProcessor preprocessor(640);
+    PostProcessor postprocessor(0.5f);
 
     // Connect to frame reader
     std::cout << "Connecting to frame buffer..." << std::endl;
@@ -74,12 +97,13 @@ int main() {
     auto controller_semaphore = std::move(*controller_sem_opt);
     std::cout << "✓ Controller semaphore connected" << std::endl;
 
-    std::cout << "\n=== Starting inference loop (event-driven) ===" << std::endl;
+    std::cout << "\n=== Starting TensorRT inference loop (event-driven) ===" << std::endl;
     std::cout << "Waiting for frames...\n" << std::endl;
 
     uint64_t frames_processed = 0;
     uint64_t frames_skipped = 0;
     uint64_t total_detections = 0;
+    uint64_t total_inference_time_ms = 0;
 
     while (true) {
         // Wait for frame ready signal
@@ -95,6 +119,8 @@ int main() {
             frames_skipped += skipped;
         }
 
+        auto frame_start = std::chrono::high_resolution_clock::now();
+
         // Read frame
         const auto* frame = frame_reader.get_frame();
         if (!frame) {
@@ -108,25 +134,46 @@ int main() {
         uint32_t camera_id = frame->camera_id();
         uint32_t width = frame->width();
         uint32_t height = frame->height();
-        uint8_t channels = frame->channels();
         auto format = frame->format();
+        auto pixels = frame->pixels();
 
-        // Log frame info (every 10 frames to reduce noise)
-        if (frames_processed % 10 == 0) {
-            std::cout << "[Frame " << frame_num << "] "
-                      << width << "x" << height << "x" << (int)channels << " "
-                      << format_to_string(format) << ", "
-                      << "camera=" << camera_id << ", "
-                      << "timestamp=" << timestamp_ns << "ns, "
-                      << "skipped=" << frames_skipped
-                      << std::endl;
+        if (!pixels) {
+            std::cerr << "Frame has no pixel data" << std::endl;
+            continue;
         }
 
-        // Create dummy detections (for POC: one fake bounding box or empty)
-        std::vector<BoundingBox> detections;
+        // Preprocess frame
+        bool is_bgr = (format == schema::ColorFormat_BGR);
+        auto preprocess_result = preprocessor.preprocess(
+            pixels->data(),
+            width,
+            height,
+            is_bgr
+        );
 
-        // Uncomment to add a dummy detection:
-        // detections.push_back({100.0f, 100.0f, 200.0f, 200.0f, 0.95f, 0});
+        // Prepare orig_sizes input [height, width]
+        int64_t orig_sizes[2] = {
+            static_cast<int64_t>(preprocess_result.input_height),
+            static_cast<int64_t>(preprocess_result.input_width)
+        };
+
+        // Run inference
+        InferenceOutput inference_output;
+        if (!backend.infer(preprocess_result.data.data(), orig_sizes, inference_output)) {
+            std::cerr << "Inference failed for frame " << frame_num << std::endl;
+            continue;
+        }
+
+        // Post-process detections
+        TransformParams transform{
+            width,
+            height,
+            preprocess_result.scale,
+            preprocess_result.offset_x,
+            preprocess_result.offset_y
+        };
+
+        auto detections = postprocessor.parse_detections(inference_output, transform);
 
         // Write detections
         if (!detection_writer.write(frame_num, timestamp_ns, camera_id, detections)) {
@@ -143,11 +190,30 @@ int main() {
         frames_processed++;
         frame_reader.mark_read();
 
+        auto frame_end = std::chrono::high_resolution_clock::now();
+        auto frame_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(frame_end - frame_start).count();
+        total_inference_time_ms += frame_time_ms;
+
+        // Log every 10 frames
+        if (frames_processed % 10 == 0) {
+            std::cout << "[Frame " << frame_num << "] "
+                      << width << "x" << height << " "
+                      << format_to_string(format) << ", "
+                      << "detections=" << detections.size() << ", "
+                      << "time=" << frame_time_ms << "ms, "
+                      << "skipped=" << frames_skipped
+                      << std::endl;
+        }
+
         // Periodic stats
         if (frames_processed % 100 == 0) {
+            float avg_time = static_cast<float>(total_inference_time_ms) / frames_processed;
+            float fps = 1000.0f / avg_time;
             std::cout << "\n>>> Stats: processed=" << frames_processed
                       << ", skipped=" << frames_skipped
-                      << ", detections=" << total_detections << " <<<\n" << std::endl;
+                      << ", detections=" << total_detections
+                      << ", avg_time=" << avg_time << "ms"
+                      << ", fps=" << fps << " <<<\n" << std::endl;
         }
     }
 
