@@ -78,9 +78,7 @@ fn benchmark_preprocessing(c: &mut Criterion) {
     for (width, height) in resolutions.iter() {
         let frame_data = create_test_frame(*width, *height, ColorFormat::BGR);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
-        let preprocessor = PreProcessor {
-            input_size: (640, 640),
-        };
+        let mut preprocessor = PreProcessor::default();
 
         group.bench_with_input(
             BenchmarkId::new("bgr_letterbox", format!("{}x{}", width, height)),
@@ -146,9 +144,7 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
     // BGR path (expensive - pixel-by-pixel conversion)
     let bgr_frame_data = create_test_frame(1920, 1080, ColorFormat::BGR);
     let bgr_frame = flatbuffers::root::<schema::Frame>(&bgr_frame_data).unwrap();
-    let preprocessor = PreProcessor {
-        input_size: (640, 640),
-    };
+    let mut preprocessor = PreProcessor::default();
 
     group.bench_function("bgr_to_rgb_1920x1080", |b| {
         b.iter(|| {
@@ -308,9 +304,7 @@ fn benchmark_full_pipeline_ort(c: &mut Criterion) {
     let frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
     let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-    let preprocessor = PreProcessor {
-        input_size: (640, 640),
-    };
+    let mut preprocessor = PreProcessor::new((640, 640));
     let post_processor = PostProcessor::new(0.5);
 
     // CPU pipeline
@@ -438,9 +432,7 @@ fn benchmark_full_pipeline_trt(c: &mut Criterion) {
     let frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
     let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-    let preprocessor = PreProcessor {
-        input_size: (640, 640),
-    };
+    let mut preprocessor = PreProcessor::default();
     let post_processor = PostProcessor::new(0.5);
 
     let mut trt_backend = match TrtBackend::load_model(model_path) {

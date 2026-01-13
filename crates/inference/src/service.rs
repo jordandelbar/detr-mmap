@@ -23,9 +23,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         let postprocessor = PostProcessor {
             confidence_threshold: config.confidence_threshold,
         };
-        let preprocessor = PreProcessor {
-            input_size: config.input_size,
-        };
+        let preprocessor = PreProcessor::new(config.input_size);
         Self {
             backend,
             config,

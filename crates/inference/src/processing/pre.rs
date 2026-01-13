@@ -6,11 +6,21 @@ const LETTERBOX_COLOR: u8 = 114;
 
 pub struct PreProcessor {
     pub input_size: (u32, u32),
+    rgb_buffer: Vec<u8>,
+    letterboxed_buffer: Vec<u8>,
 }
 
 impl PreProcessor {
+    pub fn new(input_size: (u32, u32)) -> Self {
+        Self {
+            input_size,
+            rgb_buffer: Vec::with_capacity(1920 * 1080 * 3),
+            letterboxed_buffer: vec![LETTERBOX_COLOR; (input_size.0 * input_size.1 * 3) as usize],
+        }
+    }
+
     pub fn preprocess_frame(
-        &self,
+        &mut self,
         pixels: flatbuffers::Vector<u8>,
         width: u32,
         height: u32,
@@ -26,20 +36,24 @@ impl PreProcessor {
 
         let expected_size = (width * height * 3) as usize;
 
-        let mut rgb_data = Vec::with_capacity(expected_size);
+        if self.rgb_buffer.capacity() < expected_size {
+            self.rgb_buffer
+                .reserve(expected_size - self.rgb_buffer.len());
+        }
+        self.rgb_buffer.clear();
 
         match format {
             bridge::ColorFormat::RGB => {
-                rgb_data.extend_from_slice(pixels.bytes());
+                self.rgb_buffer.extend_from_slice(pixels.bytes());
             }
             bridge::ColorFormat::BGR => {
                 for i in (0..pixels.len()).step_by(3) {
                     let b = pixels.get(i);
                     let g = pixels.get(i + 1);
                     let r = pixels.get(i + 2);
-                    rgb_data.push(r);
-                    rgb_data.push(g);
-                    rgb_data.push(b);
+                    self.rgb_buffer.push(r);
+                    self.rgb_buffer.push(g);
+                    self.rgb_buffer.push(b);
                 }
             }
             bridge::ColorFormat::GRAY => {
@@ -50,13 +64,13 @@ impl PreProcessor {
             }
         }
 
-        if rgb_data.len() != expected_size {
+        if self.rgb_buffer.len() != expected_size {
             return Err(anyhow::anyhow!(
                 "Buffer size mismatch: expected {} bytes for {}x{} RGB, got {} bytes",
                 expected_size,
                 width,
                 height,
-                rgb_data.len()
+                self.rgb_buffer.len()
             ));
         }
 
@@ -67,7 +81,7 @@ impl PreProcessor {
         let offset_x = (self.input_size.0 - new_width) / 2;
         let offset_y = (self.input_size.1 - new_height) / 2;
 
-        let src_image = Image::from_vec_u8(width, height, rgb_data, PixelType::U8x3)?;
+        let src_image = Image::from_slice_u8(width, height, &mut self.rgb_buffer, PixelType::U8x3)?;
 
         let mut dst_image = Image::new(new_width, new_height, PixelType::U8x3);
 
@@ -78,8 +92,7 @@ impl PreProcessor {
             &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear)),
         )?;
 
-        let mut letterboxed =
-            vec![LETTERBOX_COLOR; (self.input_size.0 * self.input_size.1 * 3) as usize];
+        self.letterboxed_buffer.fill(LETTERBOX_COLOR);
 
         let resized_data = dst_image.buffer();
         for y in 0..new_height {
@@ -88,7 +101,7 @@ impl PreProcessor {
             let dst_row_start = ((y + offset_y) * self.input_size.0 * 3 + offset_x * 3) as usize;
             let dst_row_end = dst_row_start + (new_width * 3) as usize;
 
-            letterboxed[dst_row_start..dst_row_end]
+            self.letterboxed_buffer[dst_row_start..dst_row_end]
                 .copy_from_slice(&resized_data[src_row_start..src_row_end]);
         }
 
@@ -102,9 +115,9 @@ impl PreProcessor {
         for y in 0..self.input_size.1 as usize {
             for x in 0..self.input_size.0 as usize {
                 let pixel_idx = (y * self.input_size.0 as usize + x) * 3;
-                input[[0, 0, y, x]] = letterboxed[pixel_idx] as f32 / 255.0;
-                input[[0, 1, y, x]] = letterboxed[pixel_idx + 1] as f32 / 255.0;
-                input[[0, 2, y, x]] = letterboxed[pixel_idx + 2] as f32 / 255.0;
+                input[[0, 0, y, x]] = self.letterboxed_buffer[pixel_idx] as f32 / 255.0;
+                input[[0, 1, y, x]] = self.letterboxed_buffer[pixel_idx + 1] as f32 / 255.0;
+                input[[0, 2, y, x]] = self.letterboxed_buffer[pixel_idx + 2] as f32 / 255.0;
             }
         }
 
@@ -114,9 +127,7 @@ impl PreProcessor {
 
 impl Default for PreProcessor {
     fn default() -> Self {
-        Self {
-            input_size: (640, 640),
-        }
+        Self::new((640, 640))
     }
 }
 

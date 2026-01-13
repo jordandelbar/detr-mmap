@@ -6,10 +6,6 @@
 build:
 	@docker buildx bake
 
-build-gpu:
-	@docker buildx bake gpu-base
-	@docker buildx bake gpu-inference
-
 up:
 	@./scripts/setup-k3d.sh
 	@./scripts/deploy-k3d.sh
@@ -31,3 +27,7 @@ test:
 
 coverage:
 	cargo llvm-cov --workspace --lib --tests
+
+bench:
+	@docker buildx bake gpu-benchmark
+	@docker run --gpus all --rm -it bridge-rt-benchmark-gpu:latest
