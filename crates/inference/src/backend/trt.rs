@@ -7,12 +7,16 @@ use std::ffi::CString;
 mod ffi {
     unsafe extern "C++" {
         include!("tensorrt_backend.hpp");
+        include!("logging.hpp");
 
         #[namespace = "bridge"]
         type TensorRTBackend;
 
         #[namespace = "bridge"]
         fn new_tensorrt_backend() -> UniquePtr<TensorRTBackend>;
+
+        #[namespace = "bridge"]
+        fn init_logger();
 
         // Maps to TensorRTBackend::load_engine
         #[namespace = "bridge"]
@@ -41,6 +45,7 @@ pub struct TrtBackend {
 
 impl InferenceBackend for TrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
+        ffi::init_logger();
         let mut inner = ffi::new_tensorrt_backend();
 
         if inner.is_null() {

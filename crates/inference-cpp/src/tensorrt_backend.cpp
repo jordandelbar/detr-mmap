@@ -1,4 +1,5 @@
 #include "tensorrt_backend.hpp"
+#include "logging.hpp"
 #include <cuda_runtime.h>
 #include <fstream>
 #include <iostream>
@@ -8,8 +9,10 @@ namespace bridge {
 
 void TensorRTLogger::log(Severity severity, const char* msg) noexcept {
     // Suppress INFO messages, show warnings and errors
-    if (severity <= Severity::kWARNING) {
-        std::cout << "[TensorRT] " << msg << std::endl;
+    if (severity == Severity::kINTERNAL_ERROR || severity == Severity::kERROR) {
+        LOG_ERROR(std::string("[TensorRT] ") + msg);
+    } else if (severity == Severity::kWARNING) {
+        LOG_WARN(std::string("[TensorRT] ") + msg);
     }
 }
 
@@ -82,12 +85,12 @@ TensorRTBackend& TensorRTBackend::operator=(TensorRTBackend&& other) noexcept {
 }
 
 bool TensorRTBackend::load_engine(const char* engine_path) {
-    std::cout << "Loading TensorRT engine from: " << engine_path << std::endl;
+    LOG_INFO(std::string("Loading TensorRT engine from: ") + engine_path);
 
     // Read engine file
     std::ifstream file(engine_path, std::ios::binary);
     if (!file.good()) {
-        std::cerr << "Failed to open engine file: " << engine_path << std::endl;
+        LOG_ERROR(std::string("Failed to open engine file: ") + engine_path);
         return false;
     }
 
@@ -102,27 +105,27 @@ bool TensorRTBackend::load_engine(const char* engine_path) {
     // Create runtime and deserialize engine
     runtime_ = nvinfer1::createInferRuntime(logger_);
     if (!runtime_) {
-        std::cerr << "Failed to create TensorRT runtime" << std::endl;
+        LOG_ERROR("Failed to create TensorRT runtime");
         return false;
     }
 
     engine_ = runtime_->deserializeCudaEngine(engine_data.data(), size);
     if (!engine_) {
-        std::cerr << "Failed to deserialize CUDA engine" << std::endl;
+        LOG_ERROR("Failed to deserialize CUDA engine");
         return false;
     }
 
     context_ = engine_->createExecutionContext();
     if (!context_) {
-        std::cerr << "Failed to create execution context" << std::endl;
+        LOG_ERROR("Failed to create execution context");
         return false;
     }
 
-    std::cout << "Engine loaded successfully" << std::endl;
+    LOG_INFO("Engine loaded successfully");
 
     // Allocate buffers
     if (!allocate_buffers()) {
-        std::cerr << "Failed to allocate buffers" << std::endl;
+        LOG_ERROR("Failed to allocate buffers");
         return false;
     }
 
@@ -147,7 +150,7 @@ bool TensorRTBackend::allocate_buffers() {
     if (cudaMalloc(&d_boxes_, boxes_size_) != cudaSuccess) return false;
     if (cudaMalloc(&d_scores_, scores_size_) != cudaSuccess) return false;
 
-    std::cout << "CUDA buffers allocated" << std::endl;
+    LOG_INFO("CUDA buffers allocated");
     return true;
 }
 
@@ -167,11 +170,11 @@ void TensorRTBackend::free_buffers() {
 bool TensorRTBackend::infer(const float* images, const int64_t* orig_sizes, InferenceOutput& output) {
     // Copy inputs to device
     if (cudaMemcpy(d_images_, images, images_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
-        std::cerr << "Failed to copy images to device" << std::endl;
+        LOG_ERROR("Failed to copy images to device");
         return false;
     }
     if (cudaMemcpy(d_orig_sizes_, orig_sizes, orig_sizes_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
-        std::cerr << "Failed to copy orig_sizes to device" << std::endl;
+        LOG_ERROR("Failed to copy orig_sizes to device");
         return false;
     }
 
@@ -186,7 +189,7 @@ bool TensorRTBackend::infer(const float* images, const int64_t* orig_sizes, Infe
 
     // Execute inference
     if (!context_->executeV2(bindings)) {
-        std::cerr << "Failed to execute inference" << std::endl;
+        LOG_ERROR("Failed to execute inference");
         return false;
     }
 
@@ -198,15 +201,15 @@ bool TensorRTBackend::infer(const float* images, const int64_t* orig_sizes, Infe
 
     // Copy outputs from device
     if (cudaMemcpy(output.labels.data(), d_labels_, labels_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        std::cerr << "Failed to copy labels from device" << std::endl;
+        LOG_ERROR("Failed to copy labels from device");
         return false;
     }
     if (cudaMemcpy(output.boxes.data(), d_boxes_, boxes_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        std::cerr << "Failed to copy boxes from device" << std::endl;
+        LOG_ERROR("Failed to copy boxes from device");
         return false;
     }
     if (cudaMemcpy(output.scores.data(), d_scores_, scores_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        std::cerr << "Failed to copy scores from device" << std::endl;
+        LOG_ERROR("Failed to copy scores from device");
         return false;
     }
 
@@ -222,11 +225,11 @@ bool TensorRTBackend::infer_raw(
 ) {
     // Copy inputs to device
     if (cudaMemcpy(d_images_, images, images_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
-        std::cerr << "Failed to copy images to device" << std::endl;
+        LOG_ERROR("Failed to copy images to device");
         return false;
     }
     if (cudaMemcpy(d_orig_sizes_, orig_sizes, orig_sizes_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
-        std::cerr << "Failed to copy orig_sizes to device" << std::endl;
+        LOG_ERROR("Failed to copy orig_sizes to device");
         return false;
     }
 
@@ -241,21 +244,21 @@ bool TensorRTBackend::infer_raw(
 
     // Execute inference
     if (!context_->executeV2(bindings)) {
-        std::cerr << "Failed to execute inference" << std::endl;
+        LOG_ERROR("Failed to execute inference");
         return false;
     }
 
     // Copy outputs from device directly to host pointers
     if (cudaMemcpy(out_labels, d_labels_, labels_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        std::cerr << "Failed to copy labels from device" << std::endl;
+        LOG_ERROR("Failed to copy labels from device");
         return false;
     }
     if (cudaMemcpy(out_boxes, d_boxes_, boxes_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        std::cerr << "Failed to copy boxes from device" << std::endl;
+        LOG_ERROR("Failed to copy boxes from device");
         return false;
     }
     if (cudaMemcpy(out_scores, d_scores_, scores_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        std::cerr << "Failed to copy scores from device" << std::endl;
+        LOG_ERROR("Failed to copy scores from device");
         return false;
     }
 
