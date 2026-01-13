@@ -8,7 +8,6 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y \
     libnvinfer-dev \
     libnvinfer-plugin-dev \
-    libnvonnxparsers-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY Cargo.toml Cargo.lock ./
@@ -25,7 +24,6 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     libnvinfer10 \
     libnvinfer-plugin10 \
-    libnvonnxparsers10 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/inference /usr/local/bin/app

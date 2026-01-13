@@ -8,4 +8,4 @@ resources:
 
 components:
   - ../../components/k3d-dev
-  - ../../components/gpu
+  - ../../components/inference-trt

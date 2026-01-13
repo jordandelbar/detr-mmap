@@ -6,5 +6,5 @@ patches:
 
 images:
   - name: bridge-rt-inference
-    newName: localhost:5000/bridge-rt-inference-gpu
+    newName: localhost:5000/bridge-rt-inference-trt
     newTag: latest

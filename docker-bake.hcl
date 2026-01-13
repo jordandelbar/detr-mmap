@@ -7,7 +7,7 @@ variable "TAG" {
 }
 
 group "default" {
-  targets = ["capture", "controller", "inference", "gateway"]
+  targets = ["capture", "controller", "inference-cpu", "gateway"]
 }
 
 target "common" {
@@ -32,12 +32,32 @@ target "controller" {
   }
 }
 
-target "inference" {
+target "inference-cpu" {
   inherits = ["common"]
-  tags = ["bridge-rt-inference:${TAG}", "${REGISTRY}/bridge-rt-inference:${TAG}"]
+  tags = ["bridge-rt-inference-cpu:${TAG}", "${REGISTRY}/bridge-rt-inference-cpu:${TAG}"]
   args = {
     BINARY_NAME = "inference"
   }
+}
+
+target "inference-ort-cuda" {
+  contexts = {
+    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+  }
+  context = "."
+  dockerfile = "docker/inference-ort-cuda.Dockerfile"
+  platforms = ["linux/amd64"]
+  tags = ["bridge-rt-inference-ort-cuda:${TAG}", "${REGISTRY}/bridge-rt-inference-ort-cuda:${TAG}"]
+}
+
+target "inference-trt" {
+  contexts = {
+    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+  }
+  context = "."
+  dockerfile = "docker/inference-trt.Dockerfile"
+  platforms = ["linux/amd64"]
+  tags = ["bridge-rt-inference-trt:${TAG}", "${REGISTRY}/bridge-rt-inference-trt:${TAG}"]
 }
 
 target "gateway" {
@@ -57,15 +77,6 @@ target "gpu-base" {
   tags = ["bridge-rt-gpu-base:${TAG}"]
 }
 
-target "gpu-inference" {
-  contexts = {
-    "bridge-rt-gpu-base:latest" = "target:gpu-base"
-  }
-  context = "."
-  dockerfile = "docker/gpu-inference.Dockerfile"
-  platforms = ["linux/amd64"]
-  tags = ["bridge-rt-inference-gpu:${TAG}", "${REGISTRY}/bridge-rt-inference-gpu:${TAG}"]
-}
 
 target "gpu-benchmark" {
   contexts = {

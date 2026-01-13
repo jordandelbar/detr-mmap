@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference
+spec:
+  template:
+    spec:
+      runtimeClassName: nvidia
+      containers:
+        - name: inference
+          env:
+            - name: MODEL_PATH
+              value: "/models/model.onnx"
+          resources:
+            limits:
+              nvidia.com/gpu: 1

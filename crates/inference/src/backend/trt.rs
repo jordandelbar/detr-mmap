@@ -1,9 +1,7 @@
 use super::{InferenceBackend, InferenceOutput};
 use ndarray::{Array, IxDyn};
-use std::pin::Pin;
 
 use std::ffi::CString;
-use std::os::raw::c_char;
 
 #[cxx::bridge]
 mod ffi {
@@ -46,13 +44,18 @@ impl InferenceBackend for TrtBackend {
         let mut inner = ffi::new_tensorrt_backend();
 
         if inner.is_null() {
-            return Err(anyhow::anyhow!("Failed to create TensorRT backend instance"));
+            return Err(anyhow::anyhow!(
+                "Failed to create TensorRT backend instance"
+            ));
         }
 
         let c_path = CString::new(path)?;
 
         if !unsafe { inner.pin_mut().load_engine(c_path.as_ptr()) } {
-            return Err(anyhow::anyhow!("Failed to load TensorRT engine from {}", path));
+            return Err(anyhow::anyhow!(
+                "Failed to load TensorRT engine from {}",
+                path
+            ));
         }
 
         let num_detections = inner.get_num_detections() as usize;

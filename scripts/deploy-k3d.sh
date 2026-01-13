@@ -18,11 +18,11 @@ fi
 echo "Building and tagging Docker images..."
 docker buildx bake --set "*.platform=linux/amd64"
 docker buildx bake gpu-base --set "*.platform=linux/amd64"
-docker buildx bake gpu-inference --set "*.platform=linux/amd64"
+docker buildx bake inference-trt --set "*.platform=linux/amd64"
 
 echo "Pushing images to k3d registry..."
 docker push ${REGISTRY}/bridge-rt-capture:latest
-docker push ${REGISTRY}/bridge-rt-inference-gpu:latest
+docker push ${REGISTRY}/bridge-rt-inference-trt:latest
 docker push ${REGISTRY}/bridge-rt-gateway:latest
 docker push ${REGISTRY}/bridge-rt-controller:latest
 
