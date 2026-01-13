@@ -5,25 +5,51 @@ use ort::{
     value::TensorRef,
 };
 
+#[derive(Debug, Clone, Copy)]
+pub enum ExecutionProvider {
+    Cpu,
+    Cuda,
+}
+
 pub struct OrtBackend {
     session: Session,
 }
 
-impl InferenceBackend for OrtBackend {
-    fn load_model(path: &str) -> anyhow::Result<Self> {
-        ort::init()
-            .with_execution_providers([ort::execution_providers::CUDAExecutionProvider::default()
-                .with_device_id(0)
-                .build()])
-            .commit();
+impl OrtBackend {
+    /// Load model with specified execution provider
+    pub fn load_model_with_provider(path: &str, provider: ExecutionProvider) -> anyhow::Result<Self> {
+        // Initialize ORT environment (idempotent)
+        let _ = ort::init().commit();
 
-        let session = Session::builder()?
+        let mut builder = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .with_intra_threads(4)?
-            .commit_from_file(path)?;
+            .with_intra_threads(4)?;
+
+        match provider {
+            ExecutionProvider::Cuda => {
+                tracing::info!("Initializing ONNX Runtime with CUDA execution provider");
+                builder = builder.with_execution_providers([
+                    ort::execution_providers::CUDAExecutionProvider::default()
+                        .with_device_id(0)
+                        .build()
+                        .error_on_failure(),
+                ])?;
+            }
+            ExecutionProvider::Cpu => {
+                tracing::info!("Initializing ONNX Runtime with CPU execution provider");
+            }
+        }
+
+        let session = builder.commit_from_file(path)?;
 
         tracing::info!("Model loaded from {}", path);
         Ok(Self { session })
+    }
+}
+
+impl InferenceBackend for OrtBackend {
+    fn load_model(path: &str) -> anyhow::Result<Self> {
+        Self::load_model_with_provider(path, ExecutionProvider::Cuda)
     }
 
     fn infer(

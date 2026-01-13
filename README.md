@@ -5,7 +5,7 @@
 
 A RT-DERT implementation with Rust ORT, FlatBuffers and k3d
 
-## 📝 Overview
+## Overview
 
 This project implements a complete edge AI pipeline with RT-DETR v2 object detection, designed for minimal latency and maximum throughput through zero-copy shared memory communication.
 
@@ -52,9 +52,23 @@ kubectl get pods -n bridge-rt
 kubectl logs -n bridge-rt -l component=inference --follow
 ```
 
-## ⚡ Running with CUDA
+## Running with CUDA
 
 ## Performance & Benchmarks
+
+I have benchmarked the different parts of my pipeline
+
+```
+================================================
+| Category               | Duration |
+|============================================
+| preprocessing          |   3.5 ms |
+| inference (ORT - CPU)  |  59.2 ms |
+| inference (ORT - Cuda) |  14.4 ms |
+| inference (Tensorrt)   |   3.5 ms |
+| postprocessing         |   500 ns |
+===============================================
+```
 
 <!--references-->
 [nokhwa]: (https://github.com/l1npengtul/nokhwa)
@@ -62,11 +76,11 @@ kubectl logs -n bridge-rt -l component=inference --follow
 [Axum]: https://docs.rs/axum/latest/axum/
 [ORT]: https://ort.pyke.io/
 
-## 🤝 Contributing
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## 📄 License
+## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
