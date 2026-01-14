@@ -12,7 +12,10 @@ This project implements a complete edge AI pipeline with RT-DETR v2 object detec
 ## Tech Stack
 
   - capture: Camera frame acquisition using [nokhwa] and V4L2
-  - inference: RT-DETR model inference via [ORT] with CUDA support
+  - inference: RT-DETR model inference:
+    - Using CPU via [ORT] with CPU execution provider
+    - Using Cuda via [ORT] with CUDA execution provider
+    - Using TensorRT via C++ bindings using [CXX]
   - controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to MQTT
   - gateway: WebSocket server streaming frames + detections to connected clients
   - mosquitto: MQTT broker for centralized event collection (deployed on central node)
@@ -43,7 +46,7 @@ git clone https://github.com/jordandelbar/detr-mmap.git
 cd detr-mmap
 
 # Create k3d cluster + deploy services
-make up
+just up
 
 # Check deployment
 kubectl get pods -n bridge-rt
@@ -56,25 +59,41 @@ kubectl logs -n bridge-rt -l component=inference --follow
 
 ## Performance & Benchmarks
 
-I have benchmarked the different parts of my pipeline
+Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 RGB input frames.
 
-```
-================================================
-| Category               | Duration |
-|============================================
-| preprocessing          |   3.5 ms |
-| inference (ORT - CPU)  |  59.2 ms |
-| inference (ORT - Cuda) |  14.4 ms |
-| inference (Tensorrt)   |   3.5 ms |
-| postprocessing         |   500 ns |
-===============================================
-```
+### Inference Only
 
-<!--references-->
-[nokhwa]: (https://github.com/l1npengtul/nokhwa)
-[ONNX]: https://onnx.ai/
-[Axum]: https://docs.rs/axum/latest/axum/
-[ORT]: https://ort.pyke.io/
+| Backend    | Latency   | Throughput |
+|------------|-----------|------------|
+| ORT (CPU)  | 60.5 ms   | ~16 FPS    |
+| ORT (CUDA) | 14.5 ms   | ~69 FPS    |
+| TensorRT   |  3.5 ms   | ~285 FPS   |
+
+### Full Pipeline (preprocess → inference → postprocess)
+
+| Backend    | Latency   | Throughput |
+|------------|-----------|------------|
+| ORT (CPU)  | 64.4 ms   | ~15 FPS    |
+| ORT (CUDA) | 17.8 ms   | ~56 FPS    |
+| TensorRT   |  7.0 ms   | ~143 FPS   |
+
+### Component Breakdown
+
+| Component      | Latency |
+|----------------|---------|
+| Preprocessing  | 3.5 ms  |
+| Postprocessing | ~500 ns |
+
+Run benchmarks yourself:
+```bash
+just bench
+# HTML reports output to benchmark-reports/
+```
+## Ideas about what to do with this repo
+
+- If you are a DevOps: try to deploy it with KubeEdge in place of K3s (you can use KinD + KubeEdge)
+- If you are a MLE: try to quantize a INT8 model and run it
+- If you are a SWE: try to replace the ws with a proper h264 setup
 
 ## Contributing
 
@@ -85,3 +104,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md)
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 Note: This project is intended for educational and research purposes.
+
+<!--references-->
+[nokhwa]: (https://github.com/l1npengtul/nokhwa)
+[ONNX]: https://onnx.ai/
+[CXX]: https://cxx.rs/
+[Axum]: https://docs.rs/axum/latest/axum/
+[ORT]: https://ort.pyke.io/

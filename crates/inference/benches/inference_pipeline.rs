@@ -179,43 +179,9 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
     group.finish();
 }
 
-#[cfg(feature = "ort-backend")]
-fn benchmark_onnx_inference(c: &mut Criterion) {
-    let model_path = "../../models/model.onnx";
-
-    if !Path::new(model_path).exists() {
-        eprintln!(
-            "Skipping ONNX inference benchmark: model not found at {}",
-            model_path
-        );
-        return;
-    }
-
+#[cfg(any(feature = "ort-backend", feature = "trt-backend"))]
+fn benchmark_inference(c: &mut Criterion) {
     let mut group = c.benchmark_group("inference");
-
-    // Benchmark CPU execution provider
-    let mut cpu_backend = match OrtBackend::load_model_with_provider(
-        model_path,
-        inference::backend::ort::ExecutionProvider::Cpu,
-    ) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Failed to load ONNX model with CPU: {}", e);
-            return;
-        }
-    };
-
-    // Benchmark CUDA execution provider
-    let mut cuda_backend = match OrtBackend::load_model_with_provider(
-        model_path,
-        inference::backend::ort::ExecutionProvider::Cuda,
-    ) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Failed to load ONNX model with CUDA: {}", e);
-            return;
-        }
-    };
 
     // Create preprocessed input (640x640) - matches RT-DETR input
     let preprocessed = Array::zeros(IxDyn(&[1, 3, 640, 640]));
@@ -225,79 +191,80 @@ fn benchmark_onnx_inference(c: &mut Criterion) {
         .unwrap()
         .into_dyn();
 
-    group.bench_function("ort_cpu_640x640", |b| {
-        b.iter(|| {
-            cpu_backend
-                .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                .unwrap()
-        });
-    });
+    #[cfg(feature = "ort-backend")]
+    {
+        let onnx_model_path = "../../models/model.onnx";
 
-    group.bench_function("ort_cuda_640x640", |b| {
-        b.iter(|| {
-            cuda_backend
-                .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                .unwrap()
-        });
-    });
+        if Path::new(onnx_model_path).exists() {
+            // Benchmark CPU execution provider
+            if let Ok(mut cpu_backend) = OrtBackend::load_model_with_provider(
+                onnx_model_path,
+                inference::backend::ort::ExecutionProvider::Cpu,
+            ) {
+                group.bench_function("ort_cpu", |b| {
+                    b.iter(|| {
+                        cpu_backend
+                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                            .unwrap()
+                    });
+                });
+            } else {
+                eprintln!("Failed to load ONNX model with CPU provider");
+            }
 
-    group.finish();
-}
-
-#[cfg(feature = "trt-backend")]
-fn benchmark_tensorrt_inference(c: &mut Criterion) {
-    let model_path = "../../models/model_fp16.engine";
-
-    if !Path::new(model_path).exists() {
-        eprintln!(
-            "Skipping TensorRT inference benchmark: model not found at {}",
-            model_path
-        );
-        return;
+            // Benchmark CUDA execution provider
+            if let Ok(mut cuda_backend) = OrtBackend::load_model_with_provider(
+                onnx_model_path,
+                inference::backend::ort::ExecutionProvider::Cuda,
+            ) {
+                group.bench_function("ort_cuda", |b| {
+                    b.iter(|| {
+                        cuda_backend
+                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                            .unwrap()
+                    });
+                });
+            } else {
+                eprintln!("Failed to load ONNX model with CUDA provider");
+            }
+        } else {
+            eprintln!(
+                "Skipping ONNX inference benchmark: model not found at {}",
+                onnx_model_path
+            );
+        }
     }
 
-    let mut group = c.benchmark_group("inference");
+    #[cfg(feature = "trt-backend")]
+    {
+        let trt_model_path = "../../models/model_fp16.engine";
 
-    let mut backend = match TrtBackend::load_model(model_path) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Failed to load TensorRT model: {}", e);
-            return;
+        if Path::new(trt_model_path).exists() {
+            if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
+                group.bench_function("trt", |b| {
+                    b.iter(|| {
+                        trt_backend
+                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                            .unwrap()
+                    });
+                });
+            } else {
+                eprintln!("Failed to load TensorRT model");
+            }
+        } else {
+            eprintln!(
+                "Skipping TensorRT inference benchmark: model not found at {}",
+                trt_model_path
+            );
         }
-    };
-
-    // Create preprocessed input (640x640) - matches RT-DETR input
-    let preprocessed = Array::zeros(IxDyn(&[1, 3, 640, 640]));
-
-    // RT-DETR expects original target sizes
-    let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-        .unwrap()
-        .into_dyn();
-
-    group.bench_function("trt_rtdetr_640x640", |b| {
-        b.iter(|| {
-            backend
-                .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                .unwrap()
-        });
-    });
+    }
 
     group.finish();
 }
 
 /// End-to-end pipeline benchmark: preprocessing -> inference -> postprocessing
-#[cfg(feature = "ort-backend")]
-fn benchmark_full_pipeline_ort(c: &mut Criterion) {
-    let model_path = "../../models/model.onnx";
-
-    if !Path::new(model_path).exists() {
-        eprintln!(
-            "Skipping full pipeline benchmark: model not found at {}",
-            model_path
-        );
-        return;
-    }
-
+#[cfg(any(feature = "ort-backend", feature = "trt-backend"))]
+fn benchmark_full_pipeline(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_pipeline");
 
     // Create test frame
@@ -307,216 +274,173 @@ fn benchmark_full_pipeline_ort(c: &mut Criterion) {
     let mut preprocessor = PreProcessor::new((640, 640));
     let post_processor = PostProcessor::new(0.5);
 
-    // CPU pipeline
-    let mut cpu_backend = match OrtBackend::load_model_with_provider(
-        model_path,
-        inference::backend::ort::ExecutionProvider::Cpu,
-    ) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Failed to load ONNX model with CPU: {}", e);
-            return;
+    #[cfg(feature = "ort-backend")]
+    {
+        let onnx_model_path = "../../models/model.onnx";
+
+        if Path::new(onnx_model_path).exists() {
+            // CPU pipeline
+            if let Ok(mut cpu_backend) = OrtBackend::load_model_with_provider(
+                onnx_model_path,
+                inference::backend::ort::ExecutionProvider::Cpu,
+            ) {
+                group.bench_function("ort_cpu", |b| {
+                    b.iter(|| {
+                        let (preprocessed, scale, offset_x, offset_y) = preprocessor
+                            .preprocess_frame(
+                                black_box(frame.pixels().unwrap()),
+                                black_box(frame.width()),
+                                black_box(frame.height()),
+                                black_box(frame.format()),
+                            )
+                            .unwrap();
+
+                        let transform = inference::processing::post::TransformParams {
+                            orig_width: 1920,
+                            orig_height: 1080,
+                            scale,
+                            offset_x,
+                            offset_y,
+                        };
+
+                        let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
+                            .unwrap()
+                            .into_dyn();
+                        let outputs = cpu_backend
+                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                            .unwrap();
+
+                        post_processor
+                            .parse_detections(
+                                black_box(&outputs.labels.view()),
+                                black_box(&outputs.boxes.view()),
+                                black_box(&outputs.scores.view()),
+                                black_box(&transform),
+                            )
+                            .unwrap()
+                    });
+                });
+            } else {
+                eprintln!("Failed to load ONNX model with CPU provider");
+            }
+
+            // CUDA pipeline
+            if let Ok(mut cuda_backend) = OrtBackend::load_model_with_provider(
+                onnx_model_path,
+                inference::backend::ort::ExecutionProvider::Cuda,
+            ) {
+                group.bench_function("ort_cuda", |b| {
+                    b.iter(|| {
+                        let (preprocessed, scale, offset_x, offset_y) = preprocessor
+                            .preprocess_frame(
+                                black_box(frame.pixels().unwrap()),
+                                black_box(frame.width()),
+                                black_box(frame.height()),
+                                black_box(frame.format()),
+                            )
+                            .unwrap();
+
+                        let transform = inference::processing::post::TransformParams {
+                            orig_width: 1920,
+                            orig_height: 1080,
+                            scale,
+                            offset_x,
+                            offset_y,
+                        };
+
+                        let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
+                            .unwrap()
+                            .into_dyn();
+                        let outputs = cuda_backend
+                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                            .unwrap();
+
+                        post_processor
+                            .parse_detections(
+                                black_box(&outputs.labels.view()),
+                                black_box(&outputs.boxes.view()),
+                                black_box(&outputs.scores.view()),
+                                black_box(&transform),
+                            )
+                            .unwrap()
+                    });
+                });
+            } else {
+                eprintln!("Failed to load ONNX model with CUDA provider");
+            }
+        } else {
+            eprintln!(
+                "Skipping ONNX full pipeline benchmark: model not found at {}",
+                onnx_model_path
+            );
         }
-    };
-
-    group.bench_function("ort_cpu_full_1920x1080", |b| {
-        b.iter(|| {
-            // Preprocessing
-            let (preprocessed, scale, offset_x, offset_y) = preprocessor
-                .preprocess_frame(
-                    black_box(frame.pixels().unwrap()),
-                    black_box(frame.width()),
-                    black_box(frame.height()),
-                    black_box(frame.format()),
-                )
-                .unwrap();
-
-            let transform = inference::processing::post::TransformParams {
-                orig_width: 1920,
-                orig_height: 1080,
-                scale,
-                offset_x,
-                offset_y,
-            };
-
-            // Inference
-            let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-                .unwrap()
-                .into_dyn();
-            let outputs = cpu_backend
-                .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                .unwrap();
-
-            // Postprocessing
-            post_processor
-                .parse_detections(
-                    black_box(&outputs.labels.view()),
-                    black_box(&outputs.boxes.view()),
-                    black_box(&outputs.scores.view()),
-                    black_box(&transform),
-                )
-                .unwrap()
-        });
-    });
-
-    // CUDA pipeline
-    let mut cuda_backend = match OrtBackend::load_model_with_provider(
-        model_path,
-        inference::backend::ort::ExecutionProvider::Cuda,
-    ) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Failed to load ONNX model with CUDA: {}", e);
-            return;
-        }
-    };
-
-    group.bench_function("ort_cuda_full_1920x1080", |b| {
-        b.iter(|| {
-            // Preprocessing
-            let (preprocessed, scale, offset_x, offset_y) = preprocessor
-                .preprocess_frame(
-                    black_box(frame.pixels().unwrap()),
-                    black_box(frame.width()),
-                    black_box(frame.height()),
-                    black_box(frame.format()),
-                )
-                .unwrap();
-
-            let transform = inference::processing::post::TransformParams {
-                orig_width: 1920,
-                orig_height: 1080,
-                scale,
-                offset_x,
-                offset_y,
-            };
-
-            // Inference
-            let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-                .unwrap()
-                .into_dyn();
-            let outputs = cuda_backend
-                .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                .unwrap();
-
-            // Postprocessing
-            post_processor
-                .parse_detections(
-                    black_box(&outputs.labels.view()),
-                    black_box(&outputs.boxes.view()),
-                    black_box(&outputs.scores.view()),
-                    black_box(&transform),
-                )
-                .unwrap()
-        });
-    });
-
-    group.finish();
-}
-
-#[cfg(feature = "trt-backend")]
-fn benchmark_full_pipeline_trt(c: &mut Criterion) {
-    let model_path = "../../models/model_fp16.engine";
-
-    if !Path::new(model_path).exists() {
-        eprintln!(
-            "Skipping TensorRT full pipeline benchmark: model not found at {}",
-            model_path
-        );
-        return;
     }
 
-    let mut group = c.benchmark_group("full_pipeline");
+    #[cfg(feature = "trt-backend")]
+    {
+        let trt_model_path = "../../models/model_fp16.engine";
 
-    // Create test frame
-    let frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
-    let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
+        if Path::new(trt_model_path).exists() {
+            if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
+                group.bench_function("trt", |b| {
+                    b.iter(|| {
+                        let (preprocessed, scale, offset_x, offset_y) = preprocessor
+                            .preprocess_frame(
+                                black_box(frame.pixels().unwrap()),
+                                black_box(frame.width()),
+                                black_box(frame.height()),
+                                black_box(frame.format()),
+                            )
+                            .unwrap();
 
-    let mut preprocessor = PreProcessor::default();
-    let post_processor = PostProcessor::new(0.5);
+                        let transform = inference::processing::post::TransformParams {
+                            orig_width: 1920,
+                            orig_height: 1080,
+                            scale,
+                            offset_x,
+                            offset_y,
+                        };
 
-    let mut trt_backend = match TrtBackend::load_model(model_path) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("Failed to load TensorRT model: {}", e);
-            return;
+                        let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
+                            .unwrap()
+                            .into_dyn();
+                        let outputs = trt_backend
+                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
+                            .unwrap();
+
+                        post_processor
+                            .parse_detections(
+                                black_box(&outputs.labels.view()),
+                                black_box(&outputs.boxes.view()),
+                                black_box(&outputs.scores.view()),
+                                black_box(&transform),
+                            )
+                            .unwrap()
+                    });
+                });
+            } else {
+                eprintln!("Failed to load TensorRT model");
+            }
+        } else {
+            eprintln!(
+                "Skipping TensorRT full pipeline benchmark: model not found at {}",
+                trt_model_path
+            );
         }
-    };
-
-    group.bench_function("trt_full_1920x1080", |b| {
-        b.iter(|| {
-            // Preprocessing
-            let (preprocessed, scale, offset_x, offset_y) = preprocessor
-                .preprocess_frame(
-                    black_box(frame.pixels().unwrap()),
-                    black_box(frame.width()),
-                    black_box(frame.height()),
-                    black_box(frame.format()),
-                )
-                .unwrap();
-
-            let transform = inference::processing::post::TransformParams {
-                orig_width: 1920,
-                orig_height: 1080,
-                scale,
-                offset_x,
-                offset_y,
-            };
-
-            // Inference
-            let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-                .unwrap()
-                .into_dyn();
-            let outputs = trt_backend
-                .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                .unwrap();
-
-            // Postprocessing
-            post_processor
-                .parse_detections(
-                    black_box(&outputs.labels.view()),
-                    black_box(&outputs.boxes.view()),
-                    black_box(&outputs.scores.view()),
-                    black_box(&transform),
-                )
-                .unwrap()
-        });
-    });
+    }
 
     group.finish();
 }
 
 // Conditionally include backend benchmarks based on features
-#[cfg(all(feature = "ort-backend", feature = "trt-backend"))]
+#[cfg(any(feature = "ort-backend", feature = "trt-backend"))]
 criterion_group!(
     benches,
     benchmark_preprocessing,
     benchmark_postprocessing,
     benchmark_bgr_conversion,
-    benchmark_onnx_inference,
-    benchmark_tensorrt_inference,
-    benchmark_full_pipeline_ort,
-    benchmark_full_pipeline_trt
-);
-
-#[cfg(all(feature = "ort-backend", not(feature = "trt-backend")))]
-criterion_group!(
-    benches,
-    benchmark_preprocessing,
-    benchmark_postprocessing,
-    benchmark_bgr_conversion,
-    benchmark_onnx_inference,
-    benchmark_full_pipeline_ort
-);
-
-#[cfg(all(not(feature = "ort-backend"), feature = "trt-backend"))]
-criterion_group!(
-    benches,
-    benchmark_preprocessing,
-    benchmark_postprocessing,
-    benchmark_bgr_conversion,
-    benchmark_tensorrt_inference,
-    benchmark_full_pipeline_trt
+    benchmark_inference,
+    benchmark_full_pipeline
 );
 
 #[cfg(not(any(feature = "ort-backend", feature = "trt-backend")))]

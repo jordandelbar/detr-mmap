@@ -1,0 +1,16 @@
+services:
+  benchmark:
+    build:
+      context: ..
+      dockerfile: docker/benchmark.Dockerfile
+      args:
+        GPU_BASE_IMAGE: bridge-rt-gpu-base:latest
+    volumes:
+      - ../benchmark-reports:/workspace/target/criterion
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

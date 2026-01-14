@@ -51,3 +51,6 @@ compile_commands.json
 
 # FlatBuffers generated C++ headers
 *_generated.h
+
+# Benchmark reports
+/benchmark-reports
