@@ -180,7 +180,7 @@ mod tests {
         let frame_data = create_test_frame(2, 2, bridge::ColorFormat::BGR, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let (output, scale, offset_x, offset_y) = preprocessor
             .preprocess_frame(
                 frame.pixels().unwrap(),
@@ -226,7 +226,7 @@ mod tests {
         let frame_data = create_test_frame(2, 2, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let result = preprocessor.preprocess_frame(
             frame.pixels().unwrap(),
             frame.width(),
@@ -247,7 +247,7 @@ mod tests {
         let frame_data = create_test_frame(10, 10, bridge::ColorFormat::GRAY, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let result = preprocessor.preprocess_frame(
             frame.pixels().unwrap(),
             frame.width(),
@@ -272,7 +272,7 @@ mod tests {
         let frame_data = create_test_frame(10, 10, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let result = preprocessor.preprocess_frame(
             frame.pixels().unwrap(),
             frame.width(),
@@ -296,7 +296,7 @@ mod tests {
         let frame_data = create_test_frame(800, 600, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let (output, scale, offset_x, offset_y) = preprocessor
             .preprocess_frame(
                 frame.pixels().unwrap(),
@@ -328,7 +328,7 @@ mod tests {
         let frame_data = create_test_frame(100, 100, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let (output, scale, _, _) = preprocessor
             .preprocess_frame(
                 frame.pixels().unwrap(),
@@ -365,7 +365,7 @@ mod tests {
             let frame_data = create_test_frame(width, height, bridge::ColorFormat::RGB, pixels);
             let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-            let preprocessor = PreProcessor::default();
+            let mut preprocessor = PreProcessor::default();
             let (output, _, _, _) = preprocessor
                 .preprocess_frame(
                     frame.pixels().unwrap(),
@@ -399,7 +399,7 @@ mod tests {
         let frame_data = create_test_frame(2, 2, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let (output, _, _, _) = preprocessor
             .preprocess_frame(
                 frame.pixels().unwrap(),
@@ -428,7 +428,7 @@ mod tests {
         let frame_data = create_test_frame(400, 800, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let (_, scale, offset_x, offset_y) = preprocessor
             .preprocess_frame(
                 frame.pixels().unwrap(),
@@ -459,7 +459,7 @@ mod tests {
         let frame_data = create_test_frame(1280, 720, bridge::ColorFormat::RGB, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let preprocessor = PreProcessor::default();
+        let mut preprocessor = PreProcessor::default();
         let (_, scale, offset_x, offset_y) = preprocessor
             .preprocess_frame(
                 frame.pixels().unwrap(),

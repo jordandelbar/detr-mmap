@@ -1,5 +1,6 @@
 use crate::state::{FrameMessage, FramePacket};
-use bridge::{BridgeSemaphore, DetectionReader, FrameReader};
+use bridge::{BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType};
+use common::wait_for_resource_async;
 use image::{ImageBuffer, RgbImage};
 use std::io::Cursor;
 use std::sync::Arc;
@@ -30,12 +31,21 @@ pub struct BufferPoller {
     tx: Arc<broadcast::Sender<FramePacket>>,
 }
 
+const POLL_INTERVAL_MS: u64 = 500;
+
 impl BufferPoller {
     /// Build a new BufferPoller by connecting to shared memory buffers with retries
     pub async fn build(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result<Self> {
-        let frame_reader = Self::connect_frame_reader().await;
-        let detection_reader = Self::connect_detection_reader().await;
-        let frame_semaphore = Self::connect_semaphore().await;
+        let frame_reader = wait_for_resource_async(FrameReader::build, POLL_INTERVAL_MS, "Frame buffer").await;
+        let detection_reader = wait_for_resource_async(DetectionReader::build, POLL_INTERVAL_MS, "Detection buffer").await;
+        let frame_semaphore = Arc::new(
+            wait_for_resource_async(
+                || BridgeSemaphore::open(SemaphoreType::FrameCaptureToGateway),
+                POLL_INTERVAL_MS,
+                "Gateway semaphore",
+            )
+            .await,
+        );
 
         Ok(Self {
             frame_reader,
@@ -43,55 +53,6 @@ impl BufferPoller {
             frame_semaphore,
             tx,
         })
-    }
-
-    /// Connect to frame buffer with retries
-    async fn connect_frame_reader() -> FrameReader {
-        loop {
-            match FrameReader::build() {
-                Ok(reader) => {
-                    tracing::info!("Frame buffer connected");
-                    break reader;
-                }
-                Err(_) => {
-                    tracing::debug!("Waiting for frame buffer...");
-                    time::sleep(Duration::from_millis(500)).await;
-                }
-            }
-        }
-    }
-
-    /// Connect to detection buffer with retries
-    async fn connect_detection_reader() -> DetectionReader {
-        loop {
-            match DetectionReader::build() {
-                Ok(reader) => {
-                    tracing::info!("Detection buffer connected");
-                    break reader;
-                }
-                Err(_) => {
-                    tracing::debug!("Waiting for detection buffer...");
-                    time::sleep(Duration::from_millis(500)).await;
-                }
-            }
-        }
-    }
-
-    /// Connect to frame semaphore with retries
-    async fn connect_semaphore() -> Arc<BridgeSemaphore> {
-        tracing::info!("Opening gateway frame synchronization semaphore");
-        loop {
-            match BridgeSemaphore::open(bridge::SemaphoreType::FrameCaptureToGateway) {
-                Ok(sem) => {
-                    tracing::info!("Gateway semaphore connected successfully");
-                    break Arc::new(sem);
-                }
-                Err(_) => {
-                    tracing::debug!("Waiting for gateway semaphore...");
-                    time::sleep(Duration::from_millis(500)).await;
-                }
-            }
-        }
     }
 
     /// Main polling loop

@@ -7,6 +7,7 @@ use crate::{
     },
 };
 use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType};
+use common::wait_for_resource;
 use ndarray::Array;
 use std::thread;
 use std::time::Duration;
@@ -38,53 +39,28 @@ impl<B: InferenceBackend> InferenceService<B> {
             "Inference service starting"
         );
 
-        let mut frame_reader = loop {
-            match FrameReader::build() {
-                Ok(reader) => {
-                    tracing::info!("Frame buffer connected successfully");
-                    break reader;
-                }
-                Err(_) => {
-                    thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
-                }
-            }
-        };
+        let mut frame_reader = wait_for_resource(
+            FrameReader::build,
+            self.config.poll_interval_ms,
+            "Frame buffer",
+        );
 
         let mut detection_writer = DetectionWriter::build()?;
 
-        tracing::info!("Opening inference frame synchronization semaphore");
-        let frame_semaphore = loop {
-            match BridgeSemaphore::open(SemaphoreType::FrameCaptureToInference) {
-                Ok(sem) => {
-                    tracing::info!("Inference semaphore connected successfully");
-                    break sem;
-                }
-                Err(_) => {
-                    thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
-                }
-            }
-        };
+        let frame_semaphore = wait_for_resource(
+            || BridgeSemaphore::open(SemaphoreType::FrameCaptureToInference),
+            self.config.poll_interval_ms,
+            "Inference semaphore",
+        );
 
-        tracing::info!("Opening controller semaphore for detection notifications");
-        let controller_semaphore = loop {
-            match BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController) {
-                Ok(sem) => {
-                    tracing::info!("Controller semaphore connected successfully");
-                    break sem;
-                }
-                Err(_) => {
-                    match BridgeSemaphore::create(SemaphoreType::DetectionInferenceToController) {
-                        Ok(sem) => {
-                            tracing::info!("Controller semaphore created successfully");
-                            break sem;
-                        }
-                        Err(_) => {
-                            thread::sleep(Duration::from_millis(self.config.poll_interval_ms));
-                        }
-                    }
-                }
-            }
-        };
+        let controller_semaphore = wait_for_resource(
+            || {
+                BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController)
+                    .or_else(|_| BridgeSemaphore::create(SemaphoreType::DetectionInferenceToController))
+            },
+            self.config.poll_interval_ms,
+            "Controller semaphore",
+        );
 
         tracing::info!("Starting inference loop (event-driven)");
 

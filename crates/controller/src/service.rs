@@ -1,6 +1,7 @@
 use crate::{config::ControllerConfig, mqtt_notifier::MqttNotifier, state_machine::StateContext};
 use anyhow::Result;
 use bridge::{BridgeSemaphore, DetectionReader, SemaphoreType, SentryControl};
+use common::wait_for_resource;
 use std::{thread, time::Duration};
 
 pub struct ControllerService {
@@ -14,31 +15,17 @@ pub struct ControllerService {
 
 impl ControllerService {
     pub fn new(config: ControllerConfig) -> Result<Self> {
-        let detection_reader = loop {
-            match DetectionReader::build() {
-                Ok(reader) => {
-                    tracing::info!("Detection buffer connected");
-                    break reader;
-                }
-                Err(_) => {
-                    tracing::debug!("Waiting for detection buffer...");
-                    thread::sleep(Duration::from_millis(config.poll_interval_ms));
-                }
-            }
-        };
+        let detection_reader = wait_for_resource(
+            DetectionReader::build,
+            config.poll_interval_ms,
+            "Detection buffer",
+        );
 
-        let detection_semaphore = loop {
-            match BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController) {
-                Ok(sem) => {
-                    tracing::info!("Detection semaphore connected");
-                    break sem;
-                }
-                Err(_) => {
-                    tracing::debug!("Waiting for detection semaphore...");
-                    thread::sleep(Duration::from_millis(config.poll_interval_ms));
-                }
-            }
-        };
+        let detection_semaphore = wait_for_resource(
+            || BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController),
+            config.poll_interval_ms,
+            "Detection semaphore",
+        );
 
         let sentry_control = SentryControl::build()?;
         tracing::info!("Sentry control connected");
