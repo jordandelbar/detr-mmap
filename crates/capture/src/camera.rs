@@ -81,14 +81,6 @@ impl Camera {
         let format = cam.camera_format();
         let frame_writer = FrameWriter::build().context("Failed to initialize frame writer")?;
 
-        let get_sem = |semaphore_type: SemaphoreType, name: &str| -> Result<BridgeSemaphore> {
-            BridgeSemaphore::open(semaphore_type).or_else(|_| {
-                tracing::info!("Creating new {} semaphore", name);
-                BridgeSemaphore::create(semaphore_type)
-                    .map_err(|e| anyhow!("Failed to create semaphore {}: {}", name, e))
-            })
-        };
-
         Ok(Self {
             camera_id: config.camera_id,
             cam,
@@ -97,8 +89,8 @@ impl Camera {
             max_frame_rate: format.frame_rate() as f64,
             sentry_mode_rate: config.sentry_mode_fps,
             frame_writer,
-            inference_semaphore: get_sem(SemaphoreType::FrameCaptureToInference, "inference")?,
-            gateway_semaphore: get_sem(SemaphoreType::FrameCaptureToGateway, "gateway")?,
+            inference_semaphore: BridgeSemaphore::ensure(SemaphoreType::FrameCaptureToInference)?,
+            gateway_semaphore: BridgeSemaphore::ensure(SemaphoreType::FrameCaptureToGateway)?,
         })
     }
 

@@ -47,6 +47,11 @@ impl BridgeSemaphore {
     pub fn open(semaphore_type: SemaphoreType) -> Result<Self, BridgeError> {
         Self::open_with_name(semaphore_type.name())
     }
+
+    /// Open an existing semaphore, or create it if it doesn't exist
+    pub fn ensure(semaphore_type: SemaphoreType) -> Result<Self, BridgeError> {
+        Self::open(semaphore_type).or_else(|_| Self::create(semaphore_type))
+    }
     /// Create a new message queue
     ///
     /// This will create a new message queue or open an existing one.

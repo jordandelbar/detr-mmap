@@ -54,10 +54,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         );
 
         let controller_semaphore = wait_for_resource(
-            || {
-                BridgeSemaphore::open(SemaphoreType::DetectionInferenceToController)
-                    .or_else(|_| BridgeSemaphore::create(SemaphoreType::DetectionInferenceToController))
-            },
+            || BridgeSemaphore::ensure(SemaphoreType::DetectionInferenceToController),
             self.config.poll_interval_ms,
             "Controller semaphore",
         );
