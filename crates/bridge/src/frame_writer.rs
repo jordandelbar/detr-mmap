@@ -1,33 +1,16 @@
-use crate::{mmap_writer::MmapWriter, paths};
+use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths};
 use anyhow::{Context, Result};
 use schema::{ColorFormat, FrameArgs};
-use std::{
-    path::Path,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct FrameWriter {
     writer: MmapWriter,
     builder: flatbuffers::FlatBufferBuilder<'static>,
 }
 
+impl_mmap_writer_base!(FrameWriter, paths::FRAME_BUFFER_PATH, paths::DEFAULT_FRAME_BUFFER_SIZE);
+
 impl FrameWriter {
-    pub fn build() -> Result<Self> {
-        Self::build_with_path(paths::FRAME_BUFFER_PATH, paths::DEFAULT_FRAME_BUFFER_SIZE)
-    }
-
-    /// Create a new FrameWriter with custom path and size (useful for tests and benchmarks)
-    pub fn build_with_path(mmap_path: &str, mmap_size: usize) -> Result<Self> {
-        let writer = if Path::new(mmap_path).exists() {
-            MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")
-        } else {
-            MmapWriter::create_and_init(mmap_path, mmap_size)
-                .context("Failed to create new mmap writer")
-        }?;
-        let builder = flatbuffers::FlatBufferBuilder::new();
-        Ok(Self { writer, builder })
-    }
-
     pub fn write(
         &mut self,
         pixel_data: &[u8],
@@ -66,9 +49,5 @@ impl FrameWriter {
             .context("Failed to write frame data")?;
 
         Ok(())
-    }
-
-    pub fn sequence(&self) -> u64 {
-        self.writer.sequence()
     }
 }

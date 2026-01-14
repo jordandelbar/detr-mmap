@@ -1,27 +1,13 @@
-use crate::{mmap_reader::MmapReader, paths, types::Detection, utils::safe_flatbuffers_root};
+use crate::{macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, types::Detection, utils::safe_flatbuffers_root};
 use anyhow::Result;
 
 pub struct DetectionReader {
     reader: MmapReader,
 }
 
+impl_mmap_reader_base!(DetectionReader, paths::DETECTION_BUFFER_PATH);
+
 impl DetectionReader {
-    /// Create a new DetectionReader using the default detection buffer path
-    pub fn build() -> Result<Self> {
-        Self::with_path(paths::DETECTION_BUFFER_PATH)
-    }
-
-    /// Create a new DetectionReader with a custom path (useful for tests)
-    pub fn with_path(detection_mmap_path: &str) -> Result<Self> {
-        let reader = MmapReader::build(detection_mmap_path)?;
-        Ok(Self { reader })
-    }
-
-    /// Get the current sequence number of the detection buffer
-    pub fn current_sequence(&self) -> u64 {
-        self.reader.current_sequence()
-    }
-
     /// Get all detections from the buffer with safe deserialization
     /// Returns None if sequence is 0 or on deserialization error
     pub fn get_detections(&self) -> Result<Option<Vec<Detection>>> {
@@ -56,10 +42,5 @@ impl DetectionReader {
         }
 
         Ok(false)
-    }
-
-    /// Mark the current buffer as read
-    pub fn mark_read(&mut self) {
-        self.reader.mark_read();
     }
 }

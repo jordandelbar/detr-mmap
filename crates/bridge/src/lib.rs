@@ -4,6 +4,13 @@ pub mod paths;
 pub mod types;
 
 // Utility modules (internal)
+#[cfg(any(
+    feature = "frame-writer",
+    feature = "detection-writer",
+    feature = "frame-reader",
+    feature = "detection-reader"
+))]
+pub(crate) mod macros;
 #[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
 pub(crate) mod utils;
 

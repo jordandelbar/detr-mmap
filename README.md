@@ -32,6 +32,7 @@ Memory-mapped files (`mmap`) provide true zero-copy IPC. There is no serializati
 The trade-off is that it only works for local IPC, this is not secured for cloud deployment with shared machine but clearly fitting for edge deployments.
 
 ## Installation
+
 **Rust** 1.92+ (`rustup default 1.92.0`)
 **Docker** with buildx
 **k3d** (lightweight Kubernetes)

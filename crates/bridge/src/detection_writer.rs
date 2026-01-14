@@ -1,36 +1,21 @@
+use crate::macros::impl_mmap_writer_base;
 use crate::mmap_writer::MmapWriter;
 use crate::paths;
 use crate::types::Detection;
 use anyhow::{Context, Result};
-use std::path::Path;
 
 pub struct DetectionWriter {
     writer: MmapWriter,
     builder: flatbuffers::FlatBufferBuilder<'static>,
 }
 
+impl_mmap_writer_base!(
+    DetectionWriter,
+    paths::DETECTION_BUFFER_PATH,
+    paths::DEFAULT_DETECTION_BUFFER_SIZE
+);
+
 impl DetectionWriter {
-    /// Create a new DetectionWriter using the default detection buffer path and size
-    pub fn build() -> Result<Self> {
-        Self::build_with_path(
-            paths::DETECTION_BUFFER_PATH,
-            paths::DEFAULT_DETECTION_BUFFER_SIZE,
-        )
-    }
-
-    /// Create a new DetectionWriter with custom path and size (useful for tests and benchmarks)
-    pub fn build_with_path(mmap_path: &str, mmap_size: usize) -> Result<Self> {
-        let writer = if Path::new(mmap_path).exists() {
-            MmapWriter::open_existing(mmap_path).context("Failed to open existing mmap writer")?
-        } else {
-            MmapWriter::create_and_init(mmap_path, mmap_size)
-                .context("Failed to create new mmap writer")?
-        };
-
-        let builder = flatbuffers::FlatBufferBuilder::new();
-        Ok(Self { writer, builder })
-    }
-
     pub fn write(
         &mut self,
         frame_number: u64,
@@ -77,9 +62,5 @@ impl DetectionWriter {
             .context("Failed to write detection data")?;
 
         Ok(())
-    }
-
-    pub fn sequence(&self) -> u64 {
-        self.writer.sequence()
     }
 }
