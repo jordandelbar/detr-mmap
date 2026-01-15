@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::env;
+use common::get_env;
 
 #[derive(Debug, Clone)]
 pub struct ControllerConfig {
@@ -14,42 +14,14 @@ pub struct ControllerConfig {
 
 impl ControllerConfig {
     pub fn from_env() -> Result<Self> {
-        let validation_frames = env::var("VALIDATION_FRAMES")
-            .unwrap_or_else(|_| "3".to_string())
-            .parse()
-            .unwrap_or(3);
-
-        let tracking_exit_frames = env::var("TRACKING_EXIT_FRAMES")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse()
-            .unwrap_or(10);
-
-        let poll_interval_ms = env::var("POLL_INTERVAL_MS")
-            .unwrap_or_else(|_| "500".to_string())
-            .parse()
-            .unwrap_or(500);
-
-        let mqtt_broker_host =
-            env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "mosquitto".to_string());
-
-        let mqtt_broker_port = env::var("MQTT_BROKER_PORT")
-            .unwrap_or_else(|_| "1883".to_string())
-            .parse()
-            .unwrap_or(1883);
-
-        let mqtt_topic =
-            env::var("MQTT_TOPIC").unwrap_or_else(|_| "bridge-rt/controller/state".to_string());
-
-        let mqtt_device_id = env::var("MQTT_DEVICE_ID").unwrap_or_else(|_| "unknown".to_string());
-
         Ok(Self {
-            validation_frames,
-            tracking_exit_frames,
-            poll_interval_ms,
-            mqtt_broker_host,
-            mqtt_broker_port,
-            mqtt_topic,
-            mqtt_device_id,
+            validation_frames: get_env("VALIDATION_FRAMES", 3),
+            tracking_exit_frames: get_env("TRACKING_EXIT_FRAMES", 10),
+            poll_interval_ms: get_env("POLL_INTERVAL_MS", 500),
+            mqtt_broker_host: get_env("MQTT_BROKER_HOST", "mosquitto".to_string()),
+            mqtt_broker_port: get_env("MQTT_BROKER_PORT", 1883),
+            mqtt_topic: get_env("MQTT_TOPIC", "bridge-rt/controller/state".to_string()),
+            mqtt_device_id: get_env("MQTT_DEVICE_ID", "unknown".to_string()),
         })
     }
 }

@@ -1,6 +1,4 @@
-use std::env;
-
-pub use common::Environment;
+use common::{get_env, Environment};
 
 #[derive(Debug, Clone)]
 pub struct InferenceConfig {
@@ -14,38 +12,15 @@ pub struct InferenceConfig {
 impl InferenceConfig {
     /// Load configuration from environment variables with sensible defaults
     pub fn from_env() -> anyhow::Result<Self> {
-        let environment = Environment::from_env();
-
-        let model_path = env::var("MODEL_PATH").unwrap_or_else(|_| {
-            "/home/jdelbar/Documents/projects/bridge-rt/models/model_fp16.engine".to_string()
-        });
-
-        let input_width = env::var("INPUT_WIDTH")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(640);
-
-        let input_height = env::var("INPUT_HEIGHT")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(640);
-
-        let poll_interval_ms = env::var("POLL_INTERVAL_MS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(100);
-
-        let confidence_threshold = env::var("CONFIDENCE_THRESHOLD")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0.5);
-
         Ok(Self {
-            environment,
-            model_path,
-            input_size: (input_width, input_height),
-            poll_interval_ms,
-            confidence_threshold,
+            environment: Environment::from_env(),
+            model_path: get_env(
+                "MODEL_PATH",
+                "/home/jdelbar/Documents/projects/bridge-rt/models/model_fp16.engine".to_string(),
+            ),
+            input_size: (get_env("INPUT_WIDTH", 640), get_env("INPUT_HEIGHT", 640)),
+            poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
+            confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.5),
         })
     }
 

@@ -1,4 +1,12 @@
-use std::env;
+use std::{env, str::FromStr};
+
+/// Get an environment variable and parse it, returning a default if not set or parse fails.
+pub fn get_env<T: FromStr>(key: &str, default: T) -> T {
+    env::var(key)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(default)
+}
 
 #[derive(Debug, Clone)]
 pub enum Environment {
