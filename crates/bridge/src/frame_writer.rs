@@ -8,7 +8,11 @@ pub struct FrameWriter {
     builder: flatbuffers::FlatBufferBuilder<'static>,
 }
 
-impl_mmap_writer_base!(FrameWriter, paths::FRAME_BUFFER_PATH, paths::DEFAULT_FRAME_BUFFER_SIZE);
+impl_mmap_writer_base!(
+    FrameWriter,
+    paths::FRAME_BUFFER_PATH,
+    paths::DEFAULT_FRAME_BUFFER_SIZE
+);
 
 impl FrameWriter {
     pub fn write(

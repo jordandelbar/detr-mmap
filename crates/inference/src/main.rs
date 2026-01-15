@@ -1,7 +1,5 @@
 use inference::{
-    InferenceConfig, InferenceService,
-    backend::InferenceBackend,
-    logging::setup_logging,
+    InferenceConfig, InferenceService, backend::InferenceBackend, logging::setup_logging,
 };
 
 #[cfg(all(feature = "ort-backend", not(feature = "trt-backend")))]

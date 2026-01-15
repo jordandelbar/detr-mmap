@@ -1,4 +1,4 @@
-use common::{get_env, Environment};
+use common::{Environment, get_env};
 
 #[derive(Debug, Clone)]
 pub struct InferenceConfig {

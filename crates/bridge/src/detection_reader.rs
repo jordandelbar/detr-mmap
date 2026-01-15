@@ -1,4 +1,7 @@
-use crate::{macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, types::Detection, utils::safe_flatbuffers_root};
+use crate::{
+    errors::BridgeError, macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths,
+    retry::RetryConfig, types::Detection, utils::safe_flatbuffers_root,
+};
 use anyhow::Result;
 
 pub struct DetectionReader {
@@ -42,5 +45,51 @@ impl DetectionReader {
         }
 
         Ok(false)
+    }
+
+    /// Get detections with automatic retry using exponential backoff
+    ///
+    /// Retries when no data is available (sequence == 0), using the provided
+    /// retry configuration. Returns detections on success, or `NoDataAvailable`
+    /// error if max attempts are exhausted.
+    ///
+    /// Deserialization errors are not retried and propagate immediately.
+    pub fn get_detections_with_retry(
+        &self,
+        config: &RetryConfig,
+    ) -> Result<Option<Vec<Detection>>> {
+        for attempt in 0..config.max_attempts {
+            match self.get_detections()? {
+                Some(detections) => return Ok(Some(detections)),
+                None => {
+                    if attempt < config.max_attempts - 1 {
+                        std::thread::sleep(config.delay_for_attempt(attempt));
+                    }
+                }
+            }
+        }
+        Err(BridgeError::NoDataAvailable.into())
+    }
+
+    /// Async version of `get_detections_with_retry` using tokio
+    ///
+    /// Uses `tokio::time::sleep` instead of blocking thread sleep,
+    /// making it suitable for async contexts like the gateway.
+    #[cfg(feature = "tokio")]
+    pub async fn get_detections_with_retry_async(
+        &self,
+        config: &RetryConfig,
+    ) -> Result<Option<Vec<Detection>>> {
+        for attempt in 0..config.max_attempts {
+            match self.get_detections()? {
+                Some(detections) => return Ok(Some(detections)),
+                None => {
+                    if attempt < config.max_attempts - 1 {
+                        tokio::time::sleep(config.delay_for_attempt(attempt)).await;
+                    }
+                }
+            }
+        }
+        Err(BridgeError::NoDataAvailable.into())
     }
 }

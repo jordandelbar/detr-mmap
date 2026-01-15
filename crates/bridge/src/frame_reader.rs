@@ -1,4 +1,7 @@
-use crate::{macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, utils::safe_flatbuffers_root};
+use crate::{
+    errors::BridgeError, macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths,
+    retry::RetryConfig, utils::safe_flatbuffers_root,
+};
 use anyhow::Result;
 
 pub struct FrameReader {
@@ -17,5 +20,48 @@ impl FrameReader {
 
         let frame = safe_flatbuffers_root::<schema::Frame>(self.reader.buffer())?;
         Ok(Some(frame))
+    }
+
+    /// Get frame with automatic retry using exponential backoff
+    ///
+    /// Retries when no data is available (sequence == 0), using the provided
+    /// retry configuration. Returns the frame on success, or `NoDataAvailable`
+    /// error if max attempts are exhausted.
+    ///
+    /// Deserialization errors are not retried and propagate immediately.
+    pub fn get_frame_with_retry(&self, config: &RetryConfig) -> Result<schema::Frame<'_>> {
+        for attempt in 0..config.max_attempts {
+            match self.get_frame()? {
+                Some(frame) => return Ok(frame),
+                None => {
+                    if attempt < config.max_attempts - 1 {
+                        std::thread::sleep(config.delay_for_attempt(attempt));
+                    }
+                }
+            }
+        }
+        Err(BridgeError::NoDataAvailable.into())
+    }
+
+    /// Async version of `get_frame_with_retry` using tokio
+    ///
+    /// Uses `tokio::time::sleep` instead of blocking thread sleep,
+    /// making it suitable for async contexts like the gateway.
+    #[cfg(feature = "tokio")]
+    pub async fn get_frame_with_retry_async(
+        &self,
+        config: &RetryConfig,
+    ) -> Result<schema::Frame<'_>> {
+        for attempt in 0..config.max_attempts {
+            match self.get_frame()? {
+                Some(frame) => return Ok(frame),
+                None => {
+                    if attempt < config.max_attempts - 1 {
+                        tokio::time::sleep(config.delay_for_attempt(attempt)).await;
+                    }
+                }
+            }
+        }
+        Err(BridgeError::NoDataAvailable.into())
     }
 }

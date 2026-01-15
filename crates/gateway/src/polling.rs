@@ -36,8 +36,11 @@ const POLL_INTERVAL_MS: u64 = 500;
 impl BufferPoller {
     /// Build a new BufferPoller by connecting to shared memory buffers with retries
     pub async fn build(tx: Arc<broadcast::Sender<FramePacket>>) -> anyhow::Result<Self> {
-        let frame_reader = wait_for_resource_async(FrameReader::build, POLL_INTERVAL_MS, "Frame buffer").await;
-        let detection_reader = wait_for_resource_async(DetectionReader::build, POLL_INTERVAL_MS, "Detection buffer").await;
+        let frame_reader =
+            wait_for_resource_async(FrameReader::build, POLL_INTERVAL_MS, "Frame buffer").await;
+        let detection_reader =
+            wait_for_resource_async(DetectionReader::build, POLL_INTERVAL_MS, "Detection buffer")
+                .await;
         let frame_semaphore = Arc::new(
             wait_for_resource_async(
                 || BridgeSemaphore::open(SemaphoreType::FrameCaptureToGateway),

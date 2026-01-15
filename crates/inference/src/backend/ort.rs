@@ -17,7 +17,10 @@ pub struct OrtBackend {
 
 impl OrtBackend {
     /// Load model with specified execution provider
-    pub fn load_model_with_provider(path: &str, provider: ExecutionProvider) -> anyhow::Result<Self> {
+    pub fn load_model_with_provider(
+        path: &str,
+        provider: ExecutionProvider,
+    ) -> anyhow::Result<Self> {
         // Initialize ORT environment (idempotent)
         let _ = ort::init().commit();
 
