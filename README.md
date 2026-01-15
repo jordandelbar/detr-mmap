@@ -24,6 +24,10 @@ Use of mmap with FlatBuffer for zero serialization + mqueue semaphore
 
 ## Architecture
 
+![Alt text](./docs/schemas/rt-detr-context.svg)
+
+![Alt text](./docs/schemas/rt-detr-app.svg)
+
 ## Technical decisions
 
 Edge devices have limited CPU and memory. Network protocol overhead (TCP, HTTP/2, serialization) adds latency and CPU usage.
