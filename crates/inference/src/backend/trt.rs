@@ -75,10 +75,7 @@ impl InferenceBackend for TrtBackend {
         })
     }
 
-    fn infer(
-        &mut self,
-        images: &Array<f32, IxDyn>,
-    ) -> anyhow::Result<InferenceOutput> {
+    fn infer(&mut self, images: &Array<f32, IxDyn>) -> anyhow::Result<InferenceOutput> {
         // Prepare output buffers
         // Dets: [1, num_queries, 4]
         let mut dets = Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_queries, 4]));

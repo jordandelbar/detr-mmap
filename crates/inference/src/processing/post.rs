@@ -25,7 +25,7 @@ impl PostProcessor {
     /// RF-DETR outputs: dets (boxes in cxcywh normalized), labels (logits per class)
     pub fn parse_detections(
         &self,
-        dets: &ndarray::ArrayViewD<f32>,   // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)
+        dets: &ndarray::ArrayViewD<f32>, // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)
         logits: &ndarray::ArrayViewD<f32>, // [1, 300, 91] - class logits
         transform: &TransformParams,
     ) -> anyhow::Result<Vec<Detection>> {
@@ -39,7 +39,7 @@ impl PostProcessor {
             // RF-DETR uses 1-indexed classes (0=background, 1=person, 2=bicycle, ...)
             // Skip index 0 (background) and convert to 0-indexed COCO IDs
             let mut max_logit = f32::NEG_INFINITY;
-            let mut class_idx = 1usize; // Start from 1 to skip background
+            let mut class_idx = 1usize; // Starts from 1
             for c in 1..num_classes {
                 let logit = logits[[0, i, c]];
                 if logit > max_logit {
@@ -232,10 +232,7 @@ mod tests {
             (detections[0].confidence - 0.5).abs() < 0.01,
             "Boundary case: 0.5 included"
         );
-        assert!(
-            detections[1].confidence > 0.75,
-            "High confidence included"
-        );
+        assert!(detections[1].confidence > 0.75, "High confidence included");
         // Output is 0-indexed COCO: RF-DETR 2 -> COCO 1, RF-DETR 3 -> COCO 2
         assert_eq!(detections[0].class_id, 1, "Class ID should match (bicycle)");
         assert_eq!(detections[1].class_id, 2, "Class ID should match (car)");
@@ -275,10 +272,26 @@ mod tests {
         let det = &detections[0];
 
         // Verify coordinate transformation (with some tolerance for float math)
-        assert!((det.x1 - 320.0).abs() < 0.1, "x1 transformation incorrect: {}", det.x1);
-        assert!((det.y1 - 220.0).abs() < 0.1, "y1 transformation incorrect: {}", det.y1);
-        assert!((det.x2 - 480.0).abs() < 0.1, "x2 transformation incorrect: {}", det.x2);
-        assert!((det.y2 - 380.0).abs() < 0.1, "y2 transformation incorrect: {}", det.y2);
+        assert!(
+            (det.x1 - 320.0).abs() < 0.1,
+            "x1 transformation incorrect: {}",
+            det.x1
+        );
+        assert!(
+            (det.y1 - 220.0).abs() < 0.1,
+            "y1 transformation incorrect: {}",
+            det.y1
+        );
+        assert!(
+            (det.x2 - 480.0).abs() < 0.1,
+            "x2 transformation incorrect: {}",
+            det.x2
+        );
+        assert!(
+            (det.y2 - 380.0).abs() < 0.1,
+            "y2 transformation incorrect: {}",
+            det.y2
+        );
     }
 
     /// Test that coordinates are clamped to image bounds
@@ -291,11 +304,7 @@ mod tests {
         ];
 
         // RF-DETR class indices (1=person, 2=bicycle, 3=car)
-        let class_logits = vec![
-            (1, 5.0),
-            (2, 5.0),
-            (3, 5.0),
-        ];
+        let class_logits = vec![(1, 5.0), (2, 5.0), (3, 5.0)];
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
 
         let post_processor = test_postprocessor();
@@ -312,8 +321,14 @@ mod tests {
         assert_eq!(detections[0].y1, 0.0, "Negative y1 should be clamped to 0");
 
         // Detection 2: Should be clamped to max bounds
-        assert_eq!(detections[1].x2, 400.0, "x2 exceeding width should be clamped");
-        assert_eq!(detections[1].y2, 400.0, "y2 exceeding height should be clamped");
+        assert_eq!(
+            detections[1].x2, 400.0,
+            "x2 exceeding width should be clamped"
+        );
+        assert_eq!(
+            detections[1].y2, 400.0,
+            "y2 exceeding height should be clamped"
+        );
     }
 
     /// Test that no detections are returned when all are below threshold
@@ -431,11 +446,12 @@ mod tests {
         // Output will be 0-indexed COCO: 0=person, 16=dog, 2=car
         let mut logits_data = vec![-10.0f32; num_queries * num_classes];
         // Set high logits for 3 detections (using RF-DETR 1-indexed classes)
-        logits_data[0 * num_classes + 1] = 5.0;  // RF-DETR Person (1) -> COCO (0), high confidence
+        logits_data[0 * num_classes + 1] = 5.0; // RF-DETR Person (1) -> COCO (0), high confidence
         logits_data[1 * num_classes + 17] = 3.5; // RF-DETR Dog (17) -> COCO (16), medium-high confidence
-        logits_data[2 * num_classes + 3] = 2.5;  // RF-DETR Car (3) -> COCO (2), medium confidence
+        logits_data[2 * num_classes + 3] = 2.5; // RF-DETR Car (3) -> COCO (2), medium confidence
 
-        let logits = Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
+        let logits =
+            Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
 
         let post_processor = test_postprocessor();
         let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
@@ -456,8 +472,17 @@ mod tests {
         assert_eq!(detections[2].class_id, 2, "Third detection: car");
 
         // Verify confidences are reasonable
-        assert!(detections[0].confidence > 0.99, "Person should have very high confidence");
-        assert!(detections[1].confidence > 0.95, "Dog should have high confidence");
-        assert!(detections[2].confidence > 0.90, "Car should have good confidence");
+        assert!(
+            detections[0].confidence > 0.99,
+            "Person should have very high confidence"
+        );
+        assert!(
+            detections[1].confidence > 0.95,
+            "Dog should have high confidence"
+        );
+        assert!(
+            detections[2].confidence > 0.90,
+            "Car should have good confidence"
+        );
     }
 }

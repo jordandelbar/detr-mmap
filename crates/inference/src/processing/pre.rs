@@ -4,8 +4,6 @@ use ndarray::{Array, IxDyn};
 use std::default::Default;
 
 const LETTERBOX_COLOR: u8 = 114;
-
-/// ImageNet normalization constants (used by RF-DETR)
 const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
 const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
 
@@ -117,7 +115,7 @@ impl PreProcessor {
             self.input_size.0 as usize,
         ]));
 
-        // Apply ImageNet normalization (RF-DETR)
+        // Apply ImageNet normalization
         for y in 0..self.input_size.1 as usize {
             for x in 0..self.input_size.0 as usize {
                 let pixel_idx = (y * self.input_size.0 as usize + x) * 3;

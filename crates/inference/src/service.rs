@@ -155,11 +155,9 @@ impl<B: InferenceBackend> InferenceService<B> {
             offset_y,
         };
 
-        let detections = self.postprocessor.parse_detections(
-            &dets.view(),
-            &logits.view(),
-            &transform,
-        )?;
+        let detections =
+            self.postprocessor
+                .parse_detections(&dets.view(), &logits.view(), &transform)?;
 
         detection_writer.write(frame_num, timestamp_ns, camera_id, &detections)?;
 

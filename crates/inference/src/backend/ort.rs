@@ -55,10 +55,7 @@ impl InferenceBackend for OrtBackend {
         Self::load_model_with_provider(path, ExecutionProvider::Cuda)
     }
 
-    fn infer(
-        &mut self,
-        images: &Array<f32, IxDyn>,
-    ) -> anyhow::Result<InferenceOutput> {
+    fn infer(&mut self, images: &Array<f32, IxDyn>) -> anyhow::Result<InferenceOutput> {
         // RF-DETR: input -> dets, labels (logits)
         let outputs = self.session.run(ort::inputs![
             "input" => TensorRef::from_array_view(images.view())?
