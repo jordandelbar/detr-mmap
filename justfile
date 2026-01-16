@@ -1,6 +1,15 @@
 #######
+# Dev #
+#######
+
+fmt:
+    @cargo fmt --all
+    @clang-format -i ./crates/inference-cpp/**/*.{cpp,hpp}
+
+#######
 # Run #
 #######
+
 build:
     @docker buildx bake
 
@@ -20,6 +29,7 @@ open-webpage:
 ########
 # Test #
 ########
+
 test:
     cargo test --workspace
 
