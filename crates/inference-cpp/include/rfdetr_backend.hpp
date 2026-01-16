@@ -1,10 +1,8 @@
 #pragma once
 
 #include <NvInfer.h>
-#include <string>
 #include <vector>
 #include <memory>
-#include <cstdint>
 
 namespace bridge {
 
@@ -73,7 +71,5 @@ private:
     int num_classes_ = 91;
 };
 
-// Factory function for Rust FFI
 std::unique_ptr<RFDetrBackend> new_rfdetr_backend();
-
-} // namespace bridge
+}

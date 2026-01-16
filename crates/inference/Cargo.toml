@@ -19,9 +19,7 @@ cxx = "1.0"
 
 [features]
 default = ["ort-backend"]
-# ONNX Runtime backend for RF-DETR
 ort-backend = ["dep:ort"]
-# TensorRT backend for RF-DETR (512x512, raw outputs)
 trt-backend = []
 
 [build-dependencies]

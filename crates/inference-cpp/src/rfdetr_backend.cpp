@@ -2,8 +2,6 @@
 #include "logging.hpp"
 #include <cuda_runtime.h>
 #include <fstream>
-#include <iostream>
-#include <cstring>
 
 namespace bridge {
 
