@@ -154,7 +154,6 @@
 
         <script>
             const COLORS = [
-                "#000000",
                 "#FF6B6B",
                 "#4ECDC4",
                 "#45B7D1",
@@ -167,89 +166,98 @@
                 "#52B788",
             ];
 
-            const COCO_CLASSES = [
-                "background",
-                "person",
-                "bicycle",
-                "car",
-                "motorcycle",
-                "airplane",
-                "bus",
-                "train",
-                "truck",
-                "boat",
-                "traffic light",
-                "fire hydrant",
-                "stop sign",
-                "parking meter",
-                "bench",
-                "bird",
-                "cat",
-                "dog",
-                "horse",
-                "sheep",
-                "cow",
-                "elephant",
-                "bear",
-                "zebra",
-                "giraffe",
-                "backpack",
-                "umbrella",
-                "handbag",
-                "tie",
-                "suitcase",
-                "frisbee",
-                "skis",
-                "snowboard",
-                "sports ball",
-                "kite",
-                "baseball bat",
-                "baseball glove",
-                "skateboard",
-                "surfboard",
-                "tennis racket",
-                "bottle",
-                "wine glass",
-                "cup",
-                "fork",
-                "knife",
-                "spoon",
-                "bowl",
-                "banana",
-                "apple",
-                "sandwich",
-                "orange",
-                "broccoli",
-                "carrot",
-                "hot dog",
-                "pizza",
-                "donut",
-                "cake",
-                "chair",
-                "couch",
-                "potted plant",
-                "bed",
-                "dining table",
-                "toilet",
-                "tv",
-                "laptop",
-                "mouse",
-                "remote",
-                "keyboard",
-                "cell phone",
-                "microwave",
-                "oven",
-                "toaster",
-                "sink",
-                "refrigerator",
-                "book",
-                "clock",
-                "vase",
-                "scissors",
-                "teddy bear",
-                "hair drier",
-                "toothbrush",
-            ];
+            // COCO class names indexed by (RF-DETR class ID - 1)
+            // RF-DETR uses COCO's original non-contiguous IDs (1-90 with gaps)
+            // Gaps at indices: 11, 25, 28, 29, 44, 65, 67, 68, 70, 82
+            const COCO_CLASSES = [];
+            COCO_CLASSES[0] = "person";
+            COCO_CLASSES[1] = "bicycle";
+            COCO_CLASSES[2] = "car";
+            COCO_CLASSES[3] = "motorcycle";
+            COCO_CLASSES[4] = "airplane";
+            COCO_CLASSES[5] = "bus";
+            COCO_CLASSES[6] = "train";
+            COCO_CLASSES[7] = "truck";
+            COCO_CLASSES[8] = "boat";
+            COCO_CLASSES[9] = "traffic light";
+            COCO_CLASSES[10] = "fire hydrant";
+            // 11 is gap
+            COCO_CLASSES[12] = "stop sign";
+            COCO_CLASSES[13] = "parking meter";
+            COCO_CLASSES[14] = "bench";
+            COCO_CLASSES[15] = "bird";
+            COCO_CLASSES[16] = "cat";
+            COCO_CLASSES[17] = "dog";
+            COCO_CLASSES[18] = "horse";
+            COCO_CLASSES[19] = "sheep";
+            COCO_CLASSES[20] = "cow";
+            COCO_CLASSES[21] = "elephant";
+            COCO_CLASSES[22] = "bear";
+            COCO_CLASSES[23] = "zebra";
+            COCO_CLASSES[24] = "giraffe";
+            // 25 is gap
+            COCO_CLASSES[26] = "backpack";
+            COCO_CLASSES[27] = "umbrella";
+            // 28, 29 are gaps
+            COCO_CLASSES[30] = "handbag";
+            COCO_CLASSES[31] = "tie";
+            COCO_CLASSES[32] = "suitcase";
+            COCO_CLASSES[33] = "frisbee";
+            COCO_CLASSES[34] = "skis";
+            COCO_CLASSES[35] = "snowboard";
+            COCO_CLASSES[36] = "sports ball";
+            COCO_CLASSES[37] = "kite";
+            COCO_CLASSES[38] = "baseball bat";
+            COCO_CLASSES[39] = "baseball glove";
+            COCO_CLASSES[40] = "skateboard";
+            COCO_CLASSES[41] = "surfboard";
+            COCO_CLASSES[42] = "tennis racket";
+            COCO_CLASSES[43] = "bottle";
+            // 44 is gap
+            COCO_CLASSES[45] = "wine glass";
+            COCO_CLASSES[46] = "cup";
+            COCO_CLASSES[47] = "fork";
+            COCO_CLASSES[48] = "knife";
+            COCO_CLASSES[49] = "spoon";
+            COCO_CLASSES[50] = "bowl";
+            COCO_CLASSES[51] = "banana";
+            COCO_CLASSES[52] = "apple";
+            COCO_CLASSES[53] = "sandwich";
+            COCO_CLASSES[54] = "orange";
+            COCO_CLASSES[55] = "broccoli";
+            COCO_CLASSES[56] = "carrot";
+            COCO_CLASSES[57] = "hot dog";
+            COCO_CLASSES[58] = "pizza";
+            COCO_CLASSES[59] = "donut";
+            COCO_CLASSES[60] = "cake";
+            COCO_CLASSES[61] = "chair";
+            COCO_CLASSES[62] = "couch";
+            COCO_CLASSES[63] = "potted plant";
+            COCO_CLASSES[64] = "bed";
+            // 65 is gap
+            COCO_CLASSES[66] = "dining table";
+            // 67, 68 are gaps
+            COCO_CLASSES[69] = "toilet";
+            // 70 is gap
+            COCO_CLASSES[71] = "tv";
+            COCO_CLASSES[72] = "laptop";
+            COCO_CLASSES[73] = "mouse";
+            COCO_CLASSES[74] = "remote";
+            COCO_CLASSES[75] = "keyboard";
+            COCO_CLASSES[76] = "cell phone";
+            COCO_CLASSES[77] = "microwave";
+            COCO_CLASSES[78] = "oven";
+            COCO_CLASSES[79] = "toaster";
+            COCO_CLASSES[80] = "sink";
+            COCO_CLASSES[81] = "refrigerator";
+            // 82 is gap
+            COCO_CLASSES[83] = "book";
+            COCO_CLASSES[84] = "clock";
+            COCO_CLASSES[85] = "vase";
+            COCO_CLASSES[86] = "scissors";
+            COCO_CLASSES[87] = "teddy bear";
+            COCO_CLASSES[88] = "hair drier";
+            COCO_CLASSES[89] = "toothbrush";
 
             class BridgeRTViewer {
                 constructor(url) {

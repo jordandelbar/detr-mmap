@@ -36,15 +36,21 @@ impl PostProcessor {
 
         for i in 0..num_queries {
             // Find max logit and its index (argmax for class_id)
+            // RF-DETR uses 1-indexed classes (0=background, 1=person, 2=bicycle, ...)
+            // Skip index 0 (background) and convert to 0-indexed COCO IDs
             let mut max_logit = f32::NEG_INFINITY;
-            let mut class_id = 0usize;
-            for c in 0..num_classes {
+            let mut class_idx = 1usize; // Start from 1 to skip background
+            for c in 1..num_classes {
                 let logit = logits[[0, i, c]];
                 if logit > max_logit {
                     max_logit = logit;
-                    class_id = c;
+                    class_idx = c;
                 }
             }
+
+            // Convert RF-DETR 1-indexed class to 0-indexed COCO class
+            // RF-DETR class 1 (person) -> COCO class 0 (person)
+            let class_id = class_idx - 1;
 
             // Apply sigmoid to max logit for confidence
             let confidence = sigmoid(max_logit);
@@ -145,9 +151,13 @@ mod tests {
 
     /// Helper to create RF-DETR format test data from logits
     /// Creates dets [1, n, 4] and logits [1, n, num_classes] arrays
+    ///
+    /// Note: RF-DETR uses 1-indexed classes (0=background, 1=person, 2=bicycle, ...)
+    /// The postprocessor converts these to 0-indexed COCO IDs (person=0, bicycle=1, ...)
+    /// So pass rfdetr_class = coco_class + 1
     fn create_rfdetr_test_data(
         boxes_cxcywh: Vec<[f32; 4]>,
-        class_logits: Vec<(usize, f32)>, // (class_id, logit_value) - sets that class high
+        class_logits: Vec<(usize, f32)>, // (rfdetr_class_idx, logit_value) - 1-indexed!
         num_classes: usize,
     ) -> (Array<f32, IxDyn>, Array<f32, IxDyn>) {
         let n = boxes_cxcywh.len();
@@ -162,8 +172,8 @@ mod tests {
         // Create logits array [1, n, num_classes]
         // Initialize with -10.0 (very low logit -> ~0 confidence after sigmoid)
         let mut logits_data = vec![-10.0f32; n * num_classes];
-        for (i, (class_id, logit_value)) in class_logits.iter().enumerate() {
-            logits_data[i * num_classes + class_id] = *logit_value;
+        for (i, (rfdetr_class_idx, logit_value)) in class_logits.iter().enumerate() {
+            logits_data[i * num_classes + rfdetr_class_idx] = *logit_value;
         }
         let logits = Array::from_shape_vec(IxDyn(&[1, n, num_classes]), logits_data).unwrap();
 
@@ -193,6 +203,7 @@ mod tests {
     fn test_confidence_threshold_filtering() {
         // RF-DETR: confidence comes from sigmoid(max_logit)
         // sigmoid(0) = 0.5, sigmoid(-0.04) ≈ 0.49, sigmoid(1.39) ≈ 0.8
+        // RF-DETR uses 1-indexed classes, output is 0-indexed COCO
 
         let boxes = vec![
             [0.1, 0.1, 0.1, 0.1], // Detection 1: will have ~0.49 confidence
@@ -200,10 +211,11 @@ mod tests {
             [0.3, 0.3, 0.1, 0.1], // Detection 3: will have ~0.8 confidence
         ];
 
+        // RF-DETR class indices (1=person, 2=bicycle, 3=car)
         let class_logits = vec![
-            (0, -0.04), // sigmoid(-0.04) ≈ 0.49
-            (1, 0.0),   // sigmoid(0) = 0.5
-            (2, 1.39),  // sigmoid(1.39) ≈ 0.8
+            (1, -0.04), // sigmoid(-0.04) ≈ 0.49, RF-DETR class 1 -> COCO class 0
+            (2, 0.0),   // sigmoid(0) = 0.5, RF-DETR class 2 -> COCO class 1
+            (3, 1.39),  // sigmoid(1.39) ≈ 0.8, RF-DETR class 3 -> COCO class 2
         ];
 
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
@@ -224,8 +236,9 @@ mod tests {
             detections[1].confidence > 0.75,
             "High confidence included"
         );
-        assert_eq!(detections[0].class_id, 1, "Class ID should match");
-        assert_eq!(detections[1].class_id, 2, "Class ID should match");
+        // Output is 0-indexed COCO: RF-DETR 2 -> COCO 1, RF-DETR 3 -> COCO 2
+        assert_eq!(detections[0].class_id, 1, "Class ID should match (bicycle)");
+        assert_eq!(detections[1].class_id, 2, "Class ID should match (car)");
     }
 
     /// Test coordinate inverse transformation with known values
@@ -249,7 +262,7 @@ mod tests {
         //   y2 = (307.2 - 64) / 0.64 = 380
 
         let boxes = vec![[0.5, 0.5, 0.2, 0.2]];
-        let class_logits = vec![(0, 5.0)]; // High confidence
+        let class_logits = vec![(1, 5.0)]; // High confidence, RF-DETR class 1 (person)
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
 
         let post_processor = test_postprocessor();
@@ -277,10 +290,11 @@ mod tests {
             [0.5, 0.5, 0.2, 0.2],   // Normal, within bounds
         ];
 
+        // RF-DETR class indices (1=person, 2=bicycle, 3=car)
         let class_logits = vec![
-            (0, 5.0),
             (1, 5.0),
             (2, 5.0),
+            (3, 5.0),
         ];
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
 
@@ -312,10 +326,11 @@ mod tests {
         ];
 
         // All logits negative -> sigmoid < 0.5
+        // RF-DETR class indices (1=person, 2=bicycle, 3=car)
         let class_logits = vec![
-            (0, -2.0), // sigmoid(-2) ≈ 0.12
-            (1, -1.0), // sigmoid(-1) ≈ 0.27
-            (2, -0.1), // sigmoid(-0.1) ≈ 0.48
+            (1, -2.0), // sigmoid(-2) ≈ 0.12
+            (2, -1.0), // sigmoid(-1) ≈ 0.27
+            (3, -0.1), // sigmoid(-0.1) ≈ 0.48
         ];
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
 
@@ -342,11 +357,16 @@ mod tests {
             [0.4, 0.4, 0.1, 0.1],
         ];
 
+        // RF-DETR 1-indexed class -> COCO 0-indexed class
+        // RF-DETR 1 (person) -> COCO 0
+        // RF-DETR 40 (bottle) -> COCO 39 (note: RF-DETR skips some indices like COCO)
+        // RF-DETR 80 (toothbrush) -> COCO 79
+        // RF-DETR 2 (bicycle) -> COCO 1
         let class_logits = vec![
-            (0, 5.0),  // person (class 0)
-            (39, 5.0), // bottle (class 39)
-            (79, 5.0), // toothbrush (class 79)
-            (1, 5.0),  // bicycle (class 1)
+            (1, 5.0),  // RF-DETR person (1) -> COCO person (0)
+            (40, 5.0), // RF-DETR bottle (40) -> COCO bottle (39)
+            (80, 5.0), // RF-DETR toothbrush (80) -> COCO toothbrush (79)
+            (2, 5.0),  // RF-DETR bicycle (2) -> COCO bicycle (1)
         ];
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
 
@@ -359,6 +379,7 @@ mod tests {
         assert_eq!(detections.len(), 4);
 
         // Verify COCO class IDs are correctly extracted via argmax
+        // Output is RF-DETR index - 1
         assert_eq!(detections[0].class_id, 0, "Person class (0)");
         assert_eq!(detections[1].class_id, 39, "Bottle class (39)");
         assert_eq!(detections[2].class_id, 79, "Toothbrush class (79)");
@@ -406,11 +427,13 @@ mod tests {
 
         // Create logits [1, 300, 91]
         // Initialize with -10.0 (very low confidence)
+        // RF-DETR uses 1-indexed classes: 1=person, 17=dog, 3=car
+        // Output will be 0-indexed COCO: 0=person, 16=dog, 2=car
         let mut logits_data = vec![-10.0f32; num_queries * num_classes];
-        // Set high logits for 3 detections
-        logits_data[0 * num_classes + 0] = 5.0;  // Person (class 0), high confidence
-        logits_data[1 * num_classes + 16] = 3.5; // Dog (class 16), medium-high confidence
-        logits_data[2 * num_classes + 2] = 2.5;  // Car (class 2), medium confidence
+        // Set high logits for 3 detections (using RF-DETR 1-indexed classes)
+        logits_data[0 * num_classes + 1] = 5.0;  // RF-DETR Person (1) -> COCO (0), high confidence
+        logits_data[1 * num_classes + 17] = 3.5; // RF-DETR Dog (17) -> COCO (16), medium-high confidence
+        logits_data[2 * num_classes + 3] = 2.5;  // RF-DETR Car (3) -> COCO (2), medium confidence
 
         let logits = Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
 
@@ -427,7 +450,7 @@ mod tests {
             "Should filter 300 queries to 3 detections"
         );
 
-        // Verify detections are in order
+        // Verify detections are in order (output is 0-indexed COCO)
         assert_eq!(detections[0].class_id, 0, "First detection: person");
         assert_eq!(detections[1].class_id, 16, "Second detection: dog");
         assert_eq!(detections[2].class_id, 2, "Third detection: car");

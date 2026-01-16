@@ -38,7 +38,7 @@ impl DetectionReader {
 
         if let Some(detections) = detection.detections() {
             for det in detections {
-                if det.class_id() == 1 {
+                if det.class_id() == 0 {
                     return Ok(true);
                 }
             }
