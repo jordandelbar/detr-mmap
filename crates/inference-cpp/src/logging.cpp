@@ -17,7 +17,7 @@ void Logger::init() {
 
 std::string Logger::get_timestamp() {
     auto now = std::chrono::system_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
     auto timer = std::chrono::system_clock::to_time_t(now);
     std::tm bt = *std::localtime(&timer);
 
@@ -30,11 +30,16 @@ std::string Logger::get_timestamp() {
 
 std::string Logger::level_to_string(LogLevel level) {
     switch (level) {
-        case LogLevel::DEBUG: return "DEBUG";
-        case LogLevel::INFO:  return "INFO";
-        case LogLevel::WARN:  return "WARN";
-        case LogLevel::ERROR: return "ERROR";
-        default: return "UNKNOWN";
+    case LogLevel::DEBUG:
+        return "DEBUG";
+    case LogLevel::INFO:
+        return "INFO";
+    case LogLevel::WARN:
+        return "WARN";
+    case LogLevel::ERROR:
+        return "ERROR";
+    default:
+        return "UNKNOWN";
     }
 }
 
@@ -42,17 +47,30 @@ std::string Logger::escape_json(const std::string& s) {
     std::ostringstream o;
     for (auto c = s.cbegin(); c != s.cend(); c++) {
         switch (*c) {
-        case '"': o << "\\\""; break;
-        case '\\': o << "\\\\"; break;
-        case '\b': o << "\\b"; break;
-        case '\f': o << "\\f"; break;
-        case '\n': o << "\\n"; break;
-        case '\r': o << "\\r"; break;
-        case '\t': o << "\\t"; break;
+        case '"':
+            o << "\\\"";
+            break;
+        case '\\':
+            o << "\\\\";
+            break;
+        case '\b':
+            o << "\\b";
+            break;
+        case '\f':
+            o << "\\f";
+            break;
+        case '\n':
+            o << "\\n";
+            break;
+        case '\r':
+            o << "\\r";
+            break;
+        case '\t':
+            o << "\\t";
+            break;
         default:
             if ('\x00' <= *c && *c <= '\x1f') {
-                o << "\\u"
-                  << std::hex << std::setw(4) << std::setfill('0') << (int)*c;
+                o << "\\u" << std::hex << std::setw(4) << std::setfill('0') << (int)*c;
             } else {
                 o << *c;
             }
@@ -64,17 +82,20 @@ std::string Logger::escape_json(const std::string& s) {
 void Logger::log(LogLevel level, const std::string& message, const std::string& target) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    std::ostream& stream = (level == LogLevel::ERROR || level == LogLevel::WARN) ? std::cerr : std::cout;
+    std::ostream& stream =
+        (level == LogLevel::ERROR || level == LogLevel::WARN) ? std::cerr : std::cout;
 
     if (format_ == LogFormat::JSON) {
         stream << "{"
                << "\"timestamp\":\"" << get_timestamp() << "\","
                << "\"level\":\"" << level_to_string(level) << "\","
-               << "\"message\":\"" << escape_json(message) << """";
+               << "\"message\":\"" << escape_json(message)
+               << ""
+                  "";
 
         if (!target.empty()) {
-            stream << ",\"target\":\"" << escape_json(target) << "\""
-;        }
+            stream << ",\"target\":\"" << escape_json(target) << "\"";
+        }
 
         stream << "}" << std::endl;
     } else {
@@ -82,16 +103,23 @@ void Logger::log(LogLevel level, const std::string& message, const std::string& 
         // Use ANSI colors for levels
         std::string color_code;
         switch (level) {
-            case LogLevel::DEBUG: color_code = "\033[34m"; break; // Blue
-            case LogLevel::INFO:  color_code = "\033[32m"; break; // Green
-            case LogLevel::WARN:  color_code = "\033[33m"; break; // Yellow
-            case LogLevel::ERROR: color_code = "\033[31m"; break; // Red
+        case LogLevel::DEBUG:
+            color_code = "\033[34m";
+            break; // Blue
+        case LogLevel::INFO:
+            color_code = "\033[32m";
+            break; // Green
+        case LogLevel::WARN:
+            color_code = "\033[33m";
+            break; // Yellow
+        case LogLevel::ERROR:
+            color_code = "\033[31m";
+            break; // Red
         }
         const std::string reset_code = "\033[0m";
 
-        stream << get_timestamp() << " "
-               << color_code << level_to_string(level) << reset_code << " "
-               << message << std::endl;
+        stream << get_timestamp() << " " << color_code << level_to_string(level) << reset_code
+               << " " << message << std::endl;
     }
 }
 

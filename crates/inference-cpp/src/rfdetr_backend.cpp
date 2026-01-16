@@ -18,59 +18,58 @@ RFDetrBackend::RFDetrBackend() {}
 
 RFDetrBackend::~RFDetrBackend() {
     free_buffers();
-    if (context_) delete context_;
-    if (engine_) delete engine_;
-    if (runtime_) delete runtime_;
+    if (context_)
+        delete context_;
+    if (engine_)
+        delete engine_;
+    if (runtime_)
+        delete runtime_;
 }
 
 RFDetrBackend::RFDetrBackend(RFDetrBackend&& other) noexcept
-    : runtime_(other.runtime_),
-      engine_(other.engine_),
-      context_(other.context_),
-      d_input_(other.d_input_),
-      d_dets_(other.d_dets_),
-      d_logits_(other.d_logits_),
-      input_size_(other.input_size_),
-      dets_size_(other.dets_size_),
-      logits_size_(other.logits_size_),
-      input_height_(other.input_height_),
-      input_width_(other.input_width_),
-      num_queries_(other.num_queries_),
+    : runtime_(other.runtime_), engine_(other.engine_), context_(other.context_),
+      d_input_(other.d_input_), d_dets_(other.d_dets_), d_logits_(other.d_logits_),
+      input_size_(other.input_size_), dets_size_(other.dets_size_),
+      logits_size_(other.logits_size_), input_height_(other.input_height_),
+      input_width_(other.input_width_), num_queries_(other.num_queries_),
       num_classes_(other.num_classes_) {
-    other.runtime_ = nullptr;
-    other.engine_ = nullptr;
-    other.context_ = nullptr;
-    other.d_input_ = nullptr;
-    other.d_dets_ = nullptr;
+    other.runtime_  = nullptr;
+    other.engine_   = nullptr;
+    other.context_  = nullptr;
+    other.d_input_  = nullptr;
+    other.d_dets_   = nullptr;
     other.d_logits_ = nullptr;
 }
 
 RFDetrBackend& RFDetrBackend::operator=(RFDetrBackend&& other) noexcept {
     if (this != &other) {
         free_buffers();
-        if (context_) delete context_;
-        if (engine_) delete engine_;
-        if (runtime_) delete runtime_;
+        if (context_)
+            delete context_;
+        if (engine_)
+            delete engine_;
+        if (runtime_)
+            delete runtime_;
 
-        runtime_ = other.runtime_;
-        engine_ = other.engine_;
-        context_ = other.context_;
-        d_input_ = other.d_input_;
-        d_dets_ = other.d_dets_;
-        d_logits_ = other.d_logits_;
-        input_size_ = other.input_size_;
-        dets_size_ = other.dets_size_;
-        logits_size_ = other.logits_size_;
+        runtime_      = other.runtime_;
+        engine_       = other.engine_;
+        context_      = other.context_;
+        d_input_      = other.d_input_;
+        d_dets_       = other.d_dets_;
+        d_logits_     = other.d_logits_;
+        input_size_   = other.input_size_;
+        dets_size_    = other.dets_size_;
+        logits_size_  = other.logits_size_;
         input_height_ = other.input_height_;
-        input_width_ = other.input_width_;
-        num_queries_ = other.num_queries_;
-        num_classes_ = other.num_classes_;
+        input_width_  = other.input_width_;
+        num_queries_  = other.num_queries_;
+        num_classes_  = other.num_classes_;
 
-        other.runtime_ = nullptr;
-        other.engine_ = nullptr;
-        other.context_ = nullptr;
-        other.d_input_ = nullptr;
-        other.d_dets_ = nullptr;
+        other.runtime_  = nullptr;
+        other.engine_   = nullptr;
+        other.context_  = nullptr;
+        other.d_input_  = nullptr;
+        other.d_dets_   = nullptr;
         other.d_logits_ = nullptr;
     }
     return *this;
@@ -148,19 +147,18 @@ bool RFDetrBackend::allocate_buffers() {
 }
 
 void RFDetrBackend::free_buffers() {
-    if (d_input_) cudaFree(d_input_);
-    if (d_dets_) cudaFree(d_dets_);
-    if (d_logits_) cudaFree(d_logits_);
-    d_input_ = nullptr;
-    d_dets_ = nullptr;
+    if (d_input_)
+        cudaFree(d_input_);
+    if (d_dets_)
+        cudaFree(d_dets_);
+    if (d_logits_)
+        cudaFree(d_logits_);
+    d_input_  = nullptr;
+    d_dets_   = nullptr;
     d_logits_ = nullptr;
 }
 
-bool RFDetrBackend::infer_raw(
-    const float* images,
-    float* out_dets,
-    float* out_logits
-) {
+bool RFDetrBackend::infer_raw(const float* images, float* out_dets, float* out_logits) {
     // Copy input to device
     if (cudaMemcpy(d_input_, images, input_size_, cudaMemcpyHostToDevice) != cudaSuccess) {
         LOG_ERROR("Failed to copy input to device");
@@ -170,9 +168,9 @@ bool RFDetrBackend::infer_raw(
     // Set input/output bindings
     // RF-DETR has: input -> dets, labels (logits)
     void* bindings[] = {
-        d_input_,   // input
-        d_dets_,    // dets
-        d_logits_   // labels (logits)
+        d_input_, // input
+        d_dets_,  // dets
+        d_logits_ // labels (logits)
     };
 
     // Execute inference

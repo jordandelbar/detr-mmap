@@ -1,26 +1,18 @@
 #pragma once
 
-#include <string>
-#include <iostream>
-#include <sstream>
 #include <chrono>
-#include <iomanip>
-#include <mutex>
 #include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <mutex>
+#include <sstream>
+#include <string>
 
 namespace bridge {
 
-enum class LogLevel {
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR
-};
+enum class LogLevel { DEBUG, INFO, WARN, ERROR };
 
-enum class LogFormat {
-    PRETTY,
-    JSON
-};
+enum class LogFormat { PRETTY, JSON };
 
 class Logger {
 public:
@@ -28,7 +20,7 @@ public:
     static void log(LogLevel level, const std::string& message, const std::string& target = "");
 
     // Helper to log with fields (simplified for manual JSON/string building)
-    template<typename... Args>
+    template <typename... Args>
     static void log_structured(LogLevel level, const std::string& message, Args... args) {
         log(level, message); // Simplified for now
     }
