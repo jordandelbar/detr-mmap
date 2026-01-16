@@ -1,5 +1,5 @@
 use crate::{
-    backend::InferenceBackend,
+    backend::{InferenceBackend, InferenceOutput},
     config::InferenceConfig,
     processing::{
         post::{PostProcessor, TransformParams},
@@ -8,7 +8,6 @@ use crate::{
 };
 use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType};
 use common::wait_for_resource;
-use ndarray::Array;
 use std::thread;
 use std::time::Duration;
 
@@ -21,9 +20,7 @@ pub struct InferenceService<B: InferenceBackend> {
 
 impl<B: InferenceBackend> InferenceService<B> {
     pub fn new(backend: B, config: InferenceConfig) -> Self {
-        let postprocessor = PostProcessor {
-            confidence_threshold: config.confidence_threshold,
-        };
+        let postprocessor = PostProcessor::new(config.confidence_threshold);
         let preprocessor = PreProcessor::new(config.input_size);
         Self {
             backend,
@@ -145,29 +142,22 @@ impl<B: InferenceBackend> InferenceService<B> {
             .preprocessor
             .preprocess_frame(pixels, width, height, format)?;
 
-        let orig_sizes = Array::from_shape_vec(
-            (1, 2),
-            vec![
-                self.config.input_size.1 as i64,
-                self.config.input_size.0 as i64,
-            ],
-        )?
-        .into_dyn();
-
         tracing::trace!(frame_num, "Running inference");
-        let output = self.backend.infer(&preprocessed, &orig_sizes)?;
+        let InferenceOutput { dets, logits } = self.backend.infer(&preprocessed)?;
 
         let transform = TransformParams {
             orig_width: width,
             orig_height: height,
+            input_width: self.config.input_size.0,
+            input_height: self.config.input_size.1,
             scale,
             offset_x,
             offset_y,
         };
+
         let detections = self.postprocessor.parse_detections(
-            &output.labels.view(),
-            &output.boxes.view(),
-            &output.scores.view(),
+            &dets.view(),
+            &logits.view(),
             &transform,
         )?;
 

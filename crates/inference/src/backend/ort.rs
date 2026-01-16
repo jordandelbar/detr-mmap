@@ -45,7 +45,7 @@ impl OrtBackend {
 
         let session = builder.commit_from_file(path)?;
 
-        tracing::info!("Model loaded from {}", path);
+        tracing::info!("RF-DETR model loaded from {}", path);
         Ok(Self { session })
     }
 }
@@ -58,21 +58,18 @@ impl InferenceBackend for OrtBackend {
     fn infer(
         &mut self,
         images: &Array<f32, IxDyn>,
-        orig_sizes: &Array<i64, IxDyn>,
     ) -> anyhow::Result<InferenceOutput> {
+        // RF-DETR: input -> dets, labels (logits)
         let outputs = self.session.run(ort::inputs![
-            "images" => TensorRef::from_array_view(images.view())?,
-            "orig_target_sizes" => TensorRef::from_array_view(orig_sizes.view())?
+            "input" => TensorRef::from_array_view(images.view())?
         ])?;
 
-        let labels = outputs["labels"].try_extract_array()?;
-        let boxes = outputs["boxes"].try_extract_array()?;
-        let scores = outputs["scores"].try_extract_array()?;
+        let dets = outputs["dets"].try_extract_array()?;
+        let logits = outputs["labels"].try_extract_array()?;
 
         Ok(InferenceOutput {
-            labels: labels.into_owned(),
-            boxes: boxes.into_owned(),
-            scores: scores.into_owned(),
+            dets: dets.into_owned(),
+            logits: logits.into_owned(),
         })
     }
 }

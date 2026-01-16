@@ -1,5 +1,8 @@
 use common::{Environment, get_env};
 
+/// RF-DETR default input size
+pub const DEFAULT_INPUT_SIZE: (u32, u32) = (512, 512);
+
 #[derive(Debug, Clone)]
 pub struct InferenceConfig {
     pub environment: Environment,
@@ -14,11 +17,11 @@ impl InferenceConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             environment: Environment::from_env(),
-            model_path: get_env(
-                "MODEL_PATH",
-                "/home/jdelbar/Documents/projects/bridge-rt/models/model_fp16.engine".to_string(),
+            model_path: get_env("MODEL_PATH", "/models/rfdetr_S/rfdetr.engine".to_string()),
+            input_size: (
+                get_env("INPUT_WIDTH", DEFAULT_INPUT_SIZE.0),
+                get_env("INPUT_HEIGHT", DEFAULT_INPUT_SIZE.1),
             ),
-            input_size: (get_env("INPUT_WIDTH", 640), get_env("INPUT_HEIGHT", 640)),
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
             confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.5),
         })
@@ -29,8 +32,8 @@ impl InferenceConfig {
     pub fn test_default() -> Self {
         Self {
             environment: Environment::Development,
-            model_path: "/models/model.onnx".to_string(),
-            input_size: (640, 640),
+            model_path: "/models/rfdetr.onnx".to_string(),
+            input_size: DEFAULT_INPUT_SIZE,
             poll_interval_ms: 100,
             confidence_threshold: 0.5,
         }

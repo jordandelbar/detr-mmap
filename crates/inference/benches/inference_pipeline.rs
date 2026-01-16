@@ -1,7 +1,7 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use flatbuffers::FlatBufferBuilder;
 use inference::{
-    backend::InferenceBackend,
+    backend::{InferenceBackend, InferenceOutput},
     processing::{post::PostProcessor, pre::PreProcessor},
 };
 use ndarray::{Array, IxDyn};
@@ -40,33 +40,33 @@ fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
     builder.finished_data().to_vec()
 }
 
-/// Create mock RT-DETR output with N high-confidence detections
-fn create_mock_rtdetr_output(
+/// Create mock RF-DETR output with N high-confidence detections
+fn create_mock_rfdetr_output(
     num_queries: usize,
+    num_classes: usize,
     num_detections: usize,
-) -> (
-    ndarray::ArrayD<i64>,
-    ndarray::ArrayD<f32>,
-    ndarray::ArrayD<f32>,
-) {
-    let mut label_data = vec![0i64; num_queries];
-    let mut box_data = vec![0.0f32; num_queries * 4];
-    let mut score_data = vec![0.01f32; num_queries];
+) -> (ndarray::ArrayD<f32>, ndarray::ArrayD<f32>) {
+    // dets: [1, num_queries, 4] - boxes in cxcywh format (normalized 0-1)
+    let mut dets_data = vec![0.0f32; num_queries * 4];
+    // logits: [1, num_queries, num_classes] - class logits
+    let mut logits_data = vec![-10.0f32; num_queries * num_classes]; // Low confidence by default
 
     for i in 0..num_detections.min(num_queries) {
-        label_data[i] = (i % 80) as i64;
-        box_data[i * 4] = 100.0;
-        box_data[i * 4 + 1] = 100.0;
-        box_data[i * 4 + 2] = 200.0;
-        box_data[i * 4 + 3] = 200.0;
-        score_data[i] = 0.9;
+        // Set box coordinates (normalized cxcywh)
+        dets_data[i * 4] = 0.3; // cx
+        dets_data[i * 4 + 1] = 0.3; // cy
+        dets_data[i * 4 + 2] = 0.2; // w
+        dets_data[i * 4 + 3] = 0.2; // h
+
+        // Set high logit for one class (will result in high confidence after sigmoid)
+        let class_id = i % num_classes;
+        logits_data[i * num_classes + class_id] = 5.0; // sigmoid(5) ≈ 0.99
     }
 
-    let labels = Array::from_shape_vec(IxDyn(&[1, num_queries]), label_data).unwrap();
-    let boxes = Array::from_shape_vec(IxDyn(&[1, num_queries, 4]), box_data).unwrap();
-    let scores = Array::from_shape_vec(IxDyn(&[1, num_queries]), score_data).unwrap();
+    let dets = Array::from_shape_vec(IxDyn(&[1, num_queries, 4]), dets_data).unwrap();
+    let logits = Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
 
-    (labels, boxes, scores)
+    (dets, logits)
 }
 
 fn benchmark_preprocessing(c: &mut Criterion) {
@@ -108,15 +108,17 @@ fn benchmark_postprocessing(c: &mut Criterion) {
     let detection_counts = [0, 5, 20, 50];
 
     for num_detections in detection_counts.iter() {
-        let (labels, boxes, scores) = create_mock_rtdetr_output(300, *num_detections);
+        let (dets, logits) = create_mock_rfdetr_output(300, 91, *num_detections);
 
         group.bench_with_input(
             BenchmarkId::new("parse_detections", num_detections),
-            &(labels, boxes, scores),
-            |b, (labels, boxes, scores)| {
+            &(dets, logits),
+            |b, (dets, logits)| {
                 let transform = inference::processing::post::TransformParams {
                     orig_width: 1920,
                     orig_height: 1080,
+                    input_width: 512,
+                    input_height: 512,
                     scale: 1.0,
                     offset_x: 0.0,
                     offset_y: 0.0,
@@ -124,9 +126,8 @@ fn benchmark_postprocessing(c: &mut Criterion) {
                 b.iter(|| {
                     post_processor
                         .parse_detections(
-                            black_box(&labels.view()),
-                            black_box(&boxes.view()),
-                            black_box(&scores.view()),
+                            black_box(&dets.view()),
+                            black_box(&logits.view()),
                             black_box(&transform),
                         )
                         .unwrap()
@@ -183,17 +184,12 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
 fn benchmark_inference(c: &mut Criterion) {
     let mut group = c.benchmark_group("inference");
 
-    // Create preprocessed input (640x640) - matches RT-DETR input
-    let preprocessed = Array::zeros(IxDyn(&[1, 3, 640, 640]));
-
-    // RT-DETR expects original target sizes
-    let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-        .unwrap()
-        .into_dyn();
+    // Create preprocessed input (512x512) - matches RF-DETR input
+    let preprocessed = Array::zeros(IxDyn(&[1, 3, 512, 512]));
 
     #[cfg(feature = "ort-backend")]
     {
-        let onnx_model_path = "../../models/model.onnx";
+        let onnx_model_path = "../../models/rfdetr_S/rfdetr.onnx";
 
         if Path::new(onnx_model_path).exists() {
             // Benchmark CPU execution provider
@@ -202,11 +198,7 @@ fn benchmark_inference(c: &mut Criterion) {
                 inference::backend::ort::ExecutionProvider::Cpu,
             ) {
                 group.bench_function("ort_cpu", |b| {
-                    b.iter(|| {
-                        cpu_backend
-                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                            .unwrap()
-                    });
+                    b.iter(|| cpu_backend.infer(black_box(&preprocessed)).unwrap());
                 });
             } else {
                 eprintln!("Failed to load ONNX model with CPU provider");
@@ -218,11 +210,7 @@ fn benchmark_inference(c: &mut Criterion) {
                 inference::backend::ort::ExecutionProvider::Cuda,
             ) {
                 group.bench_function("ort_cuda", |b| {
-                    b.iter(|| {
-                        cuda_backend
-                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                            .unwrap()
-                    });
+                    b.iter(|| cuda_backend.infer(black_box(&preprocessed)).unwrap());
                 });
             } else {
                 eprintln!("Failed to load ONNX model with CUDA provider");
@@ -237,16 +225,12 @@ fn benchmark_inference(c: &mut Criterion) {
 
     #[cfg(feature = "trt-backend")]
     {
-        let trt_model_path = "../../models/model_fp16.engine";
+        let trt_model_path = "../../models/rfdetr_S/rfdetr.engine";
 
         if Path::new(trt_model_path).exists() {
             if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
                 group.bench_function("trt", |b| {
-                    b.iter(|| {
-                        trt_backend
-                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                            .unwrap()
-                    });
+                    b.iter(|| trt_backend.infer(black_box(&preprocessed)).unwrap());
                 });
             } else {
                 eprintln!("Failed to load TensorRT model");
@@ -271,12 +255,12 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
     let frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
     let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-    let mut preprocessor = PreProcessor::new((640, 640));
+    let mut preprocessor = PreProcessor::new((512, 512));
     let post_processor = PostProcessor::new(0.5);
 
     #[cfg(feature = "ort-backend")]
     {
-        let onnx_model_path = "../../models/model.onnx";
+        let onnx_model_path = "../../models/rfdetr_S/rfdetr.onnx";
 
         if Path::new(onnx_model_path).exists() {
             // CPU pipeline
@@ -298,23 +282,20 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                         let transform = inference::processing::post::TransformParams {
                             orig_width: 1920,
                             orig_height: 1080,
+                            input_width: 512,
+                            input_height: 512,
                             scale,
                             offset_x,
                             offset_y,
                         };
 
-                        let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-                            .unwrap()
-                            .into_dyn();
-                        let outputs = cpu_backend
-                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                            .unwrap();
+                        let InferenceOutput { dets, logits } =
+                            cpu_backend.infer(black_box(&preprocessed)).unwrap();
 
                         post_processor
                             .parse_detections(
-                                black_box(&outputs.labels.view()),
-                                black_box(&outputs.boxes.view()),
-                                black_box(&outputs.scores.view()),
+                                black_box(&dets.view()),
+                                black_box(&logits.view()),
                                 black_box(&transform),
                             )
                             .unwrap()
@@ -343,23 +324,20 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                         let transform = inference::processing::post::TransformParams {
                             orig_width: 1920,
                             orig_height: 1080,
+                            input_width: 512,
+                            input_height: 512,
                             scale,
                             offset_x,
                             offset_y,
                         };
 
-                        let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-                            .unwrap()
-                            .into_dyn();
-                        let outputs = cuda_backend
-                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                            .unwrap();
+                        let InferenceOutput { dets, logits } =
+                            cuda_backend.infer(black_box(&preprocessed)).unwrap();
 
                         post_processor
                             .parse_detections(
-                                black_box(&outputs.labels.view()),
-                                black_box(&outputs.boxes.view()),
-                                black_box(&outputs.scores.view()),
+                                black_box(&dets.view()),
+                                black_box(&logits.view()),
                                 black_box(&transform),
                             )
                             .unwrap()
@@ -378,7 +356,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
 
     #[cfg(feature = "trt-backend")]
     {
-        let trt_model_path = "../../models/model_fp16.engine";
+        let trt_model_path = "../../models/rfdetr_S/rfdetr.engine";
 
         if Path::new(trt_model_path).exists() {
             if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
@@ -396,23 +374,20 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                         let transform = inference::processing::post::TransformParams {
                             orig_width: 1920,
                             orig_height: 1080,
+                            input_width: 512,
+                            input_height: 512,
                             scale,
                             offset_x,
                             offset_y,
                         };
 
-                        let orig_sizes = Array::from_shape_vec((1, 2), vec![640i64, 640i64])
-                            .unwrap()
-                            .into_dyn();
-                        let outputs = trt_backend
-                            .infer(black_box(&preprocessed), black_box(&orig_sizes))
-                            .unwrap();
+                        let InferenceOutput { dets, logits } =
+                            trt_backend.infer(black_box(&preprocessed)).unwrap();
 
                         post_processor
                             .parse_detections(
-                                black_box(&outputs.labels.view()),
-                                black_box(&outputs.boxes.view()),
-                                black_box(&outputs.scores.view()),
+                                black_box(&dets.view()),
+                                black_box(&logits.view()),
                                 black_box(&transform),
                             )
                             .unwrap()

@@ -13,12 +13,11 @@ pub trait InferenceBackend {
     fn infer(
         &mut self,
         images: &Array<f32, IxDyn>,
-        orig_sizes: &Array<i64, IxDyn>,
     ) -> anyhow::Result<InferenceOutput>;
 }
 
+/// RF-DETR inference output
 pub struct InferenceOutput {
-    pub labels: ndarray::ArrayD<i64>,
-    pub boxes: ndarray::ArrayD<f32>,
-    pub scores: ndarray::ArrayD<f32>,
+    pub dets: ndarray::ArrayD<f32>,    // [1, 300, 4] cxcywh (normalized 0-1)
+    pub logits: ndarray::ArrayD<f32>,  // [1, 300, num_classes] class logits
 }

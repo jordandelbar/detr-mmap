@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 fn main() {
-    if std::env::var("CARGO_FEATURE_TRT_BACKEND").is_ok() {
+    let build_trt = std::env::var("CARGO_FEATURE_TRT_BACKEND").is_ok();
+
+    if build_trt {
         // C++ source files
         let cpp_root = PathBuf::from("../inference-cpp");
         let src_dir = cpp_root.join("src");
@@ -31,17 +33,26 @@ fn main() {
             trt_lib = PathBuf::from(&trt_root).join("lib64");
         }
 
-        // Build the C++ bridge
+        // Build RF-DETR TensorRT backend
         cxx_build::bridge("src/backend/trt.rs")
-            .file(src_dir.join("tensorrt_backend.cpp"))
+            .file(src_dir.join("rfdetr_backend.cpp"))
             .file(src_dir.join("logging.cpp"))
             .include(&include_dir)
             .include(&cuda_include)
             .include(&trt_include)
             .flag_if_supported("-std=c++17")
-            // Suppress unused parameter warnings that might arise from the bridge
             .flag_if_supported("-Wno-unused-parameter")
             .compile("inference-trt");
+
+        println!(
+            "cargo:rerun-if-changed={}",
+            src_dir.join("rfdetr_backend.cpp").display()
+        );
+        println!(
+            "cargo:rerun-if-changed={}",
+            include_dir.join("rfdetr_backend.hpp").display()
+        );
+        println!("cargo:rerun-if-changed=src/backend/trt.rs");
 
         // Link libraries
         println!("cargo:rustc-link-search=native={}", cuda_lib.display());
@@ -49,18 +60,5 @@ fn main() {
 
         println!("cargo:rustc-link-lib=cudart");
         println!("cargo:rustc-link-lib=nvinfer");
-        // stdc++ is usually linked automatically by cxx/cc, but good to be safe if not
-        // println!("cargo:rustc-link-lib=stdc++");
-
-        // Rerun if C++ files change
-        println!(
-            "cargo:rerun-if-changed={}",
-            src_dir.join("tensorrt_backend.cpp").display()
-        );
-        println!(
-            "cargo:rerun-if-changed={}",
-            include_dir.join("tensorrt_backend.hpp").display()
-        );
-        println!("cargo:rerun-if-changed=src/backend/trt.rs");
     }
 }

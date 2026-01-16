@@ -10,7 +10,7 @@ spec:
         - name: inference
           env:
             - name: MODEL_PATH
-              value: "/models/model_fp16.engine"
+              value: "/models/rfdetr_S/rfdetr.engine"
           resources:
             limits:
               nvidia.com/gpu: 1

@@ -3,6 +3,8 @@ use bridge::types::Detection;
 pub struct TransformParams {
     pub orig_width: u32,
     pub orig_height: u32,
+    pub input_width: u32,
+    pub input_height: u32,
     pub scale: f32,
     pub offset_x: f32,
     pub offset_y: f32,
@@ -19,35 +21,64 @@ impl PostProcessor {
         }
     }
 
+    /// Parse detections from RF-DETR output format
+    /// RF-DETR outputs: dets (boxes in cxcywh normalized), labels (logits per class)
     pub fn parse_detections(
         &self,
-        labels: &ndarray::ArrayViewD<i64>,
-        boxes: &ndarray::ArrayViewD<f32>,
-        scores: &ndarray::ArrayViewD<f32>,
+        dets: &ndarray::ArrayViewD<f32>,   // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)
+        logits: &ndarray::ArrayViewD<f32>, // [1, 300, 91] - class logits
         transform: &TransformParams,
     ) -> anyhow::Result<Vec<Detection>> {
         let mut detections = Vec::new();
 
-        let num_queries = labels.shape()[1];
+        let num_queries = dets.shape()[1];
+        let num_classes = logits.shape()[2];
 
         for i in 0..num_queries {
-            let class_id = labels[[0, i]];
-            let confidence = scores[[0, i]];
+            // Find max logit and its index (argmax for class_id)
+            let mut max_logit = f32::NEG_INFINITY;
+            let mut class_id = 0usize;
+            for c in 0..num_classes {
+                let logit = logits[[0, i, c]];
+                if logit > max_logit {
+                    max_logit = logit;
+                    class_id = c;
+                }
+            }
+
+            // Apply sigmoid to max logit for confidence
+            let confidence = sigmoid(max_logit);
 
             if confidence < self.confidence_threshold {
                 continue;
             }
 
-            let x1 = ((boxes[[0, i, 0]] - transform.offset_x) / transform.scale)
+            // Get box in cxcywh format (normalized 0-1)
+            let cx = dets[[0, i, 0]];
+            let cy = dets[[0, i, 1]];
+            let w = dets[[0, i, 2]];
+            let h = dets[[0, i, 3]];
+
+            // Convert cxcywh to xyxy (still normalized)
+            let (x1_norm, y1_norm, x2_norm, y2_norm) = cxcywh_to_xyxy(cx, cy, w, h);
+
+            // Denormalize to input_size (e.g., 512x512)
+            let x1_input = x1_norm * transform.input_width as f32;
+            let y1_input = y1_norm * transform.input_height as f32;
+            let x2_input = x2_norm * transform.input_width as f32;
+            let y2_input = y2_norm * transform.input_height as f32;
+
+            // Apply inverse letterbox transform to original image coordinates
+            let x1 = ((x1_input - transform.offset_x) / transform.scale)
                 .max(0.0)
                 .min(transform.orig_width as f32);
-            let y1 = ((boxes[[0, i, 1]] - transform.offset_y) / transform.scale)
+            let y1 = ((y1_input - transform.offset_y) / transform.scale)
                 .max(0.0)
                 .min(transform.orig_height as f32);
-            let x2 = ((boxes[[0, i, 2]] - transform.offset_x) / transform.scale)
+            let x2 = ((x2_input - transform.offset_x) / transform.scale)
                 .max(0.0)
                 .min(transform.orig_width as f32);
-            let y2 = ((boxes[[0, i, 3]] - transform.offset_y) / transform.scale)
+            let y2 = ((y2_input - transform.offset_y) / transform.scale)
                 .max(0.0)
                 .min(transform.orig_height as f32);
 
@@ -65,129 +96,199 @@ impl PostProcessor {
     }
 }
 
+/// Sigmoid activation function
+#[inline]
+fn sigmoid(x: f32) -> f32 {
+    1.0 / (1.0 + (-x).exp())
+}
+
+/// Convert bounding box from center-width-height format to corner format
+#[inline]
+fn cxcywh_to_xyxy(cx: f32, cy: f32, w: f32, h: f32) -> (f32, f32, f32, f32) {
+    let x1 = cx - w / 2.0;
+    let y1 = cy - h / 2.0;
+    let x2 = cx + w / 2.0;
+    let y2 = cy + h / 2.0;
+    (x1, y1, x2, y2)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ndarray::{Array, IxDyn};
 
+    /// Helper to create a default RF-DETR PostProcessor for tests
+    fn test_postprocessor() -> PostProcessor {
+        PostProcessor {
+            confidence_threshold: 0.5,
+        }
+    }
+
+    /// Helper to create a default TransformParams for 512x512 RF-DETR
+    fn test_transform(
+        orig_width: u32,
+        orig_height: u32,
+        scale: f32,
+        offset_x: f32,
+        offset_y: f32,
+    ) -> TransformParams {
+        TransformParams {
+            orig_width,
+            orig_height,
+            input_width: 512,
+            input_height: 512,
+            scale,
+            offset_x,
+            offset_y,
+        }
+    }
+
+    /// Helper to create RF-DETR format test data from logits
+    /// Creates dets [1, n, 4] and logits [1, n, num_classes] arrays
+    fn create_rfdetr_test_data(
+        boxes_cxcywh: Vec<[f32; 4]>,
+        class_logits: Vec<(usize, f32)>, // (class_id, logit_value) - sets that class high
+        num_classes: usize,
+    ) -> (Array<f32, IxDyn>, Array<f32, IxDyn>) {
+        let n = boxes_cxcywh.len();
+
+        // Create dets array [1, n, 4]
+        let mut dets_data = Vec::with_capacity(n * 4);
+        for box_coords in &boxes_cxcywh {
+            dets_data.extend_from_slice(box_coords);
+        }
+        let dets = Array::from_shape_vec(IxDyn(&[1, n, 4]), dets_data).unwrap();
+
+        // Create logits array [1, n, num_classes]
+        // Initialize with -10.0 (very low logit -> ~0 confidence after sigmoid)
+        let mut logits_data = vec![-10.0f32; n * num_classes];
+        for (i, (class_id, logit_value)) in class_logits.iter().enumerate() {
+            logits_data[i * num_classes + class_id] = *logit_value;
+        }
+        let logits = Array::from_shape_vec(IxDyn(&[1, n, num_classes]), logits_data).unwrap();
+
+        (dets, logits)
+    }
+
+    /// Test sigmoid function
+    #[test]
+    fn test_sigmoid() {
+        assert!((sigmoid(0.0) - 0.5).abs() < 1e-6);
+        assert!(sigmoid(10.0) > 0.99);
+        assert!(sigmoid(-10.0) < 0.01);
+    }
+
+    /// Test cxcywh to xyxy conversion
+    #[test]
+    fn test_cxcywh_to_xyxy() {
+        let (x1, y1, x2, y2) = cxcywh_to_xyxy(0.5, 0.5, 0.4, 0.2);
+        assert!((x1 - 0.3).abs() < 1e-6);
+        assert!((y1 - 0.4).abs() < 1e-6);
+        assert!((x2 - 0.7).abs() < 1e-6);
+        assert!((y2 - 0.6).abs() < 1e-6);
+    }
+
     /// Test that confidence threshold filters detections correctly
-    /// This is critical: 0.5 is the boundary, must be exact
     #[test]
     fn test_confidence_threshold_filtering() {
-        // Create test data with 3 detections at different confidence levels
-        let labels = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0, 1, 2]).unwrap();
-        let boxes = Array::from_shape_vec(
-            IxDyn(&[1, 3, 4]),
-            vec![
-                // Detection 1: confidence 0.49 (should be filtered out)
-                10.0, 10.0, 50.0, 50.0,
-                // Detection 2: confidence 0.5 (should be included - boundary case)
-                20.0, 20.0, 60.0, 60.0,
-                // Detection 3: confidence 0.8 (should be included)
-                30.0, 30.0, 70.0, 70.0,
-            ],
-        )
-        .unwrap();
-        let scores = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0.49, 0.5, 0.8]).unwrap();
+        // RF-DETR: confidence comes from sigmoid(max_logit)
+        // sigmoid(0) = 0.5, sigmoid(-0.04) ≈ 0.49, sigmoid(1.39) ≈ 0.8
 
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 100,
-            orig_height: 100,
-            scale: 1.0,
-            offset_x: 0.0,
-            offset_y: 0.0,
-        };
+        let boxes = vec![
+            [0.1, 0.1, 0.1, 0.1], // Detection 1: will have ~0.49 confidence
+            [0.2, 0.2, 0.1, 0.1], // Detection 2: will have 0.5 confidence (boundary)
+            [0.3, 0.3, 0.1, 0.1], // Detection 3: will have ~0.8 confidence
+        ];
+
+        let class_logits = vec![
+            (0, -0.04), // sigmoid(-0.04) ≈ 0.49
+            (1, 0.0),   // sigmoid(0) = 0.5
+            (2, 1.39),  // sigmoid(1.39) ≈ 0.8
+        ];
+
+        let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
+
+        let post_processor = test_postprocessor();
+        let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         // Should have 2 detections (0.5 and 0.8), not 0.49
         assert_eq!(detections.len(), 2, "Should filter out confidence < 0.5");
-        assert_eq!(detections[0].confidence, 0.5, "Boundary case: 0.5 included");
-        assert_eq!(detections[1].confidence, 0.8, "High confidence included");
+        assert!(
+            (detections[0].confidence - 0.5).abs() < 0.01,
+            "Boundary case: 0.5 included"
+        );
+        assert!(
+            detections[1].confidence > 0.75,
+            "High confidence included"
+        );
         assert_eq!(detections[0].class_id, 1, "Class ID should match");
         assert_eq!(detections[1].class_id, 2, "Class ID should match");
     }
 
     /// Test coordinate inverse transformation with known values
-    /// Formula: original_coord = (model_coord - offset) / scale
+    /// RF-DETR uses normalized cxcywh coordinates
     #[test]
     fn test_coordinate_inverse_transformation() {
         // Test scenario:
         // Original image: 800x600
-        // Letterboxed to: 640x640
-        // Scale = 640/800 = 0.8
-        // Offset X = (640 - 800*0.8) / 2 = 0
-        // Offset Y = (640 - 600*0.8) / 2 = 80
-        //
-        // Model outputs box at: (100, 150, 200, 250) in 640x640 space
-        // Original coords should be:
-        //   x1 = (100 - 0) / 0.8 = 125
-        //   y1 = (150 - 80) / 0.8 = 87.5
-        //   x2 = (200 - 0) / 0.8 = 250
-        //   y2 = (250 - 80) / 0.8 = 212.5
+        // Input size: 512x512
+        // Scale = min(512/800, 512/600) = 0.64 (width-limited)
+        // New size: 512x384
+        // Offset X = 0, Offset Y = (512-384)/2 = 64
 
-        let labels = Array::from_shape_vec(IxDyn(&[1, 1]), vec![0]).unwrap();
-        let boxes =
-            Array::from_shape_vec(IxDyn(&[1, 1, 4]), vec![100.0, 150.0, 200.0, 250.0]).unwrap();
-        let scores = Array::from_shape_vec(IxDyn(&[1, 1]), vec![0.9]).unwrap();
+        // Box in normalized cxcywh: cx=0.5, cy=0.5, w=0.2, h=0.2
+        // In xyxy normalized: (0.4, 0.4, 0.6, 0.6)
+        // In 512x512 space: (204.8, 204.8, 307.2, 307.2)
+        // After inverse transform:
+        //   x1 = (204.8 - 0) / 0.64 = 320
+        //   y1 = (204.8 - 64) / 0.64 = 220
+        //   x2 = (307.2 - 0) / 0.64 = 480
+        //   y2 = (307.2 - 64) / 0.64 = 380
 
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 800,
-            orig_height: 600,
-            scale: 0.8,
-            offset_x: 0.0,
-            offset_y: 80.0,
-        };
+        let boxes = vec![[0.5, 0.5, 0.2, 0.2]];
+        let class_logits = vec![(0, 5.0)]; // High confidence
+        let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
+
+        let post_processor = test_postprocessor();
+        let transform = test_transform(800, 600, 0.64, 0.0, 64.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         assert_eq!(detections.len(), 1);
         let det = &detections[0];
 
-        // Verify coordinate transformation
-        assert_eq!(det.x1, 125.0, "x1 transformation incorrect");
-        assert_eq!(det.y1, 87.5, "y1 transformation incorrect");
-        assert_eq!(det.x2, 250.0, "x2 transformation incorrect");
-        assert_eq!(det.y2, 212.5, "y2 transformation incorrect");
+        // Verify coordinate transformation (with some tolerance for float math)
+        assert!((det.x1 - 320.0).abs() < 0.1, "x1 transformation incorrect: {}", det.x1);
+        assert!((det.y1 - 220.0).abs() < 0.1, "y1 transformation incorrect: {}", det.y1);
+        assert!((det.x2 - 480.0).abs() < 0.1, "x2 transformation incorrect: {}", det.x2);
+        assert!((det.y2 - 380.0).abs() < 0.1, "y2 transformation incorrect: {}", det.y2);
     }
 
     /// Test that coordinates are clamped to image bounds
-    /// Prevents boxes from extending outside the image
     #[test]
     fn test_coordinates_clamped_to_image_bounds() {
-        let labels = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0, 1, 2]).unwrap();
-        let boxes = Array::from_shape_vec(
-            IxDyn(&[1, 3, 4]),
-            vec![
-                // Detection 1: Negative after transformation (offset > coord)
-                5.0, 5.0, 50.0, 50.0,
-                // Detection 2: Exceeds bounds after transformation
-                500.0, 500.0, 800.0, 800.0, // Detection 3: Normal, within bounds
-                100.0, 100.0, 200.0, 200.0,
-            ],
-        )
-        .unwrap();
-        let scores = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0.9, 0.9, 0.9]).unwrap();
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 640,
-            orig_height: 480,
-            scale: 1.0,
-            offset_x: 50.0,
-            offset_y: 50.0,
-        };
+        let boxes = vec![
+            [0.05, 0.05, 0.2, 0.2], // Will result in negative coords after offset
+            [0.95, 0.95, 0.2, 0.2], // Will exceed bounds
+            [0.5, 0.5, 0.2, 0.2],   // Normal, within bounds
+        ];
+
+        let class_logits = vec![
+            (0, 5.0),
+            (1, 5.0),
+            (2, 5.0),
+        ];
+        let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
+
+        let post_processor = test_postprocessor();
+        // Use offset to push first detection into negative territory
+        let transform = test_transform(400, 400, 1.0, 50.0, 50.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         assert_eq!(detections.len(), 3);
@@ -197,46 +298,31 @@ mod tests {
         assert_eq!(detections[0].y1, 0.0, "Negative y1 should be clamped to 0");
 
         // Detection 2: Should be clamped to max bounds
-        assert_eq!(
-            detections[1].x2, 640.0,
-            "x2 exceeding width should be clamped"
-        );
-        assert_eq!(
-            detections[1].y2, 480.0,
-            "y2 exceeding height should be clamped"
-        );
-
-        // Detection 3: Should be unchanged (within bounds)
-        assert_eq!(detections[2].x1, 50.0);
-        assert_eq!(detections[2].y1, 50.0);
+        assert_eq!(detections[1].x2, 400.0, "x2 exceeding width should be clamped");
+        assert_eq!(detections[1].y2, 400.0, "y2 exceeding height should be clamped");
     }
 
     /// Test that no detections are returned when all are below threshold
     #[test]
     fn test_zero_detections_when_all_below_threshold() {
-        let labels = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0, 1, 2]).unwrap();
-        let boxes = Array::from_shape_vec(
-            IxDyn(&[1, 3, 4]),
-            vec![
-                10.0, 10.0, 50.0, 50.0, 20.0, 20.0, 60.0, 60.0, 30.0, 30.0, 70.0, 70.0,
-            ],
-        )
-        .unwrap();
-        // All confidences below threshold
-        let scores = Array::from_shape_vec(IxDyn(&[1, 3]), vec![0.1, 0.3, 0.49]).unwrap();
+        let boxes = vec![
+            [0.1, 0.1, 0.1, 0.1],
+            [0.2, 0.2, 0.1, 0.1],
+            [0.3, 0.3, 0.1, 0.1],
+        ];
 
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 640,
-            orig_height: 480,
-            scale: 1.0,
-            offset_x: 0.0,
-            offset_y: 0.0,
-        };
+        // All logits negative -> sigmoid < 0.5
+        let class_logits = vec![
+            (0, -2.0), // sigmoid(-2) ≈ 0.12
+            (1, -1.0), // sigmoid(-1) ≈ 0.27
+            (2, -0.1), // sigmoid(-0.1) ≈ 0.48
+        ];
+        let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
+
+        let post_processor = test_postprocessor();
+        let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         assert_eq!(
@@ -246,63 +332,49 @@ mod tests {
         );
     }
 
-    /// Test class ID conversion from i64 to u32
-    /// Verifies that COCO class IDs are correctly converted
+    /// Test class ID extraction via argmax
     #[test]
-    fn test_class_id_conversion_from_i64_to_u32() {
-        let labels = Array::from_shape_vec(IxDyn(&[1, 4]), vec![0, 39, 79, 1]).unwrap();
-        let boxes = Array::from_shape_vec(
-            IxDyn(&[1, 4, 4]),
-            vec![
-                10.0, 10.0, 50.0, 50.0, 20.0, 20.0, 60.0, 60.0, 30.0, 30.0, 70.0, 70.0, 40.0, 40.0,
-                80.0, 80.0,
-            ],
-        )
-        .unwrap();
-        let scores = Array::from_shape_vec(IxDyn(&[1, 4]), vec![0.9, 0.8, 0.7, 0.95]).unwrap();
+    fn test_class_id_argmax() {
+        let boxes = vec![
+            [0.1, 0.1, 0.1, 0.1],
+            [0.2, 0.2, 0.1, 0.1],
+            [0.3, 0.3, 0.1, 0.1],
+            [0.4, 0.4, 0.1, 0.1],
+        ];
 
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 640,
-            orig_height: 480,
-            scale: 1.0,
-            offset_x: 0.0,
-            offset_y: 0.0,
-        };
+        let class_logits = vec![
+            (0, 5.0),  // person (class 0)
+            (39, 5.0), // bottle (class 39)
+            (79, 5.0), // toothbrush (class 79)
+            (1, 5.0),  // bicycle (class 1)
+        ];
+        let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
+
+        let post_processor = test_postprocessor();
+        let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         assert_eq!(detections.len(), 4);
 
-        // Verify COCO class IDs are correctly converted
+        // Verify COCO class IDs are correctly extracted via argmax
         assert_eq!(detections[0].class_id, 0, "Person class (0)");
         assert_eq!(detections[1].class_id, 39, "Bottle class (39)");
-        assert_eq!(detections[2].class_id, 79, "Last COCO class (79)");
+        assert_eq!(detections[2].class_id, 79, "Toothbrush class (79)");
         assert_eq!(detections[3].class_id, 1, "Bicycle class (1)");
     }
 
     /// Test edge case: Empty detections (0 queries)
     #[test]
     fn test_empty_input() {
-        let labels = Array::from_shape_vec(IxDyn(&[1, 0]), vec![]).unwrap();
-        let boxes = Array::from_shape_vec(IxDyn(&[1, 0, 4]), vec![]).unwrap();
-        let scores = Array::from_shape_vec(IxDyn(&[1, 0]), vec![]).unwrap();
+        let dets = Array::from_shape_vec(IxDyn(&[1, 0, 4]), vec![]).unwrap();
+        let logits = Array::from_shape_vec(IxDyn(&[1, 0, 91]), vec![]).unwrap();
 
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 640,
-            orig_height: 480,
-            scale: 1.0,
-            offset_x: 0.0,
-            offset_y: 0.0,
-        };
+        let post_processor = test_postprocessor();
+        let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         assert_eq!(
@@ -312,46 +384,40 @@ mod tests {
         );
     }
 
-    /// Test realistic RT-DETR scenario with mixed confidences
+    /// Test realistic RF-DETR scenario with mixed confidences
     #[test]
-    fn test_realistic_rtdetr_output() {
-        // RT-DETR outputs 300 queries, but most have low confidence
+    fn test_realistic_rfdetr_output() {
+        // RF-DETR outputs 300 queries, but most have low confidence
         // Simulate 300 queries with only 3 high-confidence detections
 
-        let mut label_data = vec![0i64; 300];
-        label_data[0] = 0; // person
-        label_data[1] = 16; // dog
-        label_data[2] = 2; // car
+        let num_queries = 300;
+        let num_classes = 91;
 
-        let mut box_data = vec![0.0f32; 300 * 4];
-        // Detection 1: Person at top-left
-        box_data[0..4].copy_from_slice(&[50.0, 50.0, 150.0, 250.0]);
+        // Create dets [1, 300, 4]
+        let mut dets_data = vec![0.0f32; num_queries * 4];
+        // Detection 1: Person at top-left (normalized cxcywh)
+        dets_data[0..4].copy_from_slice(&[0.2, 0.3, 0.2, 0.4]);
         // Detection 2: Dog in center
-        box_data[4..8].copy_from_slice(&[200.0, 200.0, 350.0, 400.0]);
+        dets_data[4..8].copy_from_slice(&[0.5, 0.5, 0.3, 0.3]);
         // Detection 3: Car at bottom-right
-        box_data[8..12].copy_from_slice(&[400.0, 400.0, 600.0, 600.0]);
+        dets_data[8..12].copy_from_slice(&[0.8, 0.8, 0.3, 0.3]);
 
-        let mut score_data = vec![0.01f32; 300]; // Low confidence for most
-        score_data[0] = 0.95;
-        score_data[1] = 0.87;
-        score_data[2] = 0.76;
+        let dets = Array::from_shape_vec(IxDyn(&[1, num_queries, 4]), dets_data).unwrap();
 
-        let labels = Array::from_shape_vec(IxDyn(&[1, 300]), label_data).unwrap();
-        let boxes = Array::from_shape_vec(IxDyn(&[1, 300, 4]), box_data).unwrap();
-        let scores = Array::from_shape_vec(IxDyn(&[1, 300]), score_data).unwrap();
+        // Create logits [1, 300, 91]
+        // Initialize with -10.0 (very low confidence)
+        let mut logits_data = vec![-10.0f32; num_queries * num_classes];
+        // Set high logits for 3 detections
+        logits_data[0 * num_classes + 0] = 5.0;  // Person (class 0), high confidence
+        logits_data[1 * num_classes + 16] = 3.5; // Dog (class 16), medium-high confidence
+        logits_data[2 * num_classes + 2] = 2.5;  // Car (class 2), medium confidence
 
-        let post_processor = PostProcessor {
-            confidence_threshold: 0.5,
-        };
-        let transform = TransformParams {
-            orig_width: 640,
-            orig_height: 640,
-            scale: 1.0,
-            offset_x: 0.0,
-            offset_y: 0.0,
-        };
+        let logits = Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
+
+        let post_processor = test_postprocessor();
+        let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
         let detections = post_processor
-            .parse_detections(&labels.view(), &boxes.view(), &scores.view(), &transform)
+            .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
         // Only 3 detections should pass threshold
@@ -366,10 +432,9 @@ mod tests {
         assert_eq!(detections[1].class_id, 16, "Second detection: dog");
         assert_eq!(detections[2].class_id, 2, "Third detection: car");
 
-        // Verify bounding boxes are correct
-        assert_eq!(detections[0].x1, 50.0);
-        assert_eq!(detections[0].y1, 50.0);
-        assert_eq!(detections[0].x2, 150.0);
-        assert_eq!(detections[0].y2, 250.0);
+        // Verify confidences are reasonable
+        assert!(detections[0].confidence > 0.99, "Person should have very high confidence");
+        assert!(detections[1].confidence > 0.95, "Dog should have high confidence");
+        assert!(detections[2].confidence > 0.90, "Car should have good confidence");
     }
 }

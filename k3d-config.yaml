@@ -11,7 +11,7 @@ ports:
       - loadbalancer
 volumes:
   # Models mounted on agent (edge device has local model storage)
-  - volume: /home/jdelbar/Documents/projects/bridge-rt/models:/models
+  - volume: ${PWD}/models:/models
     nodeFilters:
       - agent:0
   # Mount host /dev for dynamic camera detection (cameras may reconnect as video1, video2, etc.)

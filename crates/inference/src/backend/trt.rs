@@ -6,51 +6,53 @@ use std::ffi::CString;
 #[cxx::bridge]
 mod ffi {
     unsafe extern "C++" {
-        include!("tensorrt_backend.hpp");
+        include!("rfdetr_backend.hpp");
         include!("logging.hpp");
 
         #[namespace = "bridge"]
-        type TensorRTBackend;
+        type RFDetrBackend;
 
         #[namespace = "bridge"]
-        fn new_tensorrt_backend() -> UniquePtr<TensorRTBackend>;
+        fn new_rfdetr_backend() -> UniquePtr<RFDetrBackend>;
 
         #[namespace = "bridge"]
         fn init_logger();
 
-        // Maps to TensorRTBackend::load_engine
+        // Maps to RFDetrBackend::load_engine
         #[namespace = "bridge"]
-        unsafe fn load_engine(self: Pin<&mut TensorRTBackend>, path: *const c_char) -> bool;
+        unsafe fn load_engine(self: Pin<&mut RFDetrBackend>, path: *const c_char) -> bool;
 
-        // Maps to TensorRTBackend::infer_raw
+        // Maps to RFDetrBackend::infer_raw
         #[namespace = "bridge"]
         unsafe fn infer_raw(
-            self: Pin<&mut TensorRTBackend>,
+            self: Pin<&mut RFDetrBackend>,
             images: *const f32,
-            orig_sizes: *const i64,
-            out_labels: *mut i64,
-            out_boxes: *mut f32,
-            out_scores: *mut f32,
+            out_dets: *mut f32,
+            out_logits: *mut f32,
         ) -> bool;
 
         #[namespace = "bridge"]
-        fn get_num_detections(self: &TensorRTBackend) -> i32;
+        fn get_num_queries(self: &RFDetrBackend) -> i32;
+
+        #[namespace = "bridge"]
+        fn get_num_classes(self: &RFDetrBackend) -> i32;
     }
 }
 
 pub struct TrtBackend {
-    inner: cxx::UniquePtr<ffi::TensorRTBackend>,
-    num_detections: usize,
+    inner: cxx::UniquePtr<ffi::RFDetrBackend>,
+    num_queries: usize,
+    num_classes: usize,
 }
 
 impl InferenceBackend for TrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
         ffi::init_logger();
-        let mut inner = ffi::new_tensorrt_backend();
+        let mut inner = ffi::new_rfdetr_backend();
 
         if inner.is_null() {
             return Err(anyhow::anyhow!(
-                "Failed to create TensorRT backend instance"
+                "Failed to create RF-DETR TensorRT backend instance"
             ));
         }
 
@@ -58,50 +60,42 @@ impl InferenceBackend for TrtBackend {
 
         if !unsafe { inner.pin_mut().load_engine(c_path.as_ptr()) } {
             return Err(anyhow::anyhow!(
-                "Failed to load TensorRT engine from {}",
+                "Failed to load RF-DETR TensorRT engine from {}",
                 path
             ));
         }
 
-        let num_detections = inner.get_num_detections() as usize;
+        let num_queries = inner.get_num_queries() as usize;
+        let num_classes = inner.get_num_classes() as usize;
 
         Ok(Self {
             inner,
-            num_detections,
+            num_queries,
+            num_classes,
         })
     }
 
     fn infer(
         &mut self,
         images: &Array<f32, IxDyn>,
-        orig_sizes: &Array<i64, IxDyn>,
     ) -> anyhow::Result<InferenceOutput> {
         // Prepare output buffers
-        // Labels: [1, num_detections]
-        let mut labels = Array::<i64, IxDyn>::zeros(IxDyn(&[1, self.num_detections]));
-        // Boxes: [1, num_detections, 4]
-        let mut boxes = Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_detections, 4]));
-        // Scores: [1, num_detections]
-        let mut scores = Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_detections]));
+        // Dets: [1, num_queries, 4]
+        let mut dets = Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_queries, 4]));
+        // Logits: [1, num_queries, num_classes]
+        let mut logits =
+            Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_queries, self.num_classes]));
 
         let success = unsafe {
-            self.inner.pin_mut().infer_raw(
-                images.as_ptr(),
-                orig_sizes.as_ptr(),
-                labels.as_mut_ptr(),
-                boxes.as_mut_ptr(),
-                scores.as_mut_ptr(),
-            )
+            self.inner
+                .pin_mut()
+                .infer_raw(images.as_ptr(), dets.as_mut_ptr(), logits.as_mut_ptr())
         };
 
         if !success {
-            return Err(anyhow::anyhow!("TensorRT inference failed"));
+            return Err(anyhow::anyhow!("RF-DETR TensorRT inference failed"));
         }
 
-        Ok(InferenceOutput {
-            labels,
-            boxes,
-            scores,
-        })
+        Ok(InferenceOutput { dets, logits })
     }
 }
