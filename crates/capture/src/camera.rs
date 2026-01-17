@@ -153,27 +153,37 @@ fn select_format(device: &Device) -> Result<PixelFormat> {
 
 /// Convert YUYV (YUV 4:2:2) to RGB
 /// YUYV packs 2 pixels in 4 bytes: [Y0, U, Y1, V]
+/// Handles stride padding by only processing expected bytes per row.
 fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> Vec<u8> {
     let pixel_count = (width * height) as usize;
     let mut rgb = Vec::with_capacity(pixel_count * 3);
 
-    for chunk in yuyv.chunks_exact(4) {
-        let y0 = chunk[0] as f32;
-        let u = chunk[1] as f32 - 128.0;
-        let y1 = chunk[2] as f32;
-        let v = chunk[3] as f32 - 128.0;
+    let bytes_per_row = (width * 2) as usize; // YUYV = 2 bytes per pixel
+    let stride = yuyv.len() / height as usize; // Actual stride (may include padding)
 
-        // First pixel
-        let r0 = (y0 + 1.402 * v).clamp(0.0, 255.0) as u8;
-        let g0 = (y0 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-        let b0 = (y0 + 1.772 * u).clamp(0.0, 255.0) as u8;
-        rgb.extend_from_slice(&[r0, g0, b0]);
+    for row in 0..height as usize {
+        let row_start = row * stride;
+        let row_data = &yuyv[row_start..row_start + bytes_per_row];
 
-        // Second pixel
-        let r1 = (y1 + 1.402 * v).clamp(0.0, 255.0) as u8;
-        let g1 = (y1 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-        let b1 = (y1 + 1.772 * u).clamp(0.0, 255.0) as u8;
-        rgb.extend_from_slice(&[r1, g1, b1]);
+        for chunk in row_data.chunks_exact(4) {
+            // YUYV: [Y0, U, Y1, V]
+            let y0 = chunk[0] as f32;
+            let u = chunk[1] as f32 - 128.0;
+            let y1 = chunk[2] as f32;
+            let v = chunk[3] as f32 - 128.0;
+
+            // First pixel
+            let r0 = (y0 + 1.402 * v).clamp(0.0, 255.0) as u8;
+            let g0 = (y0 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
+            let b0 = (y0 + 1.772 * u).clamp(0.0, 255.0) as u8;
+            rgb.extend_from_slice(&[r0, g0, b0]);
+
+            // Second pixel
+            let r1 = (y1 + 1.402 * v).clamp(0.0, 255.0) as u8;
+            let g1 = (y1 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
+            let b1 = (y1 + 1.772 * u).clamp(0.0, 255.0) as u8;
+            rgb.extend_from_slice(&[r1, g1, b1]);
+        }
     }
 
     rgb

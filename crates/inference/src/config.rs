@@ -23,7 +23,7 @@ impl InferenceConfig {
                 get_env("INPUT_HEIGHT", DEFAULT_INPUT_SIZE.1),
             ),
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
-            confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.5),
+            confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.7),
         })
     }
 
@@ -35,7 +35,7 @@ impl InferenceConfig {
             model_path: "/models/rfdetr.onnx".to_string(),
             input_size: DEFAULT_INPUT_SIZE,
             poll_interval_ms: 100,
-            confidence_threshold: 0.5,
+            confidence_threshold: 0.7,
         }
     }
 }

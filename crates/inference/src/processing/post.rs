@@ -126,7 +126,7 @@ mod tests {
     /// Helper to create a default RF-DETR PostProcessor for tests
     fn test_postprocessor() -> PostProcessor {
         PostProcessor {
-            confidence_threshold: 0.5,
+            confidence_threshold: 0.7,
         }
     }
 
