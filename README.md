@@ -9,6 +9,10 @@ A RT-DERT implementation with Rust ORT, FlatBuffers and k3d
 
 This project implements a complete edge AI pipeline with RT-DETR v2 object detection, designed for minimal latency and maximum throughput through zero-copy shared memory communication.
 
+
+https://github.com/user-attachments/assets/d598bee8-d27c-4753-a12f-9517600f9ca4
+
+
 ## Tech Stack
 
   - capture: Camera frame acquisition using [nokhwa] and V4L2
