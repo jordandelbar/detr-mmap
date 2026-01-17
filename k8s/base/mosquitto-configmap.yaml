@@ -3,12 +3,12 @@ kind: ConfigMap
 metadata:
   name: mosquitto-config
   labels:
-    app: bridge-rt
+    app: detr-mmap
     component: mosquitto
 data:
   mosquitto.conf: |
     # Mosquitto MQTT Broker Configuration
-    # For bridge-rt central event collection
+    # For detr-mmap central event collection
 
     # Network settings
     listener 1883

@@ -18,7 +18,7 @@ up:
     @./scripts/deploy-k3d.sh
 
 down:
-    @k3d cluster delete bridge-rt
+    @k3d cluster delete detr-mmap
 
 open-webpage:
     @if command -v xdg-open > /dev/null; then xdg-open index.html; \

@@ -3,12 +3,12 @@ kind: Service
 metadata:
   name: mosquitto
   labels:
-    app: bridge-rt
+    app: detr-mmap
     component: mosquitto
 spec:
   type: ClusterIP
   selector:
-    app: bridge-rt
+    app: detr-mmap
     component: mosquitto
   ports:
     - port: 1883
@@ -25,12 +25,12 @@ kind: Service
 metadata:
   name: mosquitto-external
   labels:
-    app: bridge-rt
+    app: detr-mmap
     component: mosquitto
 spec:
   type: NodePort
   selector:
-    app: bridge-rt
+    app: detr-mmap
     component: mosquitto
   ports:
     - port: 1883

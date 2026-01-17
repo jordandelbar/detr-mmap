@@ -8,12 +8,12 @@ patches:
   - path: gateway-patch.yaml
 
 images:
-  - name: bridge-rt-capture
-    newName: localhost:5000/bridge-rt-capture
+  - name: detr-mmap-capture
+    newName: localhost:5000/detr-mmap-capture
     newTag: latest
-  - name: bridge-rt-controller
-    newName: localhost:5000/bridge-rt-controller
+  - name: detr-mmap-controller
+    newName: localhost:5000/detr-mmap-controller
     newTag: latest
-  - name: bridge-rt-gateway
-    newName: localhost:5000/bridge-rt-gateway
+  - name: detr-mmap-gateway
+    newName: localhost:5000/detr-mmap-gateway
     newTag: latest

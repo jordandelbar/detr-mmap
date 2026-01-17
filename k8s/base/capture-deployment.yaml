@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: capture
   labels:
-    app: bridge-rt
+    app: detr-mmap
     component: capture
 spec:
   replicas: 1
@@ -13,12 +13,12 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app: bridge-rt
+      app: detr-mmap
       component: capture
   template:
     metadata:
       labels:
-        app: bridge-rt
+        app: detr-mmap
         component: capture
     spec:
       # Node selector for edge simulation (can be overridden in overlays)
@@ -47,7 +47,7 @@ spec:
 
       containers:
         - name: capture
-          image: bridge-rt-capture:latest
+          image: detr-mmap-capture:latest
           imagePullPolicy: Never
 
           volumeMounts:

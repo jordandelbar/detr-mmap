@@ -3,18 +3,18 @@ kind: Deployment
 metadata:
   name: inference
   labels:
-    app: bridge-rt
+    app: detr-mmap
     component: inference
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: bridge-rt
+      app: detr-mmap
       component: inference
   template:
     metadata:
       labels:
-        app: bridge-rt
+        app: detr-mmap
         component: inference
     spec:
       # Node selector for edge simulation (can be overridden in overlays)
@@ -38,7 +38,7 @@ spec:
 
       containers:
         - name: inference
-          image: bridge-rt-inference:latest
+          image: detr-mmap-inference:latest
           imagePullPolicy: Never
 
           volumeMounts:

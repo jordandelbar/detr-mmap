@@ -1,7 +1,7 @@
 # RF-DETR Object Detection on edge devices with zero-copy memory-mapped IPC
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Build](https://github.com/jordandelbar/bridge-rt/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/bridge-rt/actions/workflows/ci.yaml)
-[![codecov](https://codecov.io/gh/jordandelbar/bridge-rt/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/bridge-rt)
+[![Build](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml)
+[![codecov](https://codecov.io/gh/jordandelbar/detr-mmap/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/detr-mmap)
 
 A [RF-DETR](https://github.com/roboflow/rf-detr) implementation with Rust, CXX | ORT, FlatBuffers and k3d
 
@@ -61,10 +61,10 @@ cd detr-mmap
 just up
 
 # Check deployment
-kubectl get pods -n bridge-rt
+kubectl get pods -n detr-mmap
 
 # View logs
-kubectl logs -n bridge-rt -l component=inference --follow
+kubectl logs -n detr-mmap -l component=inference --follow
 ```
 
 ## Running with CUDA

@@ -18,7 +18,7 @@ target "common" {
 
 target "capture" {
   inherits = ["common"]
-  tags = ["bridge-rt-capture:${TAG}", "${REGISTRY}/bridge-rt-capture:${TAG}"]
+  tags = ["detr-mmap-capture:${TAG}", "${REGISTRY}/detr-mmap-capture:${TAG}"]
   args = {
     BINARY_NAME = "capture"
   }
@@ -26,7 +26,7 @@ target "capture" {
 
 target "controller" {
   inherits = ["common"]
-  tags = ["bridge-rt-controller:${TAG}", "${REGISTRY}/bridge-rt-controller:${TAG}"]
+  tags = ["detr-mmap-controller:${TAG}", "${REGISTRY}/detr-mmap-controller:${TAG}"]
   args = {
     BINARY_NAME = "controller"
   }
@@ -34,7 +34,7 @@ target "controller" {
 
 target "inference-cpu" {
   inherits = ["common"]
-  tags = ["bridge-rt-inference-cpu:${TAG}", "${REGISTRY}/bridge-rt-inference-cpu:${TAG}"]
+  tags = ["detr-mmap-inference-cpu:${TAG}", "${REGISTRY}/detr-mmap-inference-cpu:${TAG}"]
   args = {
     BINARY_NAME = "inference"
   }
@@ -42,27 +42,27 @@ target "inference-cpu" {
 
 target "inference-ort-cuda" {
   contexts = {
-    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+    "detr-mmap-gpu-base:latest" = "target:gpu-base"
   }
   context = "."
   dockerfile = "docker/inference-ort-cuda.Dockerfile"
   platforms = ["linux/amd64"]
-  tags = ["bridge-rt-inference-ort-cuda:${TAG}", "${REGISTRY}/bridge-rt-inference-ort-cuda:${TAG}"]
+  tags = ["detr-mmap-inference-ort-cuda:${TAG}", "${REGISTRY}/detr-mmap-inference-ort-cuda:${TAG}"]
 }
 
 target "inference-trt" {
   contexts = {
-    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+    "detr-mmap-gpu-base:latest" = "target:gpu-base"
   }
   context = "."
   dockerfile = "docker/inference-trt.Dockerfile"
   platforms = ["linux/amd64"]
-  tags = ["bridge-rt-inference-trt:${TAG}", "${REGISTRY}/bridge-rt-inference-trt:${TAG}"]
+  tags = ["detr-mmap-inference-trt:${TAG}", "${REGISTRY}/detr-mmap-inference-trt:${TAG}"]
 }
 
 target "gateway" {
   inherits = ["common"]
-  tags = ["bridge-rt-gateway:${TAG}", "${REGISTRY}/bridge-rt-gateway:${TAG}"]
+  tags = ["detr-mmap-gateway:${TAG}", "${REGISTRY}/detr-mmap-gateway:${TAG}"]
   args = {
     BINARY_NAME = "gateway"
   }
@@ -74,16 +74,16 @@ target "gpu-base" {
   context = "."
   dockerfile = "docker/gpu-base.Dockerfile"
   platforms = ["linux/amd64"]
-  tags = ["bridge-rt-gpu-base:${TAG}"]
+  tags = ["detr-mmap-gpu-base:${TAG}"]
 }
 
 
 target "gpu-benchmark" {
   contexts = {
-    "bridge-rt-gpu-base:latest" = "target:gpu-base"
+    "detr-mmap-gpu-base:latest" = "target:gpu-base"
   }
   context = "."
   dockerfile = "docker/gpu-benchmark.Dockerfile"
   platforms = ["linux/amd64"]
-  tags = ["bridge-rt-benchmark-gpu:${TAG}", "${REGISTRY}/bridge-rt-benchmark-gpu:${TAG}"]
+  tags = ["detr-mmap-benchmark-gpu:${TAG}", "${REGISTRY}/detr-mmap-benchmark-gpu:${TAG}"]
 }

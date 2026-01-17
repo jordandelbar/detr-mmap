@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: docker/benchmark.Dockerfile
       args:
-        GPU_BASE_IMAGE: bridge-rt-gpu-base:latest
+        GPU_BASE_IMAGE: detr-mmap-gpu-base:latest
     volumes:
       - ../benchmark-reports:/workspace/target/criterion
     deploy:

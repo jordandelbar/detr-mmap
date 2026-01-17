@@ -2,6 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
 images:
-  - name: bridge-rt-inference
-    newName: localhost:5000/bridge-rt-inference-cpu
+  - name: detr-mmap-inference
+    newName: localhost:5000/detr-mmap-inference-cpu
     newTag: latest

@@ -5,6 +5,6 @@ patches:
   - path: inference-patch.yaml
 
 images:
-  - name: bridge-rt-inference
-    newName: localhost:5000/bridge-rt-inference-ort-cuda
+  - name: detr-mmap-inference
+    newName: localhost:5000/detr-mmap-inference-ort-cuda
     newTag: latest

@@ -1,4 +1,4 @@
-ARG GPU_BASE_IMAGE=bridge-rt-gpu-base:latest
+ARG GPU_BASE_IMAGE=detr-mmap-gpu-base:latest
 FROM ${GPU_BASE_IMAGE}
 
 # Install TensorRT development libraries and libclang for benchmarking

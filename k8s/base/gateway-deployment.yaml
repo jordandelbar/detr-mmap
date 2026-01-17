@@ -3,18 +3,18 @@ kind: Deployment
 metadata:
   name: gateway
   labels:
-    app: bridge-rt
+    app: detr-mmap
     component: gateway
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: bridge-rt
+      app: detr-mmap
       component: gateway
   template:
     metadata:
       labels:
-        app: bridge-rt
+        app: detr-mmap
         component: gateway
     spec:
       # Node selector for edge simulation (can be overridden in overlays)
@@ -34,7 +34,7 @@ spec:
 
       containers:
         - name: gateway
-          image: bridge-rt-gateway:latest
+          image: detr-mmap-gateway:latest
           imagePullPolicy: Never
 
           securityContext:

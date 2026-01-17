@@ -1,7 +1,7 @@
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
-  name: bridge-rt
+  name: detr-mmap
 image: k3s-gpu:v1.31.5-k3s1
 servers: 1
 agents: 1  # Simulate edge device (e.g., Raspberry Pi)

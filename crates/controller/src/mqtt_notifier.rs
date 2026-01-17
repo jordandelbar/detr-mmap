@@ -28,7 +28,7 @@ impl MqttNotifier {
         topic: String,
         device_id: String,
     ) -> Result<Self> {
-        let mut mqtt_options = MqttOptions::new("bridge-rt-controller", broker_host, broker_port);
+        let mut mqtt_options = MqttOptions::new("detr-mmap-controller", broker_host, broker_port);
         mqtt_options.set_keep_alive(Duration::from_secs(30));
 
         let (client, mut connection) = Client::new(mqtt_options, 10);

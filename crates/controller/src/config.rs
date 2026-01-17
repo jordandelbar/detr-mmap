@@ -20,7 +20,7 @@ impl ControllerConfig {
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 500),
             mqtt_broker_host: get_env("MQTT_BROKER_HOST", "mosquitto".to_string()),
             mqtt_broker_port: get_env("MQTT_BROKER_PORT", 1883),
-            mqtt_topic: get_env("MQTT_TOPIC", "bridge-rt/controller/state".to_string()),
+            mqtt_topic: get_env("MQTT_TOPIC", "detr-mmap/controller/state".to_string()),
             mqtt_device_id: get_env("MQTT_DEVICE_ID", "unknown".to_string()),
         })
     }
