@@ -45,7 +45,10 @@ fn find_usable_camera() -> Option<u32> {
         .find(|dev| {
             Device::with_path(dev.path())
                 .and_then(|d| d.query_caps())
-                .map(|caps| caps.capabilities.contains(v4l::capability::Flags::VIDEO_CAPTURE))
+                .map(|caps| {
+                    caps.capabilities
+                        .contains(v4l::capability::Flags::VIDEO_CAPTURE)
+                })
                 .unwrap_or(false)
         })
         .map(|dev| dev.index() as u32)
@@ -81,8 +84,11 @@ fn configure_for_crisp_motion(device: &Device) {
     let has_exposure_auto = controls.iter().any(|c| c.id == V4L2_CID_EXPOSURE_AUTO);
     let has_exposure_absolute = controls.iter().any(|c| c.id == V4L2_CID_EXPOSURE_ABSOLUTE);
 
-    tracing::debug!("Camera controls: exposure_auto={}, exposure_absolute={}",
-        has_exposure_auto, has_exposure_absolute);
+    tracing::debug!(
+        "Camera controls: exposure_auto={}, exposure_absolute={}",
+        has_exposure_auto,
+        has_exposure_absolute
+    );
 
     // Try aperture priority mode - auto-exposure that respects our exposure limit
     // This is less aggressive than full manual and adapts to lighting
@@ -215,12 +221,7 @@ pub struct Camera {
 
 impl Camera {
     pub fn build(config: CameraConfig) -> Result<Self> {
-        let device = retry_with_backoff(
-            || open_device(config.device_id),
-            10,
-            200,
-            "Camera Init",
-        )?;
+        let device = retry_with_backoff(|| open_device(config.device_id), 10, 200, "Camera Init")?;
 
         let caps = device.query_caps()?;
         tracing::info!("Camera opened: {} ({})", caps.card, caps.driver);
