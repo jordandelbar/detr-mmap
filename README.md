@@ -8,6 +8,7 @@ A [RF-DETR](https://github.com/roboflow/rf-detr) implementation with Rust, CXX |
 ## Overview
 
 This project implements a complete edge AI pipeline with RF-DETR object detection, designed for minimal latency and maximum throughput through zero-copy shared memory communication.
+A sentry mode state machine reduces computation by switching to standby when no humans are detected.
 
 
 https://github.com/user-attachments/assets/d598bee8-d27c-4753-a12f-9517600f9ca4

@@ -16,7 +16,7 @@ impl ControllerConfig {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
             validation_frames: get_env("VALIDATION_FRAMES", 3),
-            tracking_exit_frames: get_env("TRACKING_EXIT_FRAMES", 10),
+            tracking_exit_frames: get_env("TRACKING_EXIT_FRAMES", 40),
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 500),
             mqtt_broker_host: get_env("MQTT_BROKER_HOST", "mosquitto".to_string()),
             mqtt_broker_port: get_env("MQTT_BROKER_PORT", 1883),
