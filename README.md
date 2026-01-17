@@ -29,9 +29,9 @@ Use of mmap with FlatBuffer for zero serialization + mqueue semaphore
 
 ## Architecture
 
-![Alt text](./docs/schemas/rt-detr-context.svg)
+![Alt text](./docs/schemas/detr-mmap-context.svg)
 
-![Alt text](./docs/schemas/rt-detr-app.svg)
+![Alt text](./docs/schemas/detr-mmap-app.svg)
 
 ## Technical decisions
 
