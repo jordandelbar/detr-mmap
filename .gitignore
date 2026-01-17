@@ -54,3 +54,6 @@ compile_commands.json
 
 # Benchmark reports
 /benchmark-reports
+
+# Videos
+*.mp4
