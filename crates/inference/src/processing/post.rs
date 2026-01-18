@@ -202,19 +202,20 @@ mod tests {
     #[test]
     fn test_confidence_threshold_filtering() {
         // RF-DETR: confidence comes from sigmoid(max_logit)
-        // sigmoid(0) = 0.5, sigmoid(-0.04) ≈ 0.49, sigmoid(1.39) ≈ 0.8
+        // sigmoid(0.62) ≈ 0.65, sigmoid(0.85) ≈ 0.7, sigmoid(1.39) ≈ 0.8
         // RF-DETR uses 1-indexed classes, output is 0-indexed COCO
+        // Default threshold is 0.7
 
         let boxes = vec![
-            [0.1, 0.1, 0.1, 0.1], // Detection 1: will have ~0.49 confidence
-            [0.2, 0.2, 0.1, 0.1], // Detection 2: will have 0.5 confidence (boundary)
+            [0.1, 0.1, 0.1, 0.1], // Detection 1: will have ~0.65 confidence (filtered)
+            [0.2, 0.2, 0.1, 0.1], // Detection 2: will have ~0.7 confidence (boundary)
             [0.3, 0.3, 0.1, 0.1], // Detection 3: will have ~0.8 confidence
         ];
 
         // RF-DETR class indices (1=person, 2=bicycle, 3=car)
         let class_logits = vec![
-            (1, -0.04), // sigmoid(-0.04) ≈ 0.49, RF-DETR class 1 -> COCO class 0
-            (2, 0.0),   // sigmoid(0) = 0.5, RF-DETR class 2 -> COCO class 1
+            (1, 0.62),  // sigmoid(0.62) ≈ 0.65, RF-DETR class 1 -> COCO class 0
+            (2, 0.85),  // sigmoid(0.85) ≈ 0.7, RF-DETR class 2 -> COCO class 1
             (3, 1.39),  // sigmoid(1.39) ≈ 0.8, RF-DETR class 3 -> COCO class 2
         ];
 
@@ -226,11 +227,11 @@ mod tests {
             .parse_detections(&dets.view(), &logits.view(), &transform)
             .unwrap();
 
-        // Should have 2 detections (0.5 and 0.8), not 0.49
-        assert_eq!(detections.len(), 2, "Should filter out confidence < 0.5");
+        // Should have 2 detections (0.7 and 0.8), not 0.65
+        assert_eq!(detections.len(), 2, "Should filter out confidence < 0.7");
         assert!(
-            (detections[0].confidence - 0.5).abs() < 0.01,
-            "Boundary case: 0.5 included"
+            (detections[0].confidence - 0.7).abs() < 0.02,
+            "Boundary case: 0.7 included"
         );
         assert!(detections[1].confidence > 0.75, "High confidence included");
         // Output is 0-indexed COCO: RF-DETR 2 -> COCO 1, RF-DETR 3 -> COCO 2
