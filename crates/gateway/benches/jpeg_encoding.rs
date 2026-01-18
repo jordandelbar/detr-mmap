@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use gateway::polling::pixels_to_jpeg;
 
 /// Create test pixel data with a gradient pattern (more realistic than solid color)
@@ -34,11 +34,25 @@ fn benchmark_jpeg_encoding(c: &mut Criterion) {
         group.throughput(Throughput::Elements(pixel_count));
 
         group.bench_with_input(BenchmarkId::new("rgb", label), &pixels, |b, pixels| {
-            b.iter(|| pixels_to_jpeg(black_box(pixels), black_box(width), black_box(height), black_box(bridge::ColorFormat::RGB)));
+            b.iter(|| {
+                pixels_to_jpeg(
+                    black_box(pixels),
+                    black_box(width),
+                    black_box(height),
+                    black_box(bridge::ColorFormat::RGB),
+                )
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("bgr", label), &pixels, |b, pixels| {
-            b.iter(|| pixels_to_jpeg(black_box(pixels), black_box(width), black_box(height), black_box(bridge::ColorFormat::BGR)));
+            b.iter(|| {
+                pixels_to_jpeg(
+                    black_box(pixels),
+                    black_box(width),
+                    black_box(height),
+                    black_box(bridge::ColorFormat::BGR),
+                )
+            });
         });
     }
 

@@ -214,9 +214,9 @@ mod tests {
 
         // RF-DETR class indices (1=person, 2=bicycle, 3=car)
         let class_logits = vec![
-            (1, 0.62),  // sigmoid(0.62) ≈ 0.65, RF-DETR class 1 -> COCO class 0
-            (2, 0.85),  // sigmoid(0.85) ≈ 0.7, RF-DETR class 2 -> COCO class 1
-            (3, 1.39),  // sigmoid(1.39) ≈ 0.8, RF-DETR class 3 -> COCO class 2
+            (1, 0.62), // sigmoid(0.62) ≈ 0.65, RF-DETR class 1 -> COCO class 0
+            (2, 0.85), // sigmoid(0.85) ≈ 0.7, RF-DETR class 2 -> COCO class 1
+            (3, 1.39), // sigmoid(1.39) ≈ 0.8, RF-DETR class 3 -> COCO class 2
         ];
 
         let (dets, logits) = create_rfdetr_test_data(boxes, class_logits, 91);
