@@ -395,6 +395,7 @@ dependencies = [
  "bridge",
  "chrono",
  "common",
+ "fastrand",
  "rumqttc",
  "schema",
  "serde",
