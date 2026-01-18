@@ -1,8 +1,6 @@
 use crate::state::{FrameMessage, FramePacket};
 use bridge::{BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType};
 use common::wait_for_resource_async;
-use image::{ImageBuffer, RgbImage};
-use std::io::Cursor;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -272,29 +270,20 @@ impl BufferPoller {
     }
 }
 
-/// Convert raw pixel data to JPEG format
-/// Supports RGB and BGR color formats, converts BGR to RGB before encoding
+/// JPEG encoding quality (0-100)
+const JPEG_QUALITY: i32 = 80;
+
+/// Convert raw pixel data to JPEG format using turbojpeg
+/// Supports RGB and BGR color formats
 pub fn pixels_to_jpeg(
     pixel_data: &[u8],
     width: u32,
     height: u32,
     format: bridge::ColorFormat,
 ) -> anyhow::Result<Vec<u8>> {
-    let rgb_data = match format {
-        bridge::ColorFormat::RGB => {
-            // Already RGB, use directly
-            pixel_data.to_vec()
-        }
-        bridge::ColorFormat::BGR => {
-            // Convert BGR to RGB
-            let mut rgb_data = Vec::with_capacity(pixel_data.len());
-            for chunk in pixel_data.chunks_exact(3) {
-                rgb_data.push(chunk[2]); // R
-                rgb_data.push(chunk[1]); // G
-                rgb_data.push(chunk[0]); // B
-            }
-            rgb_data
-        }
+    let pixel_format = match format {
+        bridge::ColorFormat::RGB => turbojpeg::PixelFormat::RGB,
+        bridge::ColorFormat::BGR => turbojpeg::PixelFormat::BGR,
         bridge::ColorFormat::GRAY => {
             return Err(anyhow::anyhow!(
                 "Grayscale format not supported for JPEG encoding"
@@ -305,13 +294,27 @@ pub fn pixels_to_jpeg(
         }
     };
 
-    let img: RgbImage = ImageBuffer::from_raw(width, height, rgb_data)
-        .ok_or_else(|| anyhow::anyhow!("Failed to create image from raw data"))?;
+    // Validate buffer size to avoid panic in turbojpeg
+    let expected_size = (width as usize) * (height as usize) * 3;
+    if pixel_data.len() < expected_size {
+        return Err(anyhow::anyhow!(
+            "Pixel buffer too small: got {}, expected {}",
+            pixel_data.len(),
+            expected_size
+        ));
+    }
 
-    let mut jpeg_bytes = Cursor::new(Vec::new());
-    img.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
+    let image = turbojpeg::Image {
+        pixels: pixel_data,
+        width: width as usize,
+        pitch: (width * 3) as usize,
+        height: height as usize,
+        format: pixel_format,
+    };
 
-    Ok(jpeg_bytes.into_inner())
+    let jpeg_data = turbojpeg::compress(image, JPEG_QUALITY, turbojpeg::Subsamp::Sub2x2)?;
+
+    Ok(jpeg_data.to_vec())
 }
 
 #[cfg(test)]

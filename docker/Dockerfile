@@ -2,6 +2,7 @@ FROM rust:1.92-trixie AS builder
 
 ARG BINARY_NAME
 ARG FLATC_VERSION=24.3.25
+ARG WITH_TURBOJPEG=false
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -11,6 +12,9 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     wget \
     unzip \
+    && if [ "$WITH_TURBOJPEG" = "true" ]; then \
+        apt-get install -y cmake nasm; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q https://github.com/google/flatbuffers/releases/download/v${FLATC_VERSION}/Linux.flatc.binary.clang++-15.zip \

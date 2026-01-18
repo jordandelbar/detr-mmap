@@ -65,6 +65,7 @@ target "gateway" {
   tags = ["detr-mmap-gateway:${TAG}", "${REGISTRY}/detr-mmap-gateway:${TAG}"]
   args = {
     BINARY_NAME = "gateway"
+    WITH_TURBOJPEG = "true"
   }
 }
 
