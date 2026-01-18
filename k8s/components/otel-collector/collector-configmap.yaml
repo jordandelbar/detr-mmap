@@ -32,7 +32,7 @@ data:
     exporters:
       # Debug exporter for development (logs to stdout)
       debug:
-        verbosity: basic
+        verbosity: detailed
 
       # OTLP exporter for central backend (configure via env var)
       otlp:

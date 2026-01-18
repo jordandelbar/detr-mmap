@@ -8,14 +8,53 @@ use crate::{
 };
 use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType};
 use common::wait_for_resource;
+use opentelemetry::{
+    global,
+    metrics::{Counter, Histogram},
+};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct InferenceService<B: InferenceBackend> {
     backend: B,
     config: InferenceConfig,
     postprocessor: PostProcessor,
     preprocessor: PreProcessor,
+}
+
+fn init_metrics(
+    meter_name: &'static str,
+) -> (Histogram<f64>, Counter<u64>, Counter<u64>, Counter<u64>) {
+    let meter = global::meter(meter_name);
+    let latency_buckets = [
+        0.001, 0.002, 0.005, 0.007, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.075, 0.1, 0.15,
+        0.2, 0.5,
+    ];
+    let duration_histogram: Histogram<f64> = meter
+        .f64_histogram("inference_duration_seconds")
+        .with_description("Time to process a single frame (preprocess + infer + postprocess)")
+        .with_unit("s")
+        .with_boundaries(latency_buckets.to_vec())
+        .build();
+    let frames_counter: Counter<u64> = meter
+        .u64_counter("inference_frames_total")
+        .with_description("Total frames processed")
+        .build();
+    let skipped_counter: Counter<u64> = meter
+        .u64_counter("inference_frames_skipped_total")
+        .with_description("Total frames skipped (processing too slow)")
+        .build();
+    let detections_counter: Counter<u64> = meter
+        .u64_counter("inference_detections_total")
+        .with_description("Total detections produced")
+        .build();
+
+    (
+        duration_histogram,
+        frames_counter,
+        skipped_counter,
+        detections_counter,
+    )
 }
 
 impl<B: InferenceBackend> InferenceService<B> {
@@ -56,6 +95,9 @@ impl<B: InferenceBackend> InferenceService<B> {
             "Controller semaphore",
         );
 
+        let (duration_histogram, frames_counter, skipped_counter, detections_counter) =
+            init_metrics("inference");
+
         tracing::info!("Starting inference loop (event-driven)");
 
         let mut total_detections = 0usize;
@@ -75,6 +117,7 @@ impl<B: InferenceBackend> InferenceService<B> {
                 Ok(skipped) => {
                     if skipped > 0 {
                         frames_skipped += skipped as u64;
+                        skipped_counter.add(skipped as u64, &[]);
                         tracing::trace!(skipped, "Skipped frames to process latest");
                     }
                 }
@@ -83,8 +126,14 @@ impl<B: InferenceBackend> InferenceService<B> {
                 }
             }
 
+            let start = Instant::now();
             match self.process_frame(&frame_reader, &mut detection_writer) {
                 Ok(detections) => {
+                    let elapsed = start.elapsed().as_secs_f64();
+                    duration_histogram.record(elapsed, &[]);
+                    frames_counter.add(1, &[]);
+                    detections_counter.add(detections as u64, &[]);
+
                     frames_processed += 1;
                     total_detections += detections;
 

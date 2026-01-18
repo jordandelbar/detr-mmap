@@ -12,7 +12,8 @@ use inference::backend::trt::TrtBackend as Backend;
 #[cfg(not(any(feature = "ort-backend", feature = "trt-backend")))]
 compile_error!("At least one backend feature must be enabled: 'ort-backend' or 'trt-backend'");
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let config = InferenceConfig::from_env()?;
 
     let _telemetry = config

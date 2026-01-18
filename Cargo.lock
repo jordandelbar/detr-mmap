@@ -1190,8 +1190,10 @@ dependencies = [
  "image",
  "memmap2",
  "ndarray",
+ "opentelemetry 0.31.0",
  "ort",
  "schema",
+ "tokio",
  "tracing",
 ]
 
