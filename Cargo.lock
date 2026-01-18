@@ -743,6 +743,7 @@ dependencies = [
  "base64",
  "bridge",
  "common",
+ "criterion",
  "image",
  "schema",
  "serde",

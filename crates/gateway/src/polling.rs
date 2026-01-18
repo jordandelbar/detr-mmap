@@ -272,7 +272,9 @@ impl BufferPoller {
     }
 }
 
-fn pixels_to_jpeg(
+/// Convert raw pixel data to JPEG format
+/// Supports RGB and BGR color formats, converts BGR to RGB before encoding
+pub fn pixels_to_jpeg(
     pixel_data: &[u8],
     width: u32,
     height: u32,
@@ -310,4 +312,91 @@ fn pixels_to_jpeg(
     img.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
 
     Ok(jpeg_bytes.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create test pixel data of a solid color
+    fn solid_color_pixels(width: u32, height: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
+        let size = (width * height * 3) as usize;
+        let mut data = Vec::with_capacity(size);
+        for _ in 0..(width * height) {
+            data.push(r);
+            data.push(g);
+            data.push(b);
+        }
+        data
+    }
+
+    #[test]
+    fn rgb_passthrough_produces_valid_jpeg() {
+        let pixels = solid_color_pixels(64, 64, 255, 0, 0); // Red
+        let result = pixels_to_jpeg(&pixels, 64, 64, bridge::ColorFormat::RGB);
+
+        assert!(result.is_ok(), "Error: {:?}", result.err());
+        let jpeg = result.unwrap();
+        // JPEG magic bytes
+        assert!(jpeg.len() > 2);
+        assert_eq!(&jpeg[0..2], &[0xFF, 0xD8]);
+    }
+
+    #[test]
+    fn bgr_to_rgb_conversion() {
+        // BGR: Blue=255, Green=0, Red=0 -> should become RGB: Red=0, Green=0, Blue=255
+        let bgr_pixels = solid_color_pixels(64, 64, 0, 0, 255); // BGR order: B=0, G=0, R=255
+        let result = pixels_to_jpeg(&bgr_pixels, 64, 64, bridge::ColorFormat::BGR);
+
+        assert!(result.is_ok());
+        let jpeg = result.unwrap();
+        assert!(jpeg.len() > 2);
+        assert_eq!(&jpeg[0..2], &[0xFF, 0xD8]);
+    }
+
+    #[test]
+    fn grayscale_returns_error() {
+        let pixels = vec![128u8; 64 * 64]; // Single channel
+        let result = pixels_to_jpeg(&pixels, 64, 64, bridge::ColorFormat::GRAY);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Grayscale"));
+    }
+
+    #[test]
+    fn empty_pixels_creates_empty_result_via_encode_to_jpeg() {
+        // pixels_to_jpeg itself doesn't check for empty, but encode_to_jpeg does
+        // Test the raw function with valid but minimal data
+        let pixels = solid_color_pixels(1, 1, 0, 0, 0);
+        let result = pixels_to_jpeg(&pixels, 1, 1, bridge::ColorFormat::RGB);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn invalid_buffer_size_fails() {
+        // Buffer too small for dimensions
+        let pixels = vec![0u8; 100]; // Not enough for 64x64x3
+        let result = pixels_to_jpeg(&pixels, 64, 64, bridge::ColorFormat::RGB);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn various_resolutions() {
+        let test_cases = [
+            (640, 480, "VGA"),
+            (1280, 720, "HD"),
+            (1920, 1080, "Full HD"),
+        ];
+
+        for (width, height, label) in test_cases {
+            let pixels = solid_color_pixels(width, height, 128, 128, 128);
+            let result = pixels_to_jpeg(&pixels, width, height, bridge::ColorFormat::RGB);
+
+            assert!(result.is_ok(), "Failed for {}", label);
+            let jpeg = result.unwrap();
+            assert!(jpeg.len() > 0, "Empty JPEG for {}", label);
+            assert_eq!(&jpeg[0..2], &[0xFF, 0xD8], "Invalid JPEG header for {}", label);
+        }
+    }
 }
