@@ -84,6 +84,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake nasm
+
       - name: Restore flatc cache
         uses: actions/cache@v4
         with:
@@ -150,6 +153,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake nasm
+
       - name: Restore flatc cache
         uses: actions/cache@v4
         with:
@@ -184,6 +190,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake nasm
 
       - name: Restore flatc cache
         uses: actions/cache@v4
