@@ -1,6 +1,7 @@
 pub mod config;
 pub mod logging;
 pub mod retry;
+pub mod telemetry;
 pub mod wait;
 
 pub use config::{Environment, get_env};

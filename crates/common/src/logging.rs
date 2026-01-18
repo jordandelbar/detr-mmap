@@ -5,11 +5,20 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 /// and JSON formatting for production.
 ///
 /// Uses RUST_LOG environment variable for filtering (defaults to "info" if not set).
+///
+/// Also adds an OpenTelemetry layer that exports traces if a global tracer provider
+/// has been initialized (e.g. via common::telemetry::init_telemetry).
 pub fn setup_logging(environment: Environment) {
     let env_filter =
         tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
-    let registry = tracing_subscriber::registry().with(env_filter);
+    // Create a new OpenTelemetry tracing layer.
+    // This will use the global tracer provider.
+    let otel_layer = tracing_opentelemetry::layer();
+
+    let registry = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(otel_layer);
 
     match environment {
         Environment::Production => {

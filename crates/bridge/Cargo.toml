@@ -24,14 +24,14 @@ mmap-writer = []
 ci = ["frame-reader", "frame-writer", "detection-reader", "detection-writer", "sentry", "semaphores", "tokio"]
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1"
 flatbuffers = "24.3"
 libc = "0.2"
 memmap2 = "0.9"
 nix = { version = "0.30.1", features = ["mqueue", "time"] }
 schema = { path = "../schema" }
-thiserror = "2.0"
-serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["time"], optional = true }
 
 [dev-dependencies]

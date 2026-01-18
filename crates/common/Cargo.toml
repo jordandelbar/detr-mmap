@@ -13,3 +13,8 @@ async = ["tokio"]
 tracing = { version = "0.1.44", default-features = false }
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 tokio = { version = "1", features = ["time"], optional = true }
+opentelemetry = { version = "0.31", features = ["metrics", "trace"] }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "metrics", "trace"] }
+tracing-opentelemetry = "0.31"
+anyhow = "1"
