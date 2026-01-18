@@ -21,6 +21,8 @@ cxx = "1.0"
 default = ["ort-backend"]
 ort-backend = ["dep:ort"]
 trt-backend = []
+# All features safe for CI (excludes trt-backend which requires TensorRT)
+ci = ["ort-backend"]
 
 [build-dependencies]
 cxx-build = "1.0"

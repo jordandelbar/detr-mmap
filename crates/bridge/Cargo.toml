@@ -20,6 +20,9 @@ tokio = ["dep:tokio"]
 mmap-reader = []
 mmap-writer = []
 
+# All features for CI testing
+ci = ["frame-reader", "frame-writer", "detection-reader", "detection-writer", "sentry", "semaphores", "tokio"]
+
 [dependencies]
 anyhow = "1.0"
 flatbuffers = "24.3"
