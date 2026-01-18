@@ -245,6 +245,7 @@ jobs:
           - capture
           - inference
           - gateway
+          - controller
 
     steps:
       - name: Checkout code
