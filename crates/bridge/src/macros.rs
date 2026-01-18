@@ -1,4 +1,5 @@
 /// Generates common MmapWriter boilerplate methods: `build()`, `build_with_path()`, `sequence()`
+#[cfg(any(feature = "frame-writer", feature = "detection-writer"))]
 macro_rules! impl_mmap_writer_base {
     ($struct_name:ident, $default_path:expr, $default_size:expr) => {
         impl $struct_name {
@@ -29,6 +30,7 @@ macro_rules! impl_mmap_writer_base {
 }
 
 /// Generates common MmapReader boilerplate methods: `build()`, `with_path()`, `current_sequence()`, `mark_read()`
+#[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
 macro_rules! impl_mmap_reader_base {
     ($struct_name:ident, $default_path:expr) => {
         impl $struct_name {
@@ -52,5 +54,7 @@ macro_rules! impl_mmap_reader_base {
     };
 }
 
+#[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
 pub(crate) use impl_mmap_reader_base;
+#[cfg(any(feature = "frame-writer", feature = "detection-writer"))]
 pub(crate) use impl_mmap_writer_base;

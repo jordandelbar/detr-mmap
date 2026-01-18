@@ -55,10 +55,10 @@ fn find_usable_camera() -> Option<u32> {
 }
 
 fn open_device(index: u32) -> Result<Device> {
-    if let Ok(dev) = Device::new(index as usize) {
-        if dev.query_caps().is_ok() {
-            return Ok(dev);
-        }
+    if let Ok(dev) = Device::new(index as usize)
+        && dev.query_caps().is_ok()
+    {
+        return Ok(dev);
     }
 
     tracing::debug!(
@@ -105,25 +105,25 @@ fn configure_for_crisp_motion(device: &Device) {
 
     // Note: In aperture priority, exposure_absolute sets the upper limit
     // The camera will use shorter exposures when there's enough light
-    if has_exposure_absolute {
-        if let Some(ctrl_desc) = controls.iter().find(|c| c.id == V4L2_CID_EXPOSURE_ABSOLUTE) {
-            // Cap at ~20ms (200 units) - allows decent brightness while limiting blur
-            // At 30fps this is about 60% of frame time
-            let max_exposure = 200i64; // 20ms
-            let exposure = max_exposure.min(ctrl_desc.maximum);
+    if has_exposure_absolute
+        && let Some(ctrl_desc) = controls.iter().find(|c| c.id == V4L2_CID_EXPOSURE_ABSOLUTE)
+    {
+        // Cap at ~20ms (200 units) - allows decent brightness while limiting blur
+        // At 30fps this is about 60% of frame time
+        let max_exposure = 200i64; // 20ms
+        let exposure = max_exposure.min(ctrl_desc.maximum);
 
-            if let Err(e) = device.set_control(Control {
-                id: V4L2_CID_EXPOSURE_ABSOLUTE,
-                value: Value::Integer(exposure),
-            }) {
-                tracing::debug!("Failed to set exposure limit: {}", e);
-            } else {
-                tracing::info!(
-                    "Exposure limit: {} ({}ms max)",
-                    exposure,
-                    exposure as f64 / 10.0
-                );
-            }
+        if let Err(e) = device.set_control(Control {
+            id: V4L2_CID_EXPOSURE_ABSOLUTE,
+            value: Value::Integer(exposure),
+        }) {
+            tracing::debug!("Failed to set exposure limit: {}", e);
+        } else {
+            tracing::info!(
+                "Exposure limit: {} ({}ms max)",
+                exposure,
+                exposure as f64 / 10.0
+            );
         }
     }
 
@@ -277,7 +277,7 @@ impl Camera {
             tv_nsec: 0,
         };
         unsafe { clock_gettime(CLOCK_MONOTONIC, &mut ts) };
-        (ts.tv_sec as i64, ts.tv_nsec as i64 / 1000)
+        (ts.tv_sec, ts.tv_nsec / 1000)
     }
 
     /// Flush frames captured before the mode change.
@@ -292,8 +292,8 @@ impl Camera {
         while flushed < MAX_FLUSH_FRAMES {
             match stream.next() {
                 Ok((_, meta)) => {
-                    let frame_sec = meta.timestamp.sec as i64;
-                    let frame_usec = meta.timestamp.usec as i64;
+                    let frame_sec = meta.timestamp.sec;
+                    let frame_usec = meta.timestamp.usec;
 
                     // Frame is fresh if captured after (or very close to) our reference time
                     let frame_age_usec =
@@ -329,7 +329,7 @@ impl Camera {
             self.pixel_format
         );
 
-        let mut stream = Stream::with_buffers(&mut self.device, Type::VideoCapture, BUFFER_COUNT)
+        let mut stream = Stream::with_buffers(&self.device, Type::VideoCapture, BUFFER_COUNT)
             .context("Failed to create capture stream")?;
 
         let mut frame_count = 0u64;
@@ -365,7 +365,7 @@ impl Camera {
             match stream.next() {
                 Ok((buf, meta)) => {
                     // Decode to RGB
-                    let rgb_data = match self.decode_frame(&buf[..]) {
+                    let rgb_data = match self.decode_frame(buf) {
                         Ok(data) => data,
                         Err(e) => {
                             dropped_frames += 1;

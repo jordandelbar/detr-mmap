@@ -398,7 +398,7 @@ mod tests {
 
             assert!(result.is_ok(), "Failed for {}", label);
             let jpeg = result.unwrap();
-            assert!(jpeg.len() > 0, "Empty JPEG for {}", label);
+            assert!(!jpeg.is_empty(), "Empty JPEG for {}", label);
             assert_eq!(
                 &jpeg[0..2],
                 &[0xFF, 0xD8],

@@ -447,9 +447,10 @@ mod tests {
         // Output will be 0-indexed COCO: 0=person, 16=dog, 2=car
         let mut logits_data = vec![-10.0f32; num_queries * num_classes];
         // Set high logits for 3 detections (using RF-DETR 1-indexed classes)
-        logits_data[0 * num_classes + 1] = 5.0; // RF-DETR Person (1) -> COCO (0), high confidence
-        logits_data[1 * num_classes + 17] = 3.5; // RF-DETR Dog (17) -> COCO (16), medium-high confidence
-        logits_data[2 * num_classes + 3] = 2.5; // RF-DETR Car (3) -> COCO (2), medium confidence
+        // Index = query_idx * num_classes + class_idx
+        logits_data[1] = 5.0; // Query 0, RF-DETR Person (1) -> COCO (0), high confidence
+        logits_data[num_classes + 17] = 3.5; // Query 1, RF-DETR Dog (17) -> COCO (16), medium-high confidence
+        logits_data[2 * num_classes + 3] = 2.5; // Query 2, RF-DETR Car (3) -> COCO (2), medium confidence
 
         let logits =
             Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
