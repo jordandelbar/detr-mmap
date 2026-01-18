@@ -111,6 +111,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         }
     }
 
+    #[tracing::instrument(skip(self, frame_reader, detection_writer))]
     fn process_frame(
         &mut self,
         frame_reader: &FrameReader,

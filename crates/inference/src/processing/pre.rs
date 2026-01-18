@@ -22,6 +22,7 @@ impl PreProcessor {
         }
     }
 
+    #[tracing::instrument(skip(self, pixels), fields(width, height, format = ?format))]
     pub fn preprocess_frame(
         &mut self,
         pixels: flatbuffers::Vector<u8>,

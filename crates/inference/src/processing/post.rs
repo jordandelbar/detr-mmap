@@ -23,6 +23,7 @@ impl PostProcessor {
 
     /// Parse detections from RF-DETR output format
     /// RF-DETR outputs: dets (boxes in cxcywh normalized), labels (logits per class)
+    #[tracing::instrument(skip(self, dets, logits, transform))]
     pub fn parse_detections(
         &self,
         dets: &ndarray::ArrayViewD<f32>, // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)

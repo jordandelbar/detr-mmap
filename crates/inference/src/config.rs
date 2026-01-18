@@ -1,4 +1,4 @@
-use common::{Environment, get_env};
+use common::{Environment, get_env, get_env_opt};
 
 /// RF-DETR default input size
 pub const DEFAULT_INPUT_SIZE: (u32, u32) = (512, 512);
@@ -10,6 +10,7 @@ pub struct InferenceConfig {
     pub input_size: (u32, u32),
     pub poll_interval_ms: u64,
     pub confidence_threshold: f32,
+    pub otel_endpoint: Option<String>,
 }
 
 impl InferenceConfig {
@@ -24,6 +25,7 @@ impl InferenceConfig {
             ),
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
             confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.7),
+            otel_endpoint: get_env_opt("OTEL_EXPORTER_OTLP_ENDPOINT"),
         })
     }
 
@@ -36,6 +38,7 @@ impl InferenceConfig {
             input_size: DEFAULT_INPUT_SIZE,
             poll_interval_ms: 100,
             confidence_threshold: 0.7,
+            otel_endpoint: None,
         }
     }
 }

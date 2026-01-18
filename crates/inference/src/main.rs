@@ -1,3 +1,4 @@
+use common::TelemetryGuard;
 use inference::{
     InferenceConfig, InferenceService, backend::InferenceBackend, logging::setup_logging,
 };
@@ -13,6 +14,12 @@ compile_error!("At least one backend feature must be enabled: 'ort-backend' or '
 
 fn main() -> anyhow::Result<()> {
     let config = InferenceConfig::from_env()?;
+
+    let _telemetry = config
+        .otel_endpoint
+        .as_ref()
+        .map(|endpoint| TelemetryGuard::init("inference", endpoint))
+        .transpose()?;
 
     setup_logging(&config);
 

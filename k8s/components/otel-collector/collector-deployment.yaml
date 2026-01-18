@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app: detr-mmap
+    component: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: detr-mmap
+      component: otel-collector
+  template:
+    metadata:
+      labels:
+        app: detr-mmap
+        component: otel-collector
+    spec:
+      # Run on edge node alongside other services
+      nodeSelector:
+        node-role: edge
+
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.96.0
+          args:
+            - --config=/etc/otelcol/config.yaml
+
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+
+          env:
+            # Default to debug mode (no remote export)
+            # Override in overlays to export to central backend
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://localhost:4317"
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+      restartPolicy: Always

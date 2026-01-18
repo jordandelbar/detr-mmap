@@ -8,6 +8,11 @@ pub fn get_env<T: FromStr>(key: &str, default: T) -> T {
         .unwrap_or(default)
 }
 
+/// Get an optional environment variable. Returns `None` if not set, `Some(T)` if set and parseable.
+pub fn get_env_opt<T: FromStr>(key: &str) -> Option<T> {
+    env::var(key).ok().and_then(|s| s.parse().ok())
+}
+
 #[derive(Debug, Clone)]
 pub enum Environment {
     Development,
