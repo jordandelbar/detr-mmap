@@ -10,9 +10,13 @@ data:
     # Mosquitto MQTT Broker Configuration
     # For detr-mmap central event collection
 
-    # Network settings
+    # Network settings - MQTT
     listener 1883
     protocol mqtt
+
+    # Network settings - WebSocket (for browser clients)
+    listener 9001
+    protocol websockets
 
     # Allow anonymous connections (for development)
     # TODO: not production ready

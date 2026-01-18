@@ -19,16 +19,16 @@
                 justify-content: center;
                 align-items: center;
                 min-height: 100vh;
-                background: #334155;
-                color: #333;
+                background: #0f172a;
+                color: #e2e8f0;
                 padding: 20px;
             }
 
             .container {
-                background: #fff;
+                background: #1e293b;
                 padding: 24px;
                 border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
                 max-width: 1200px;
                 width: 100%;
             }
@@ -43,7 +43,7 @@
             h1 {
                 font-size: 1.8em;
                 margin: 0;
-                color: #2d3748;
+                color: #f1f5f9;
             }
 
             .status {
@@ -51,27 +51,28 @@
                 align-items: center;
                 gap: 8px;
                 font-size: 0.9em;
-                color: #718096;
+                color: #94a3b8;
             }
 
             #statusIndicator {
                 width: 12px;
                 height: 12px;
                 border-radius: 50%;
-                background-color: #f56565;
+                background-color: #ef4444;
                 transition: background-color 0.3s ease;
             }
 
             #statusIndicator.connected {
-                background-color: #48bb78;
+                background-color: #22c55e;
             }
 
             .video-container {
                 position: relative;
                 width: 100%;
-                background: #000;
+                background: #0f172a;
                 border-radius: 8px;
                 overflow: hidden;
+                border: 1px solid #334155;
             }
 
             #videoCanvas {
@@ -85,7 +86,7 @@
                 justify-content: space-around;
                 margin-top: 16px;
                 padding: 12px;
-                background: #f7fafc;
+                background: #334155;
                 border-radius: 8px;
             }
 
@@ -95,7 +96,7 @@
 
             .stat-label {
                 font-size: 0.75em;
-                color: #718096;
+                color: #94a3b8;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
             }
@@ -103,15 +104,109 @@
             .stat-value {
                 font-size: 1.5em;
                 font-weight: bold;
-                color: #2d3748;
+                color: #f1f5f9;
                 margin-top: 4px;
             }
 
             .no-data {
                 text-align: center;
                 padding: 60px 20px;
-                color: #a0aec0;
+                color: #64748b;
                 font-size: 1.1em;
+            }
+
+            .mqtt-section {
+                margin-top: 16px;
+            }
+
+            .mqtt-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 8px;
+            }
+
+            .mqtt-header h2 {
+                font-size: 1em;
+                color: #f1f5f9;
+                margin: 0;
+            }
+
+            .mqtt-status {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.8em;
+                color: #94a3b8;
+            }
+
+            #mqttIndicator {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: #ef4444;
+            }
+
+            #mqttIndicator.connected {
+                background-color: #22c55e;
+            }
+
+            .mqtt-messages {
+                background: #0f172a;
+                border-radius: 8px;
+                padding: 12px;
+                max-height: 200px;
+                overflow-y: auto;
+                font-family: "Monaco", "Menlo", monospace;
+                font-size: 0.85em;
+                border: 1px solid #334155;
+            }
+
+            .mqtt-message {
+                padding: 8px 10px;
+                margin-bottom: 6px;
+                background: #1e293b;
+                border-radius: 4px;
+                border-left: 3px solid #3b82f6;
+            }
+
+            .mqtt-message:last-child {
+                margin-bottom: 0;
+            }
+
+            .mqtt-message-time {
+                color: #64748b;
+                font-size: 0.75em;
+                margin-bottom: 4px;
+            }
+
+            .mqtt-message-state {
+                color: #f1f5f9;
+                font-weight: bold;
+            }
+
+            .mqtt-message-state.tracking {
+                color: #f87171;
+            }
+
+            .mqtt-message-state.standby {
+                color: #4ade80;
+            }
+
+            .mqtt-message-state.validation {
+                color: #facc15;
+            }
+
+            .mqtt-message-event {
+                color: #94a3b8;
+                font-size: 0.9em;
+                margin-top: 2px;
+            }
+
+            .mqtt-empty {
+                color: #64748b;
+                text-align: center;
+                padding: 20px;
             }
         </style>
     </head>
@@ -134,10 +229,6 @@
 
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-label">Frame</div>
-                    <div class="stat-value" id="frameNumber">-</div>
-                </div>
-                <div class="stat">
                     <div class="stat-label">Detections</div>
                     <div class="stat-value" id="detectionCount">-</div>
                 </div>
@@ -145,13 +236,23 @@
                     <div class="stat-label">FPS</div>
                     <div class="stat-value" id="fps">-</div>
                 </div>
-                <div class="stat">
-                    <div class="stat-label">Status</div>
-                    <div class="stat-value" id="streamStatus">-</div>
+            </div>
+
+            <div class="mqtt-section">
+                <div class="mqtt-header">
+                    <h2>State Changes (MQTT)</h2>
+                    <div class="mqtt-status">
+                        <div id="mqttIndicator"></div>
+                        <span id="mqttStatusText">Disconnected</span>
+                    </div>
+                </div>
+                <div class="mqtt-messages" id="mqttMessages">
+                    <div class="mqtt-empty">Waiting for state changes...</div>
                 </div>
             </div>
         </div>
 
+        <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
         <script>
             const COLORS = [
                 "#FF6B6B",
@@ -404,18 +505,8 @@
                 }
 
                 updateStats(frame) {
-                    document.getElementById("frameNumber").textContent =
-                        frame.frame_number;
                     document.getElementById("detectionCount").textContent =
                         frame.detections ? frame.detections.length : 0;
-
-                    const statusMap = {
-                        complete: "✓ Complete",
-                        frame_only: "📹 Video",
-                        detection_only: "🔍 Detection",
-                    };
-                    document.getElementById("streamStatus").textContent =
-                        statusMap[frame.status] || frame.status;
                 }
 
                 updateFPS() {
@@ -452,7 +543,116 @@
                 }
             }
 
+            class MqttClient {
+                constructor(url, topic) {
+                    this.url = url;
+                    this.topic = topic;
+                    this.client = null;
+                    this.messages = [];
+                    this.maxMessages = 50;
+
+                    this.indicator = document.getElementById("mqttIndicator");
+                    this.statusText = document.getElementById("mqttStatusText");
+                    this.messagesContainer =
+                        document.getElementById("mqttMessages");
+
+                    this.connect();
+                }
+
+                connect() {
+                    this.statusText.textContent = "Connecting...";
+
+                    this.client = mqtt.connect(this.url, {
+                        reconnectPeriod: 1000,
+                        connectTimeout: 5000,
+                    });
+
+                    this.client.on("connect", () => {
+                        console.log("MQTT connected");
+                        this.indicator.classList.add("connected");
+                        this.statusText.textContent = "Connected";
+
+                        this.client.subscribe(this.topic, (err) => {
+                            if (err) {
+                                console.error("MQTT subscribe error:", err);
+                            } else {
+                                console.log(`Subscribed to ${this.topic}`);
+                            }
+                        });
+                    });
+
+                    this.client.on("message", (topic, message) => {
+                        try {
+                            const data = JSON.parse(message.toString());
+                            this.addMessage(data);
+                        } catch (e) {
+                            console.error("Failed to parse MQTT message:", e);
+                        }
+                    });
+
+                    this.client.on("close", () => {
+                        this.indicator.classList.remove("connected");
+                        this.statusText.textContent = "Disconnected";
+                    });
+
+                    this.client.on("error", (err) => {
+                        console.error("MQTT error:", err);
+                        this.indicator.classList.remove("connected");
+                        this.statusText.textContent = "Error";
+                    });
+
+                    this.client.on("reconnect", () => {
+                        this.statusText.textContent = "Reconnecting...";
+                    });
+                }
+
+                addMessage(data) {
+                    this.messages.unshift(data);
+                    if (this.messages.length > this.maxMessages) {
+                        this.messages.pop();
+                    }
+                    this.renderMessages();
+                }
+
+                renderMessages() {
+                    if (this.messages.length === 0) {
+                        this.messagesContainer.innerHTML =
+                            '<div class="mqtt-empty">Waiting for state changes...</div>';
+                        return;
+                    }
+
+                    this.messagesContainer.innerHTML = this.messages
+                        .map((msg) => {
+                            const time = new Date(msg.timestamp).toLocaleTimeString();
+                            const stateClass = msg.state.toLowerCase();
+                            const eventLabel = this.formatEvent(msg.event_type);
+
+                            return `
+                            <div class="mqtt-message">
+                                <div class="mqtt-message-time">${time} - ${msg.device_id}</div>
+                                <div class="mqtt-message-state ${stateClass}">${msg.state}</div>
+                                <div class="mqtt-message-event">${eventLabel}</div>
+                            </div>
+                        `;
+                        })
+                        .join("");
+                }
+
+                formatEvent(eventType) {
+                    const labels = {
+                        human_detected: "Human detected in frame",
+                        standby_resumed: "No humans - entering standby",
+                        validation_started: "Validating detection...",
+                    };
+                    return labels[eventType] || eventType;
+                }
+            }
+
             const viewer = new BridgeRTViewer("ws://localhost:8080/ws");
+            const mqttClient = new MqttClient(
+                "ws://localhost:9001",
+                "detr-mmap/controller/state",
+            );
         </script>
     </body>
 </html>

@@ -9,12 +9,13 @@ ports:
   - port: 8080:30080
     nodeFilters:
       - loadbalancer
+  - port: 9001:32001
+    nodeFilters:
+      - loadbalancer
 volumes:
-  # Models mounted on agent (edge device has local model storage)
   - volume: ${PWD}/models:/models
     nodeFilters:
       - agent:0
-  # Mount host /dev for dynamic camera detection (cameras may reconnect as video1, video2, etc.)
   - volume: /dev:/dev
     nodeFilters:
       - agent:0
