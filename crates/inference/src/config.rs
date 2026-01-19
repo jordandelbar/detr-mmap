@@ -29,7 +29,6 @@ pub struct InferenceConfig {
     pub poll_interval_ms: u64,
     pub confidence_threshold: f32,
     pub otel_endpoint: Option<String>,
-    pub execution_provider: ExecutionProvider,
 }
 
 impl InferenceConfig {
@@ -45,7 +44,6 @@ impl InferenceConfig {
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
             confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.7),
             otel_endpoint: get_env_opt("OTEL_EXPORTER_OTLP_ENDPOINT"),
-            execution_provider: ExecutionProvider::from_env(),
         })
     }
 
@@ -59,7 +57,6 @@ impl InferenceConfig {
             poll_interval_ms: 100,
             confidence_threshold: 0.7,
             otel_endpoint: None,
-            execution_provider: ExecutionProvider::Cpu,
         }
     }
 }

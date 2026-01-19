@@ -12,8 +12,6 @@ pub fn setup_logging(environment: Environment) {
     let env_filter =
         tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
-    // Create a new OpenTelemetry tracing layer.
-    // This will use the global tracer provider.
     let otel_layer = tracing_opentelemetry::layer();
 
     let registry = tracing_subscriber::registry()

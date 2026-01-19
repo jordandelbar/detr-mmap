@@ -1,15 +1,14 @@
-/// Safely deserialize flatbuffers with bounds checking
+/// Safely verify and access flatbuffers data with bounds checking
 ///
 /// This function ensures that:
 /// 1. The buffer is large enough to contain FlatBuffers data (minimum 8 bytes)
-/// 2. The FlatBuffers schema is valid and can be deserialized
+/// 2. The FlatBuffers schema is valid and can be accessed
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - Buffer is too small (< 8 bytes)
 /// - FlatBuffers verification fails
-/// - Deserialization fails
 pub(crate) fn safe_flatbuffers_root<'a, T>(buffer: &'a [u8]) -> anyhow::Result<T::Inner>
 where
     T: flatbuffers::Follow<'a> + flatbuffers::Verifiable + 'a,

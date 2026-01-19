@@ -47,7 +47,8 @@ impl OrtBackend {
 
 impl InferenceBackend for OrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
-        Self::load_model_with_provider(path, ExecutionProvider::default())
+        // Runtime execution provider selection via environment variable
+        Self::load_model_with_provider(path, ExecutionProvider::from_env())
     }
 
     fn infer(&mut self, images: &Array<f32, IxDyn>) -> anyhow::Result<InferenceOutput> {

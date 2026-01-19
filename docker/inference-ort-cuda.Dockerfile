@@ -6,8 +6,6 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
 
-# Build with ONNX Runtime backend (includes CUDA support)
-# The ort crate will download ONNX Runtime with CUDA EP automatically
 RUN cargo build --release --bin inference --features ort-backend
 
 FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04

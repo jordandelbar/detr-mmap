@@ -15,7 +15,6 @@ fn main() {
     })
     .expect("Failed to generate Rust code from FlatBuffer schemas");
 
-    // Format the generated files
     let _ = Command::new("rustfmt")
         .args(["src/frame_generated.rs", "src/detection_generated.rs"])
         .status();

@@ -9,7 +9,6 @@ pub struct GatewayConfig {
 }
 
 impl GatewayConfig {
-    /// Load configuration from environment variables with sensible defaults
     pub fn from_env() -> Self {
         Self {
             environment: Environment::from_env(),
@@ -19,7 +18,6 @@ impl GatewayConfig {
         }
     }
 
-    /// Create default configuration for testing
     #[cfg(test)]
     pub fn test_default() -> Self {
         Self {
