@@ -61,7 +61,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
      4. Read Latest: It checks the mmap header for the current global sequence number (e.g., seq=105).
      5. Skip: It skips reading frames 102, 103, 104 entirely. It reads frame 105 directly from shared memory.
      * Result: Latency is minimized to exactly the inference time + capture time, regardless of how slow the inference is.
-     * Code: `crates/inference/src/service.rs:106`
+     * Code: `crates/inference/src/service.rs:107-127`
 
 ### 3.2 Gateway: The "Process All" Pattern (Lossless, High Throughput)
  * Component: gateway crate
@@ -69,7 +69,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
  * Behavior:
      * Gateway does NOT use drain().
      * It calls semaphore.wait() for each signal and processes every frame.
-     * Target: ~60 FPS streaming (configurable via poll_interval_ms).
+     * Frame rate matches capture rate (3-30 FPS depending on sentry mode).
  * Why No Drain?:
      * Gateway is fast (JPEG encoding + WebSocket send takes ~5-10ms).
      * It keeps up with the 30 FPS capture rate easily.
@@ -105,15 +105,20 @@ If the inference engine is slow, it skips frames rather than falling behind.
          * Standby state → SentryMode::Standby
          * Validation/Tracking states → SentryMode::Alarmed
      4. Updates shared control: `sentry_control.set_mode(mode)`
-     5. Code: `crates/controller/src/service.rs:68-78`
+     5. Code: `crates/controller/src/service.rs:67-85`
 
  * **Capture Service** (the "Executor"):
      1. Reads sentry mode every frame: `mode = sentry.get_mode()`
      2. Adjusts sleep duration between frames:
-         * Standby: sleeps for 1000ms (1 FPS)
+         * Standby: sleeps for 333ms (3 FPS)
          * Alarmed: sleeps for 33ms (30 FPS)
-     3. Logs mode transitions for observability
-     4. Code: `crates/capture/src/camera.rs:138-146`
+     3. Flushes stale V4L2 buffer frames on Standby→Alarmed transition:
+         * V4L2 maintains an internal buffer queue that can hold old frames during standby
+         * On mode switch, discards frames older than 50ms to ensure fresh data
+         * Prevents processing stale buffered frames when responsiveness matters most
+         * Code: `crates/capture/src/camera.rs:285-314`
+     4. Logs mode transitions for observability
+     5. Code: `crates/capture/src/camera.rs:345-363`
 
 ### 4.2 Implementation Details
  * **Atomic Operations**:
@@ -127,7 +132,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
  * **State Machine Debouncing**:
      * Prevents rapid mode switching on transient detections
      * Requires sustained state (e.g., 5 consecutive frames) before transitioning
-     * Configurable thresholds: validation_threshold, deactivation_threshold
+     * Configurable thresholds: validation_frames, tracking_exit_frames
      * Code: `crates/controller/src/state_machine.rs`
 
 ### 4.3 Third Semaphore: Detection Signaling
@@ -141,12 +146,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
      5. State machine output determines sentry mode
  * Note: This completes the feedback loop: Capture → Inference → Controller → Capture
 
-### 4.4 Performance Impact
- * **Power Savings**:
-     * Standby mode (1 FPS) uses ~3% CPU
-     * Alarmed mode (30 FPS) uses ~40% CPU
-     * Switching saves ~90% CPU during idle periods
- * **Latency**:
-     * Mode switch latency: 1 frame (~33ms in alarmed mode)
-     * Detection-to-alarmed: ~100-200ms (validation threshold delay)
-     * This is intentional to prevent false alarms from single-frame noise
+### 4.4 Latency Characteristics
+ * Mode switch to Alarmed: Immediate on first detection (Validation state triggers Alarmed mode)
+ * Detection-to-Tracking: First detection at standby FPS (~333ms worst case at 3 FPS), then validation frames at 30 FPS (~33ms each)
+ * The validation delay is intentional to prevent false alarms from single-frame noise
