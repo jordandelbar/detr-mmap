@@ -1,4 +1,4 @@
-# RF-DETR Object Detection on edge devices with zero-copy memory-mapped IPC
+# RF-DETR Object Detection on edge devices with zero-serialization memory-mapped IPC
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/jordandelbar/detr-mmap/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/detr-mmap)
@@ -7,7 +7,7 @@ A RF-DETR implementation with Rust, CXX | ORT, FlatBuffers and k3d
 
 ## Overview
 
-This project implements a complete edge AI pipeline with RF-DETR object detection, designed for minimal latency and maximum throughput through zero-copy shared memory communication.
+This project implements a complete edge AI pipeline with RF-DETR object detection, designed for minimal latency and maximum throughput through zero-serialization shared memory communication.
 A sentry mode state machine reduces computation by switching to standby when no humans are detected.
 
 ![output](https://github.com/user-attachments/assets/dd159ccf-a968-493c-94f5-4355ba1a585b)
@@ -35,7 +35,7 @@ Use of mmap with [FlatBuffers] for zero serialization + mqueue semaphore
 
 Edge devices have limited CPU and memory. Network protocol overhead (TCP, HTTP/2, serialization) adds latency and CPU usage.
 
-Memory-mapped files (`mmap`) provide true zero-copy IPC. There is no serialization: reader accesses data directly in writer's memory
+Memory-mapped files (`mmap`) provide true zero-serialization IPC. There is no serialization: reader accesses data directly in writer's memory
 The trade-off is that it only works for local IPC, this is not secured for cloud deployment with shared machine but clearly fitting for edge deployments.
 
 I used k3s even if it adds some memory footprint for the ease of use when it comes to edge deployment.
