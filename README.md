@@ -10,9 +10,7 @@ A RF-DETR implementation with Rust, CXX | ORT, FlatBuffers and k3d
 This project implements a complete edge AI pipeline with RF-DETR object detection, designed for minimal latency and maximum throughput through zero-copy shared memory communication.
 A sentry mode state machine reduces computation by switching to standby when no humans are detected.
 
-
-https://github.com/user-attachments/assets/5d1950af-7940-4ff0-b330-18e7c7673744
-
+https://github.com/user-attachments/assets/8cf21a1c-f467-4eb5-9d79-a92b74978584
 
 ## Tech Stack
 
