@@ -2,6 +2,8 @@ ARG GPU_BASE_IMAGE=detr-mmap-gpu-base:latest
 FROM ${GPU_BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y \
+    cmake \
+    nasm \
     libnvinfer-dev \
     libnvinfer-plugin-dev \
     libclang-dev \
