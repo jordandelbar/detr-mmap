@@ -65,6 +65,23 @@ kubectl get pods -n detr-mmap
 kubectl logs -n detr-mmap -l component=inference --follow
 ```
 
+### Local Development (no Kubernetes)
+
+Run locally with Docker Compose using CPU inference:
+
+```bash
+# Start all services
+just local-up
+
+# Open webpage
+just open-webpage
+
+# Stop services
+just local-down
+```
+
+This runs inference on CPU.
+
 ## Running with CUDA
 
 Follow [this guide](https://github.com/jordandelbar/yolo-tonic/blob/a146a7820c173545c47c5c1bac7cdf0417773150/docs/setup/nvidia_docker.md) to set up CUDA correctly.

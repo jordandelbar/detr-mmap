@@ -2,6 +2,7 @@ use crate::errors::BridgeError;
 use crate::header::Header;
 use memmap2::{MmapMut, MmapOptions};
 use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
@@ -23,6 +24,7 @@ impl MmapWriter {
             .write(true)
             .create(true)
             .truncate(false)
+            .mode(0o600)
             .open(&path)?;
 
         // Only resize if the file is smaller than needed

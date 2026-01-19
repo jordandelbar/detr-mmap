@@ -1,7 +1,5 @@
 use common::TelemetryGuard;
-use inference::{
-    InferenceConfig, InferenceService, backend::InferenceBackend, logging::setup_logging,
-};
+use inference::{InferenceConfig, InferenceService, logging::setup_logging};
 
 #[cfg(all(feature = "ort-backend", not(feature = "trt-backend")))]
 use inference::backend::ort::OrtBackend as Backend;
@@ -30,6 +28,9 @@ async fn main() -> anyhow::Result<()> {
     );
 
     tracing::info!("Loading inference model");
+    #[cfg(all(feature = "ort-backend", not(feature = "trt-backend")))]
+    let backend = Backend::load_model_with_provider(&config.model_path, config.execution_provider)?;
+    #[cfg(feature = "trt-backend")]
     let backend = Backend::load_model(&config.model_path)?;
     tracing::info!("Model loaded successfully");
 

@@ -5,5 +5,5 @@ pub mod processing;
 pub mod service;
 
 pub use backend::{InferenceBackend, InferenceOutput};
-pub use config::InferenceConfig;
+pub use config::{ExecutionProvider, InferenceConfig};
 pub use service::InferenceService;

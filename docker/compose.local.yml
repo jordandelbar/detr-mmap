@@ -1,0 +1,75 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    command: mosquitto -c /mosquitto-no-auth.conf
+    volumes:
+      - ./mosquitto-local.conf:/mosquitto-no-auth.conf:ro
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+
+  capture:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BINARY_NAME: capture
+    ipc: host
+    privileged: true
+    user: "0:0"
+    volumes:
+      - /dev:/dev
+    environment:
+      - RUST_LOG=info
+      - DEVICE_ID=${DEVICE_ID:-0}
+      - SENTRY_MODE_FPS=3.0
+    depends_on:
+      - inference
+
+  inference:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BINARY_NAME: inference
+    ipc: host
+    user: "0:0"
+    volumes:
+      - ../models:/models:ro
+    environment:
+      - RUST_LOG=info,ort=warn
+      - MODEL_PATH=/models/rfdetr_S/rfdetr.onnx
+      - CONFIDENCE_THRESHOLD=0.7
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BINARY_NAME: gateway
+    ipc: host
+    user: "0:0"
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info
+      - GATEWAY_WS_ADDR=0.0.0.0:8080
+    depends_on:
+      - inference
+
+  controller:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BINARY_NAME: controller
+    ipc: host
+    user: "0:0"
+    environment:
+      - RUST_LOG=info
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - MQTT_DEVICE_ID=local-dev
+    depends_on:
+      - mosquitto
+      - inference

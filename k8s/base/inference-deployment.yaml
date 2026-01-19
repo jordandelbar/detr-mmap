@@ -41,6 +41,9 @@ spec:
           image: detr-mmap-inference:latest
           imagePullPolicy: Never
 
+          securityContext:
+            runAsUser: 0
+
           volumeMounts:
             - name: shm-bridge
               mountPath: /dev/shm

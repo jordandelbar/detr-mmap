@@ -2,6 +2,7 @@ use crate::errors::BridgeError;
 use crate::paths;
 use memmap2::MmapMut;
 use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 #[repr(u8)]
@@ -48,6 +49,7 @@ impl SentryControl {
             .write(true)
             .create(true)
             .truncate(false)
+            .mode(0o600)
             .open(path)?;
 
         let metadata = file.metadata()?;

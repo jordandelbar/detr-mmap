@@ -3,6 +3,24 @@ use common::{Environment, get_env, get_env_opt};
 /// RF-DETR default input size
 pub const DEFAULT_INPUT_SIZE: (u32, u32) = (512, 512);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExecutionProvider {
+    #[default]
+    Cpu,
+    Cuda,
+}
+
+impl ExecutionProvider {
+    pub fn from_env() -> Self {
+        match std::env::var("EXECUTION_PROVIDER").ok() {
+            Some(s) if s.eq_ignore_ascii_case("cuda") || s.eq_ignore_ascii_case("gpu") => {
+                Self::Cuda
+            }
+            _ => Self::Cpu,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct InferenceConfig {
     pub environment: Environment,
@@ -11,6 +29,7 @@ pub struct InferenceConfig {
     pub poll_interval_ms: u64,
     pub confidence_threshold: f32,
     pub otel_endpoint: Option<String>,
+    pub execution_provider: ExecutionProvider,
 }
 
 impl InferenceConfig {
@@ -26,6 +45,7 @@ impl InferenceConfig {
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
             confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.7),
             otel_endpoint: get_env_opt("OTEL_EXPORTER_OTLP_ENDPOINT"),
+            execution_provider: ExecutionProvider::from_env(),
         })
     }
 
@@ -39,6 +59,7 @@ impl InferenceConfig {
             poll_interval_ms: 100,
             confidence_threshold: 0.7,
             otel_endpoint: None,
+            execution_provider: ExecutionProvider::Cpu,
         }
     }
 }

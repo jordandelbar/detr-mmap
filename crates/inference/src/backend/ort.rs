@@ -1,15 +1,10 @@
 use super::{InferenceBackend, InferenceOutput};
+use crate::config::ExecutionProvider;
 use ndarray::{Array, IxDyn};
 use ort::{
     session::{Session, builder::GraphOptimizationLevel},
     value::TensorRef,
 };
-
-#[derive(Debug, Clone, Copy)]
-pub enum ExecutionProvider {
-    Cpu,
-    Cuda,
-}
 
 pub struct OrtBackend {
     session: Session,
@@ -52,7 +47,7 @@ impl OrtBackend {
 
 impl InferenceBackend for OrtBackend {
     fn load_model(path: &str) -> anyhow::Result<Self> {
-        Self::load_model_with_provider(path, ExecutionProvider::Cuda)
+        Self::load_model_with_provider(path, ExecutionProvider::default())
     }
 
     fn infer(&mut self, images: &Array<f32, IxDyn>) -> anyhow::Result<InferenceOutput> {

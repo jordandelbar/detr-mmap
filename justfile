@@ -13,12 +13,20 @@ fmt:
 build:
     @docker buildx bake
 
+# k3d deployement
 up:
     @./scripts/setup-k3d.sh
     @./scripts/deploy-k3d.sh
 
 down:
     @k3d cluster delete detr-mmap
+
+# Local development (no k8s, CPU-only)
+local-up:
+    @docker compose -f docker/compose.local.yml up --build
+
+local-down:
+    @docker compose -f docker/compose.local.yml down
 
 open-webpage:
     @if command -v xdg-open > /dev/null; then xdg-open index.html; \
