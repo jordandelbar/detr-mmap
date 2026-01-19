@@ -3,7 +3,7 @@
 [![Build](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/jordandelbar/detr-mmap/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/detr-mmap)
 
-A [RF-DETR](https://github.com/roboflow/rf-detr) implementation with Rust, CXX | ORT, FlatBuffers and k3d
+A RF-DETR implementation with Rust, CXX | ORT, FlatBuffers and k3d
 
 ## Overview
 
@@ -17,15 +17,15 @@ https://github.com/user-attachments/assets/d598bee8-d27c-4753-a12f-9517600f9ca4
 ## Tech Stack
 
   - capture: Camera frame acquisition using [v4l]
-  - inference: RF-DETR model inference:
+  - inference: [RF-DETR] model inference:
     - Using CPU via [ORT] with CPU execution provider
     - Using Cuda via [ORT] with CUDA execution provider
     - Using TensorRT via C++ bindings using [CXX]
-  - controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to MQTT
-  - gateway: WebSocket server streaming frames + detections to connected clients
-  - mosquitto: MQTT broker for centralized event collection (deployed on central node)
+  - controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to [MQTT]
+  - gateway: WebSocket [Axum] server streaming frames + detections to connected clients
+  - [mosquitto]: MQTT broker for centralized event collection (deployed on central node)
 
-Use of mmap with FlatBuffer for zero serialization + mqueue semaphore
+Use of mmap with [FlatBuffers] for zero serialization + mqueue semaphore
 
 ## Architecture
 
@@ -44,12 +44,11 @@ I used k3s even if it adds some memory footprint for the ease of use when it com
 
 ## Installation
 
-**Rust** 1.92+ (`rustup default 1.92.0`)
-**Docker** with buildx
-**k3d** (lightweight Kubernetes)
-**ONNX Runtime** (installed automatically in containers)
-**CUDA + Tensorrt** (to run GPU inference)
-**V4L2-compatible USB camera** (for capture service)
+ - **Rust** 1.92+ (`rustup default 1.92.0`)
+ - **Docker** with buildx
+ - **k3d** (lightweight Kubernetes)
+ - **ONNX Runtime** (installed automatically in containers)
+ - **CUDA** (to run GPU inference)
 
 ### Quick Start
 
@@ -140,8 +139,12 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 Note: This project is intended for educational and research purposes.
 
 <!--references-->
+[RF-DETR]: https://github.com/roboflow/rf-detr
 [v4l]: https://crates.io/crates/v4l
 [ONNX]: https://onnx.ai/
 [CXX]: https://cxx.rs/
+[MQTT]: https://mqtt.org/
 [Axum]: https://docs.rs/axum/latest/axum/
+[mosquitto]: https://mosquitto.org/
+[FlatBuffers]: https://flatbuffers.dev/
 [ORT]: https://ort.pyke.io/
