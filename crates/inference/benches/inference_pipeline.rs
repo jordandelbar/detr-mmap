@@ -195,7 +195,7 @@ fn benchmark_inference(c: &mut Criterion) {
             // Benchmark CPU execution provider
             if let Ok(mut cpu_backend) = OrtBackend::load_model_with_provider(
                 onnx_model_path,
-                inference::backend::ort::ExecutionProvider::Cpu,
+                inference::config::ExecutionProvider::Cpu,
             ) {
                 group.bench_function("ort_cpu", |b| {
                     b.iter(|| cpu_backend.infer(black_box(&preprocessed)).unwrap());
@@ -207,7 +207,7 @@ fn benchmark_inference(c: &mut Criterion) {
             // Benchmark CUDA execution provider
             if let Ok(mut cuda_backend) = OrtBackend::load_model_with_provider(
                 onnx_model_path,
-                inference::backend::ort::ExecutionProvider::Cuda,
+                inference::config::ExecutionProvider::Cuda,
             ) {
                 group.bench_function("ort_cuda", |b| {
                     b.iter(|| cuda_backend.infer(black_box(&preprocessed)).unwrap());
@@ -266,7 +266,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
             // CPU pipeline
             if let Ok(mut cpu_backend) = OrtBackend::load_model_with_provider(
                 onnx_model_path,
-                inference::backend::ort::ExecutionProvider::Cpu,
+                inference::config::ExecutionProvider::Cpu,
             ) {
                 group.bench_function("ort_cpu", |b| {
                     b.iter(|| {
@@ -308,7 +308,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
             // CUDA pipeline
             if let Ok(mut cuda_backend) = OrtBackend::load_model_with_provider(
                 onnx_model_path,
-                inference::backend::ort::ExecutionProvider::Cuda,
+                inference::config::ExecutionProvider::Cuda,
             ) {
                 group.bench_function("ort_cuda", |b| {
                     b.iter(|| {
@@ -416,14 +416,6 @@ criterion_group!(
     benchmark_bgr_conversion,
     benchmark_inference,
     benchmark_full_pipeline
-);
-
-#[cfg(not(any(feature = "ort-backend", feature = "trt-backend")))]
-criterion_group!(
-    benches,
-    benchmark_preprocessing,
-    benchmark_postprocessing,
-    benchmark_bgr_conversion
 );
 
 criterion_main!(benches);

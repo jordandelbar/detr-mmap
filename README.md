@@ -3,7 +3,7 @@
 [![Build](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/jordandelbar/detr-mmap/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/detr-mmap)
 
-A RF-DETR implementation with Rust, CXX | ORT, FlatBuffers and k3d
+An RF-DETR implementation with Rust, CXX | ORT, FlatBuffers and k3d
 
 ## Overview
 
@@ -23,7 +23,7 @@ A sentry mode state machine reduces computation by switching to standby when no 
   - gateway: WebSocket [Axum] server streaming frames + detections to connected clients
   - [mosquitto]: MQTT broker for centralized event collection (deployed on central node)
 
-Use of mmap with [FlatBuffers] for zero serialization + mqueue semaphore
+Use of mmap with [FlatBuffers] for zero serialization + mqueue semaphore.
 
 ## Architecture
 
@@ -35,10 +35,10 @@ Use of mmap with [FlatBuffers] for zero serialization + mqueue semaphore
 
 Edge devices have limited CPU and memory. Network protocol overhead (TCP, HTTP/2, serialization) adds latency and CPU usage.
 
-Memory-mapped files (`mmap`) provide true zero-serialization IPC. There is no serialization: reader accesses data directly in writer's memory
+Memory-mapped files (`mmap`) provide true zero-serialization IPC. There is no serialization, the reader accesses data directly in the writer's memory.
 The trade-off is that it only works for local IPC, this is not secured for cloud deployment with shared machine but clearly fitting for edge deployments.
 
-I used k3s even if it adds some memory footprint for the ease of use when it comes to edge deployment.
+I used k3s even though it adds some memory footprint for the ease of use when it comes to edge deployment.
 
 ## Installation
 
@@ -50,22 +50,7 @@ I used k3s even if it adds some memory footprint for the ease of use when it com
 
 ### Quick Start
 
-```bash
-# Clone repository
-git clone https://github.com/jordandelbar/detr-mmap.git
-cd detr-mmap
-
-# Create k3d cluster + deploy services
-just up
-
-# Check deployment
-kubectl get pods -n detr-mmap
-
-# View logs
-kubectl logs -n detr-mmap -l component=inference --follow
-```
-
-### Local Development (no Kubernetes)
+#### Local Development (no Kubernetes)
 
 Run locally with Docker Compose using CPU inference:
 
@@ -81,6 +66,25 @@ just local-down
 ```
 
 This runs inference on CPU.
+
+#### k3d Deployment
+
+```bash
+# Clone repository
+git clone https://github.com/jordandelbar/detr-mmap.git
+cd detr-mmap
+
+# Create k3d cluster + deploy services
+just up
+
+# Check deployment
+kubectl get pods -n detr-mmap
+
+# View logs
+kubectl logs -n detr-mmap -l component=inference --follow
+```
+By default, this runs the TensorRT version of inference, so ensure you have configured your Docker
+daemon to run with CUDA. See the next section for setup instructions.
 
 ## Running with CUDA
 
@@ -130,6 +134,7 @@ Run benchmarks yourself:
 just bench
 # HTML reports output to benchmark-reports/
 ```
+
 ## Testing without a camera
 
 ```bash
