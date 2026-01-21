@@ -1,6 +1,9 @@
 use crate::config::CameraConfig;
 use anyhow::{Context, Result, anyhow};
-use bridge::{BridgeSemaphore, FrameWriter, SemaphoreType, SentryControl, SentryMode};
+use bridge::{
+    BridgeSemaphore, FrameWriter, SemaphoreType, SentryControl, SentryMode, TraceContext,
+    TraceContextBytes,
+};
 use common::retry::retry_with_backoff;
 use libc::{CLOCK_MONOTONIC, clock_gettime, timespec};
 use std::{
@@ -364,6 +367,14 @@ impl Camera {
 
             match stream.next() {
                 Ok((buf, meta)) => {
+                    // Create a span for this frame capture
+                    let span = tracing::info_span!(
+                        "capture_frame",
+                        frame_number = frame_count,
+                        camera_id = self.camera_id
+                    );
+                    let _enter = span.enter();
+
                     // Decode to RGB
                     let rgb_data = match self.decode_frame(buf) {
                         Ok(data) => data,
@@ -374,12 +385,16 @@ impl Camera {
                         }
                     };
 
-                    if let Err(e) = self.frame_writer.write(
+                    // Capture trace context from the current span for propagation
+                    let trace_ctx = TraceContext::from_current().map(|ctx| TraceContextBytes::from(&ctx));
+
+                    if let Err(e) = self.frame_writer.write_with_trace_context(
                         &rgb_data,
                         self.camera_id,
                         frame_count,
                         self.width,
                         self.height,
+                        trace_ctx.as_ref(),
                     ) {
                         dropped_frames += 1;
                         tracing::warn!("Frame #{} write error: {}", frame_count, e);

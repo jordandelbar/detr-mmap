@@ -1,3 +1,4 @@
+use common::TelemetryGuard;
 use gateway::{
     config::GatewayConfig, logging::setup_logging, polling::BufferPoller, state::AppState, ws,
 };
@@ -8,7 +9,13 @@ use tokio::sync::broadcast;
 async fn main() -> anyhow::Result<()> {
     let config = GatewayConfig::from_env();
 
-    setup_logging(&config);
+    // TelemetryGuard initializes the tracing subscriber, so only call setup_logging if not using telemetry
+    let _telemetry = if let Some(endpoint) = config.otel_endpoint.as_ref() {
+        Some(TelemetryGuard::init("gateway", endpoint)?)
+    } else {
+        setup_logging(&config);
+        None
+    };
 
     tracing::info!("Gateway service starting");
     tracing::info!("WebSocket endpoint: ws://{}/ws", config.ws_addr);

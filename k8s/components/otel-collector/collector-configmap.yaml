@@ -45,6 +45,12 @@ data:
           max_interval: 30s
           max_elapsed_time: 300s
 
+      # OTLP exporter for Jaeger (traces only)
+      otlp/jaeger:
+        endpoint: jaeger:4317
+        tls:
+          insecure: true
+
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
@@ -55,7 +61,7 @@ data:
         traces:
           receivers: [otlp]
           processors: [batch, resource]
-          exporters: [debug]
+          exporters: [debug, otlp/jaeger]
         metrics:
           receivers: [otlp]
           processors: [batch, resource]

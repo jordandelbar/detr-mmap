@@ -16,6 +16,7 @@ detection-writer = ["mmap-writer"]
 sentry = []
 semaphores = []
 tokio = ["dep:tokio"]
+tracing = ["dep:tracing", "dep:tracing-opentelemetry", "dep:opentelemetry"]
 
 mmap-reader = []
 mmap-writer = []
@@ -33,6 +34,9 @@ schema = { path = "../schema" }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["time"], optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = "3.24"

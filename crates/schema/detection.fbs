@@ -14,6 +14,11 @@ table DetectionResult {
     timestamp_ns: uint64;
     camera_id: uint32;
     detections: [BoundingBox];
+
+    // W3C Trace Context for distributed tracing
+    trace_id: [ubyte];       // W3C trace ID (128-bit, 16 bytes)
+    span_id: [ubyte];        // W3C span ID (64-bit, 8 bytes)
+    trace_flags: ubyte;      // Sampling flag (1 byte)
 }
 
 root_type DetectionResult;

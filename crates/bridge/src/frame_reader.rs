@@ -1,6 +1,6 @@
 use crate::{
     errors::BridgeError, macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths,
-    retry::RetryConfig, utils::safe_flatbuffers_root,
+    retry::RetryConfig, types::TraceContextBytes, utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
 
@@ -20,6 +20,21 @@ impl FrameReader {
 
         let frame = safe_flatbuffers_root::<schema::Frame>(self.reader.buffer())?;
         Ok(Some(frame))
+    }
+
+    /// Get the current frame along with its trace context for distributed tracing.
+    /// Returns None if sequence is 0.
+    pub fn get_frame_with_context(
+        &self,
+    ) -> Result<Option<(schema::Frame<'_>, Option<TraceContextBytes>)>> {
+        if self.current_sequence() == 0 {
+            return Ok(None);
+        }
+
+        let frame = safe_flatbuffers_root::<schema::Frame>(self.reader.buffer())?;
+        let trace_ctx = extract_trace_context_from_frame(&frame);
+
+        Ok(Some((frame, trace_ctx)))
     }
 
     /// Get frame with automatic retry using exponential backoff
@@ -64,4 +79,25 @@ impl FrameReader {
         }
         Err(BridgeError::NoDataAvailable.into())
     }
+}
+
+/// Extract trace context from a Frame if present and valid.
+fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceContextBytes> {
+    let trace_id = frame.trace_id()?;
+    let span_id = frame.span_id()?;
+
+    if trace_id.len() != 16 || span_id.len() != 8 {
+        return None;
+    }
+
+    let mut tid = [0u8; 16];
+    let mut sid = [0u8; 8];
+    tid.copy_from_slice(trace_id.bytes());
+    sid.copy_from_slice(span_id.bytes());
+
+    Some(TraceContextBytes {
+        trace_id: tid,
+        span_id: sid,
+        trace_flags: frame.trace_flags(),
+    })
 }

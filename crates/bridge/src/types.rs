@@ -1,5 +1,25 @@
 use serde::{Deserialize, Serialize};
 
+/// Trace context bytes for serialization into FlatBuffers.
+/// Contains W3C trace context fields for distributed tracing across IPC boundaries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TraceContextBytes {
+    pub trace_id: [u8; 16],
+    pub span_id: [u8; 8],
+    pub trace_flags: u8,
+}
+
+#[cfg(feature = "tracing")]
+impl From<&crate::trace_context::TraceContext> for TraceContextBytes {
+    fn from(ctx: &crate::trace_context::TraceContext) -> Self {
+        Self {
+            trace_id: ctx.trace_id,
+            span_id: ctx.span_id,
+            trace_flags: ctx.trace_flags,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Detection {
     pub x1: f32,

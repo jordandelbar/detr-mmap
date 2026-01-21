@@ -10,3 +10,4 @@ components:
   - ../../components/k3d-dev
   - ../../components/inference-trt
   - ../../components/otel-collector
+  - ../../components/jaeger

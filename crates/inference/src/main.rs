@@ -14,13 +14,13 @@ compile_error!("At least one backend feature must be enabled: 'ort-backend' or '
 async fn main() -> anyhow::Result<()> {
     let config = InferenceConfig::from_env()?;
 
-    let _telemetry = config
-        .otel_endpoint
-        .as_ref()
-        .map(|endpoint| TelemetryGuard::init("inference", endpoint))
-        .transpose()?;
-
-    setup_logging(&config);
+    // TelemetryGuard initializes the tracing subscriber, so only call setup_logging if not using telemetry
+    let _telemetry = if let Some(endpoint) = config.otel_endpoint.as_ref() {
+        Some(TelemetryGuard::init("inference", endpoint)?)
+    } else {
+        setup_logging(&config);
+        None
+    };
 
     tracing::info!(
         config = ?config,

@@ -3,6 +3,10 @@ pub mod errors;
 pub mod paths;
 pub mod types;
 
+// Trace context for distributed tracing (requires tracing feature)
+#[cfg(feature = "tracing")]
+pub mod trace_context;
+
 // Retry configuration for readers
 #[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
 pub mod retry;
@@ -54,7 +58,9 @@ pub use retry::RetryConfig;
 pub use semaphore::{BridgeSemaphore, SemaphoreType};
 #[cfg(feature = "sentry")]
 pub use sentry_control::{SentryControl, SentryMode};
-pub use types::{Detection, FrameMetadata};
+pub use types::{Detection, FrameMetadata, TraceContextBytes};
+#[cfg(feature = "tracing")]
+pub use trace_context::TraceContext;
 
 // Re-export schema types that services need
 pub use schema::ColorFormat;

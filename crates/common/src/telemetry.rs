@@ -8,6 +8,7 @@ use opentelemetry_sdk::{
     trace::{Sampler, SdkTracerProvider},
 };
 use std::time::Duration;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Initializes tracing and metrics providers on creation and shuts them down
 /// gracefully when dropped.
@@ -25,6 +26,9 @@ pub struct TelemetryGuard {
 
 impl TelemetryGuard {
     /// Initialize OpenTelemetry with OTLP export.
+    ///
+    /// Sets up both the OpenTelemetry providers and the tracing-opentelemetry layer
+    /// to bridge `tracing` spans to OpenTelemetry.
     ///
     /// # Arguments
     /// * `service_name` - Name of this service (appears in traces/metrics)
@@ -75,6 +79,19 @@ impl TelemetryGuard {
             .build();
 
         global::set_meter_provider(meter_provider.clone());
+
+        // Set up tracing-opentelemetry layer to bridge tracing spans to OpenTelemetry
+        let otel_layer = tracing_opentelemetry::layer()
+            .with_tracer(global::tracer(service_name.to_string()));
+
+        let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .with(otel_layer)
+            .init();
 
         Ok(Self {
             tracer_provider,

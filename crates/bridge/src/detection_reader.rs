@@ -1,6 +1,8 @@
 use crate::{
     errors::BridgeError, macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths,
-    retry::RetryConfig, types::Detection, utils::safe_flatbuffers_root,
+    retry::RetryConfig,
+    types::{Detection, TraceContextBytes},
+    utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
 
@@ -26,6 +28,28 @@ impl DetectionReader {
             .map(|d| d.iter().map(|det| Detection::from(&det)).collect());
 
         Ok(detections)
+    }
+
+    /// Get all detections along with trace context for distributed tracing.
+    /// Returns None if sequence is 0.
+    pub fn get_detections_with_context(
+        &self,
+    ) -> Result<Option<(Vec<Detection>, Option<TraceContextBytes>)>> {
+        if self.current_sequence() == 0 {
+            return Ok(None);
+        }
+
+        let detection_result =
+            safe_flatbuffers_root::<schema::DetectionResult>(self.reader.buffer())?;
+
+        let detections = detection_result
+            .detections()
+            .map(|d| d.iter().map(|det| Detection::from(&det)).collect())
+            .unwrap_or_default();
+
+        let trace_ctx = extract_trace_context_from_detection(&detection_result);
+
+        Ok(Some((detections, trace_ctx)))
     }
 
     /// Check if a person (class_id == 0) is detected in the current buffer
@@ -92,4 +116,27 @@ impl DetectionReader {
         }
         Err(BridgeError::NoDataAvailable.into())
     }
+}
+
+/// Extract trace context from a DetectionResult if present and valid.
+fn extract_trace_context_from_detection(
+    detection: &schema::DetectionResult<'_>,
+) -> Option<TraceContextBytes> {
+    let trace_id = detection.trace_id()?;
+    let span_id = detection.span_id()?;
+
+    if trace_id.len() != 16 || span_id.len() != 8 {
+        return None;
+    }
+
+    let mut tid = [0u8; 16];
+    let mut sid = [0u8; 8];
+    tid.copy_from_slice(trace_id.bytes());
+    sid.copy_from_slice(span_id.bytes());
+
+    Some(TraceContextBytes {
+        trace_id: tid,
+        span_id: sid,
+        trace_flags: detection.trace_flags(),
+    })
 }

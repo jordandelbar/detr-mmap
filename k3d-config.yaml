@@ -12,6 +12,9 @@ ports:
   - port: 9001:32001
     nodeFilters:
       - loadbalancer
+  - port: 16686:30686
+    nodeFilters:
+      - loadbalancer
 volumes:
   - volume: ${PWD}/models:/models
     nodeFilters:

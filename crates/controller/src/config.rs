@@ -1,5 +1,5 @@
 use anyhow::Result;
-use common::get_env;
+use common::{get_env, get_env_opt};
 
 #[derive(Debug, Clone)]
 pub struct ControllerConfig {
@@ -10,6 +10,7 @@ pub struct ControllerConfig {
     pub mqtt_broker_port: u16,
     pub mqtt_topic: String,
     pub mqtt_device_id: String,
+    pub otel_endpoint: Option<String>,
 }
 
 impl ControllerConfig {
@@ -22,6 +23,7 @@ impl ControllerConfig {
             mqtt_broker_port: get_env("MQTT_BROKER_PORT", 1883),
             mqtt_topic: get_env("MQTT_TOPIC", "detr-mmap/controller/state".to_string()),
             mqtt_device_id: get_env("MQTT_DEVICE_ID", "unknown".to_string()),
+            otel_endpoint: get_env_opt("OTEL_EXPORTER_OTLP_ENDPOINT"),
         })
     }
 }

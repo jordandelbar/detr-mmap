@@ -4,3 +4,5 @@ members = ["crates/bridge","crates/common","crates/capture","crates/inference", 
 
 [workspace.dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+opentelemetry = { version = "0.31", features = ["metrics", "trace"] }
+tracing-opentelemetry = "0.32"

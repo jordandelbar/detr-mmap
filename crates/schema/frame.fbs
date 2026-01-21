@@ -17,4 +17,9 @@ table Frame {
     format: ColorFormat;
 
     pixels: [ubyte];
+
+    // W3C Trace Context for distributed tracing
+    trace_id: [ubyte];       // W3C trace ID (128-bit, 16 bytes)
+    span_id: [ubyte];        // W3C span ID (64-bit, 8 bytes)
+    trace_flags: ubyte;      // Sampling flag (1 byte)
 }

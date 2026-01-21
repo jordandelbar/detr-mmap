@@ -33,6 +33,9 @@ fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
             channels: 3,
             format,
             pixels: Some(pixel_vector),
+            trace_id: None,
+            span_id: None,
+            trace_flags: 0,
         },
     );
 
