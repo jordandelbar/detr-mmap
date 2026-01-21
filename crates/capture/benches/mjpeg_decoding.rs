@@ -1,17 +1,32 @@
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 
-/// Create a JPEG encoded test image with a gradient pattern
+/// Create a JPEG encoded test image with noise pattern (simulates real camera data)
 fn create_test_jpeg(width: u32, height: u32, quality: u8) -> Vec<u8> {
     use image::{ImageEncoder, codecs::jpeg::JpegEncoder};
 
     let size = (width * height * 3) as usize;
     let mut pixels = Vec::with_capacity(size);
 
+    // Use a simple LCG for deterministic pseudo-random noise
+    let mut rng_state: u32 = 12345;
+    let mut next_rand = || -> u8 {
+        rng_state = rng_state.wrapping_mul(1103515245).wrapping_add(12345);
+        ((rng_state >> 16) & 0xFF) as u8
+    };
+
     for y in 0..height {
         for x in 0..width {
-            let r = ((x * 255) / width) as u8;
-            let g = ((y * 255) / height) as u8;
-            let b = (((x + y) * 127) / (width + height)) as u8;
+            // Base gradient with significant noise overlay (simulates real scene)
+            let base_r = ((x * 255) / width) as u8;
+            let base_g = ((y * 255) / height) as u8;
+            let base_b = (((x + y) * 127) / (width + height)) as u8;
+
+            // Add moderate noise (real camera frames have some sensor noise)
+            let noise = (next_rand() as i16 - 128) / 8; // ~±16 noise range
+            let r = (base_r as i16 + noise).clamp(0, 255) as u8;
+            let g = (base_g as i16 + noise).clamp(0, 255) as u8;
+            let b = (base_b as i16 + noise).clamp(0, 255) as u8;
+
             pixels.push(r);
             pixels.push(g);
             pixels.push(b);
@@ -42,13 +57,9 @@ fn benchmark_mjpeg_decoding(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(pixel_count));
 
-        group.bench_with_input(
-            BenchmarkId::new("current", label),
-            &jpeg_data,
-            |b, jpeg| {
-                b.iter(|| capture::mjpeg_to_rgb(black_box(jpeg)))
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(label), &jpeg_data, |b, jpeg| {
+            b.iter(|| capture::mjpeg_to_rgb(black_box(jpeg)))
+        });
     }
 
     group.finish();

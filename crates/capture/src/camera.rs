@@ -7,7 +7,6 @@ use bridge::{
 use common::retry::retry_with_backoff;
 use libc::{CLOCK_MONOTONIC, clock_gettime, timespec};
 use std::{
-    io::Cursor,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -199,16 +198,14 @@ fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> Vec<u8> {
     rgb
 }
 
-/// Decode MJPEG frame to RGB
+/// Decode MJPEG frame to RGB using turbojpeg (libjpeg-turbo)
 #[tracing::instrument(skip(mjpeg))]
 pub fn mjpeg_to_rgb(mjpeg: &[u8]) -> Result<Vec<u8>> {
-    let cursor = Cursor::new(mjpeg);
-    let img = image::ImageReader::new(cursor)
-        .with_guessed_format()?
-        .decode()
-        .context("Failed to decode MJPEG frame")?;
+    let image: turbojpeg::Image<Vec<u8>> =
+        turbojpeg::decompress(mjpeg, turbojpeg::PixelFormat::RGB)
+            .context("Failed to decode MJPEG frame")?;
 
-    Ok(img.into_rgb8().into_raw())
+    Ok(image.pixels)
 }
 
 pub struct Camera {
@@ -319,6 +316,7 @@ impl Camera {
     }
 
     /// Decode raw frame buffer to RGB based on pixel format
+    #[tracing::instrument(skip(self, raw))]
     fn decode_frame(&self, raw: &[u8]) -> Result<Vec<u8>> {
         match self.pixel_format {
             PixelFormat::Yuyv => Ok(yuyv_to_rgb(raw, self.width, self.height)),

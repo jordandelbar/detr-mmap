@@ -362,6 +362,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-opentelemetry",
+ "turbojpeg",
  "v4l",
 ]
 
