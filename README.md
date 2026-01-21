@@ -14,16 +14,16 @@ A sentry mode state machine reduces computation by switching to standby when no 
 
 ## Tech Stack
 
-  - capture: Camera frame acquisition using [v4l]
-  - inference: [RF-DETR] model inference:
-    - Using CPU via [ORT] with CPU execution provider
-    - Using Cuda via [ORT] with CUDA execution provider
-    - Using TensorRT via C++ bindings using [CXX]
-  - controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to [MQTT]
-  - gateway: WebSocket [Axum] server streaming frames + detections to connected clients
-  - [mosquitto]: MQTT broker for centralized event collection (deployed on central node)
-
-Use of mmap with [FlatBuffers] for zero serialization + mqueue semaphore.
+  - Capture: Camera frame acquisition using [v4l]
+  - Inference: [RF-DETR] model inference:
+    - CPU: [ORT] with CPU execution provider
+    - GPU: [ORT] with CUDA execution provider
+    - TensorRT via C++ bindings ([CXX])
+  - Controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to [MQTT]
+  - Gateway: WebSocket [Axum] server streaming frames + detections to clients
+  - IPC: Memory-mapped files with [FlatBuffers] for zero-serialization, synchronized with POSIX mqueue semaphores.
+  - Broker: [mosquitto] MQTT broker for centralized event collection
+  - Observability: [OpenTelemetry] + [Jaeger] for tracing and metrics
 
 ## Architecture
 
@@ -39,6 +39,9 @@ Memory-mapped files (`mmap`) provide true zero-serialization IPC. There is no se
 The trade-off is that it only works for local IPC, this is not secured for cloud deployment with shared machine but clearly fitting for edge deployments.
 
 I used k3s even though it adds some memory footprint for the ease of use when it comes to edge deployment.
+
+The pipeline is intentionally asynchronous. Frames are displayed immediately while detections correspond to the previous frame,
+introducing <1-frame temporal skew (multiple frame skew if using the CPU). This design maximizes throughput and minimizes perceived latency.
 
 ## Installation
 
@@ -90,11 +93,13 @@ daemon to run with CUDA. See the next section for setup instructions.
 
 Follow [this guide](https://github.com/jordandelbar/yolo-tonic/blob/a146a7820c173545c47c5c1bac7cdf0417773150/docs/setup/nvidia_docker.md) to set up CUDA correctly.
 
-## Performance & Benchmarks
+## Benchmarks & Performance
 
-Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 RGB input frames.
+Benchmarks and performance run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 RGB input frames.
 
-### Inference Only
+### Benchmarks
+
+#### Inference Only
 
 | Backend    | Latency   | Throughput |
 |------------|-----------|------------|
@@ -102,7 +107,7 @@ Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 R
 | ORT (CUDA) | 15.4 ms   | ~65 FPS    |
 | TensorRT   |  3.8 ms   | ~263 FPS   |
 
-### Full Pipeline (preprocess → inference → postprocess)
+#### Full Pipeline (preprocess → inference → postprocess)
 
 | Backend    | Latency   | Throughput |
 |------------|-----------|------------|
@@ -110,7 +115,7 @@ Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 R
 | ORT (CUDA) | 17.3 ms   | ~58 FPS    |
 | TensorRT   |  5.9 ms   | ~170 FPS   |
 
-### Component Breakdown (1920x1080)
+#### Component Breakdown (1920x1080)
 
 | Component      | Latency  |
 |----------------|----------|
@@ -119,7 +124,7 @@ Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 R
 | Frame write    | 309 µs   |
 | Frame read     | 58 ns    |
 
-### IPC Performance (FlatBuffers + mmap)
+#### IPC Performance (FlatBuffers + mmap)
 
 | Scenario           | Write    | Read     | Roundtrip |
 |--------------------|----------|----------|-----------|
@@ -135,6 +140,12 @@ just bench
 # HTML reports output to benchmark-reports/
 ```
 
+### Performance
+
+Here is an example of a typical trace span:
+
+![Alt text](./docs/images/traces.png)
+
 ## Testing without a camera
 
 ```bash
@@ -144,9 +155,9 @@ ffmpeg -re -stream_loop -1 -i video.mp4 -c:v mjpeg -f v4l2 /dev/video0
 
 ## Ideas about what to do with this repo
 
-- If you are a DevOps: try to deploy it with KubeEdge in place of K3s (you can use KinD + KubeEdge)
-- If you are a MLE: try to quantize a INT8 model and run it
-- If you are a SWE: try to replace the ws with a proper h264 setup
+ - DevOps: Deploy with KubeEdge instead of K3s (KinD + KubeEdge)
+ - MLE: Quantize model to INT8 for lower latency
+ - SWE: Replace WebSocket streaming with proper H.264 setup
 
 ## Contributing
 
@@ -168,3 +179,5 @@ Note: This project is intended for educational and research purposes.
 [mosquitto]: https://mosquitto.org/
 [FlatBuffers]: https://flatbuffers.dev/
 [ORT]: https://ort.pyke.io/
+[OpenTelemetry]: https://opentelemetry.io/
+[Jaeger]: https://www.jaegertracing.io/
