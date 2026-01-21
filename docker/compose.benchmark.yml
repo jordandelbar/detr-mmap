@@ -5,6 +5,8 @@ services:
       dockerfile: docker/benchmark.Dockerfile
       args:
         GPU_BASE_IMAGE: detr-mmap-gpu-base:latest
+    environment:
+      - BENCH_FILTER=${BENCH_FILTER:-}
     volumes:
       - ../benchmark-reports:/workspace/target/criterion
     deploy:

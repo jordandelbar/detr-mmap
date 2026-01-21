@@ -21,4 +21,6 @@ ENV LD_LIBRARY_PATH=/workspace/target/release:/workspace/target/release/deps:/us
 
 RUN cargo build --release --benches --workspace --features "ort-backend trt-backend"
 
-CMD ["cargo", "bench", "--workspace", "--features", "ort-backend trt-backend"]
+ENV BENCH_FILTER=""
+
+CMD sh -c 'if [ -z "$BENCH_FILTER" ]; then cargo bench --workspace --features "ort-backend trt-backend"; else cargo bench --workspace --features "ort-backend trt-backend" -- "$BENCH_FILTER"; fi'

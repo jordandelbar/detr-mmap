@@ -160,7 +160,7 @@ fn benchmark_bgr_conversion(c: &mut Criterion) {
         });
     });
 
-    // RGB path (this is production path with nokhwa)
+    // RGB path (production path - frames arrive as RGB from capture)
     let rgb_frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
     let rgb_frame = flatbuffers::root::<schema::Frame>(&rgb_frame_data).unwrap();
 

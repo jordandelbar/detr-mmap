@@ -44,5 +44,5 @@ test:
 coverage:
     cargo llvm-cov --workspace --lib --tests
 
-bench:
-    @docker compose -f docker/compose.benchmark.yml up --build
+bench FILTER="":
+    @BENCH_FILTER="{{FILTER}}" docker compose -f docker/compose.benchmark.yml up --build

@@ -109,28 +109,27 @@ impl PreProcessor {
                 .copy_from_slice(&resized_data[src_row_start..src_row_end]);
         }
 
-        let mut input = Array::zeros(IxDyn(&[
-            1,
-            3,
-            self.input_size.1 as usize,
-            self.input_size.0 as usize,
-        ]));
+        let width = self.input_size.0 as usize;
+        let height = self.input_size.1 as usize;
+        let spatial_size = width * height;
 
-        // Apply ImageNet normalization
-        for y in 0..self.input_size.1 as usize {
-            for x in 0..self.input_size.0 as usize {
-                let pixel_idx = (y * self.input_size.0 as usize + x) * 3;
+        // Pre-allocate output buffer for CHW planar format
+        let mut output = vec![0.0f32; 3 * spatial_size];
 
-                // Normalize to [0, 1] range then apply ImageNet normalization
-                let r = self.letterboxed_buffer[pixel_idx] as f32 / 255.0;
-                let g = self.letterboxed_buffer[pixel_idx + 1] as f32 / 255.0;
-                let b = self.letterboxed_buffer[pixel_idx + 2] as f32 / 255.0;
+        // Flattened loop - helps SIMD auto-vectorization
+        for (i, chunk) in self.letterboxed_buffer.chunks_exact(3).enumerate() {
+            let r = chunk[0] as f32 / 255.0;
+            let g = chunk[1] as f32 / 255.0;
+            let b = chunk[2] as f32 / 255.0;
 
-                input[[0, 0, y, x]] = (r - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
-                input[[0, 1, y, x]] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
-                input[[0, 2, y, x]] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
-            }
+            // Write to planar CHW layout
+            output[i] = (r - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
+            output[i + spatial_size] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
+            output[i + 2 * spatial_size] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
         }
+
+        let input = Array::from_shape_vec(IxDyn(&[1, 3, height, width]), output)
+            .expect("Shape mismatch in normalization output");
 
         Ok((input, scale, offset_x as f32, offset_y as f32))
     }
