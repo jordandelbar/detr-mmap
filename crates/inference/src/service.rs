@@ -6,7 +6,7 @@ use crate::{
         pre::PreProcessor,
     },
 };
-use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType, TraceContextBytes};
+use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType};
 use common::wait_for_resource;
 use opentelemetry::{
     global,
@@ -14,7 +14,6 @@ use opentelemetry::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
-use tracing_macros::traced;
 
 pub struct InferenceService<B: InferenceBackend> {
     backend: B,
@@ -170,16 +169,14 @@ impl<B: InferenceBackend> InferenceService<B> {
             .get_frame_with_context()?
             .ok_or_else(|| anyhow::anyhow!("No frame available"))?;
 
-        self.process_frame_inner(&frame, trace_ctx.as_ref(), detection_writer)
-    }
+        // Create span and link to parent trace from capture service
+        let span = tracing::info_span!("inference_process_frame");
+        if let Some(ref ctx) = trace_ctx {
+            ctx.set_parent(&span);
+        }
+        let _guard = span.entered();
 
-    #[traced("inference_process_frame", parent = trace_ctx)]
-    fn process_frame_inner(
-        &mut self,
-        frame: &schema::Frame<'_>,
-        trace_ctx: Option<&TraceContextBytes>,
-        detection_writer: &mut DetectionWriter,
-    ) -> anyhow::Result<usize> {
+        // From here, all #[instrument] decorated functions become children
         let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let camera_id = frame.camera_id();
@@ -228,7 +225,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             timestamp_ns,
             camera_id,
             &detections,
-            trace_ctx,
+            trace_ctx.as_ref(),
         )?;
 
         Ok(detections.len())

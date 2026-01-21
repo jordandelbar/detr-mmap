@@ -75,6 +75,7 @@ impl InferenceBackend for TrtBackend {
         })
     }
 
+    #[tracing::instrument(skip(self, images))]
     fn infer(&mut self, images: &Array<f32, IxDyn>) -> anyhow::Result<InferenceOutput> {
         // Prepare output buffers
         // Dets: [1, num_queries, 4]

@@ -11,11 +11,8 @@ pub struct TraceContextBytes {
 
 impl TraceContextBytes {
     /// Convert this trace context into an OpenTelemetry Context for span linking.
-    ///
-    /// The returned context can be used with `tracing::Span::set_parent()` to
-    /// link spans across process boundaries.
     #[cfg(feature = "tracing")]
-    pub fn into_context(&self) -> opentelemetry::Context {
+    fn into_context(&self) -> opentelemetry::Context {
         use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 
         let span_context = SpanContext::new(
@@ -27,6 +24,26 @@ impl TraceContextBytes {
         );
 
         opentelemetry::Context::new().with_remote_span_context(span_context)
+    }
+
+    /// Set this trace context as the parent of the given span.
+    ///
+    /// Use this at IPC boundaries to link spans across processes.
+    /// All child spans created while inside this span will inherit the trace.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let span = tracing::info_span!("process_frame");
+    /// if let Some(ctx) = trace_ctx.as_ref() {
+    ///     ctx.set_parent(&span);
+    /// }
+    /// let _guard = span.entered();
+    /// // All #[instrument] functions called here become children
+    /// ```
+    #[cfg(feature = "tracing")]
+    pub fn set_parent(&self, span: &tracing::Span) {
+        use tracing_opentelemetry::OpenTelemetrySpanExt;
+        let _ = span.set_parent(self.into_context());
     }
 }
 

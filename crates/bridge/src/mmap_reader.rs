@@ -55,6 +55,7 @@ impl MmapReader {
     /// The returned buffer may be newer than the returned sequence.
     /// Frames may be skipped.
     #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self)))]
     pub fn read_frame(&self) -> Option<(u64, &[u8])> {
         let seq1 = self.current_sequence();
         if seq1 <= self.last_sequence {

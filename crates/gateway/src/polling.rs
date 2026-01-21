@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
-use tracing_macros::traced;
 
 /// Frame data extracted from shared memory
 struct FrameData {
@@ -79,26 +78,27 @@ impl BufferPoller {
                 }
             };
 
-            let trace_ctx = frame_data.trace_ctx.clone();
-            self.process_and_broadcast(frame_data, trace_ctx.as_ref());
+            // Create span and link to parent trace from capture service
+            let span = tracing::info_span!("gateway_process_frame");
+            if let Some(ref ctx) = frame_data.trace_ctx {
+                ctx.set_parent(&span);
+            }
+            let _guard = span.entered();
+
+            // Encode frame to JPEG
+            let jpeg_data = self.encode_to_jpeg(&frame_data);
+
+            // Read detections if available
+            let detection_data = self.read_detections(!jpeg_data.is_empty());
+
+            // Build and broadcast packet
+            let packet = self.build_packet(frame_data, jpeg_data, detection_data);
+            self.broadcast_packet(packet);
 
             // Mark buffers as read
             self.frame_reader.mark_read();
             self.detection_reader.mark_read();
         }
-    }
-
-    #[traced("gateway_process_frame", parent = trace_ctx)]
-    fn process_and_broadcast(&mut self, frame_data: FrameData, trace_ctx: Option<&TraceContextBytes>) {
-        // Encode frame to JPEG
-        let jpeg_data = self.encode_to_jpeg(&frame_data);
-
-        // Read detections if available
-        let detection_data = self.read_detections(!jpeg_data.is_empty());
-
-        // Build and broadcast packet
-        let packet = self.build_packet(frame_data, jpeg_data, detection_data);
-        self.broadcast_packet(packet);
     }
 
     /// Wait for frame ready signal from camera
@@ -284,6 +284,7 @@ const JPEG_QUALITY: i32 = 80;
 
 /// Convert raw pixel data to JPEG format using turbojpeg
 /// Supports RGB and BGR color formats
+#[tracing::instrument(skip(pixel_data))]
 pub fn pixels_to_jpeg(
     pixel_data: &[u8],
     width: u32,

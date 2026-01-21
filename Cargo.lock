@@ -993,7 +993,6 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
- "tracing-macros",
  "tracing-opentelemetry",
  "turbojpeg",
 ]
@@ -1384,7 +1383,6 @@ dependencies = [
  "schema",
  "tokio",
  "tracing",
- "tracing-macros",
  "tracing-opentelemetry",
 ]
 
@@ -3152,15 +3150,6 @@ dependencies = [
  "log",
  "once_cell",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

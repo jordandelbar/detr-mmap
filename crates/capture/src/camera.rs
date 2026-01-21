@@ -163,6 +163,7 @@ fn select_format(device: &Device) -> Result<PixelFormat> {
 /// Convert YUYV (YUV 4:2:2) to RGB
 /// YUYV packs 2 pixels in 4 bytes: [Y0, U, Y1, V]
 /// Handles stride padding by only processing expected bytes per row.
+#[tracing::instrument(skip(yuyv))]
 fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> Vec<u8> {
     let pixel_count = (width * height) as usize;
     let mut rgb = Vec::with_capacity(pixel_count * 3);
@@ -199,6 +200,7 @@ fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> Vec<u8> {
 }
 
 /// Decode MJPEG frame to RGB
+#[tracing::instrument(skip(mjpeg))]
 fn mjpeg_to_rgb(mjpeg: &[u8]) -> Result<Vec<u8>> {
     let cursor = Cursor::new(mjpeg);
     let img = image::ImageReader::new(cursor)

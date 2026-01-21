@@ -51,6 +51,7 @@ impl InferenceBackend for OrtBackend {
         Self::load_model_with_provider(path, ExecutionProvider::from_env())
     }
 
+    #[tracing::instrument(skip(self, images))]
     fn infer(&mut self, images: &Array<f32, IxDyn>) -> anyhow::Result<InferenceOutput> {
         // RF-DETR: input -> dets, labels (logits)
         let outputs = self.session.run(ort::inputs![

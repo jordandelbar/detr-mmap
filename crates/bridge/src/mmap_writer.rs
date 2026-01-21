@@ -66,6 +66,7 @@ impl MmapWriter {
     /// 2. Sequence is published with Ordering::Release
     ///
     /// This guarantees readers using Acquire will see the complete payload.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, data), fields(data_len = data.len())))]
     pub fn write(&mut self, data: &[u8]) -> Result<(), BridgeError> {
         let available_space = self.mmap.len() - Header::SIZE;
         if data.len() > available_space {
