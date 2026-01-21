@@ -11,11 +11,10 @@ use common::wait_for_resource;
 use opentelemetry::{
     global,
     metrics::{Counter, Histogram},
-    trace::TraceContextExt,
 };
 use std::thread;
 use std::time::{Duration, Instant};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing_macros::traced;
 
 pub struct InferenceService<B: InferenceBackend> {
     backend: B,
@@ -171,26 +170,21 @@ impl<B: InferenceBackend> InferenceService<B> {
             .get_frame_with_context()?
             .ok_or_else(|| anyhow::anyhow!("No frame available"))?;
 
-        let frame_num = frame.frame_number();
+        self.process_frame_inner(&frame, trace_ctx.as_ref(), detection_writer)
+    }
+
+    #[traced("inference_process_frame", parent = trace_ctx)]
+    fn process_frame_inner(
+        &mut self,
+        frame: &schema::Frame<'_>,
+        trace_ctx: Option<&TraceContextBytes>,
+        detection_writer: &mut DetectionWriter,
+    ) -> anyhow::Result<usize> {
+        let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let camera_id = frame.camera_id();
         let width = frame.width();
         let height = frame.height();
-
-        // Create span linked to capture trace
-        let span = tracing::info_span!(
-            "inference_process_frame",
-            frame_number = frame_num,
-            camera_id = camera_id
-        );
-
-        // Link to parent trace from capture if available
-        if let Some(ref ctx) = trace_ctx {
-            let parent_ctx = trace_ctx_to_otel_context(ctx);
-            let _ = span.set_parent(parent_ctx);
-        }
-
-        let _enter = span.enter();
 
         let pixels = frame
             .pixels()
@@ -198,7 +192,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         let format = frame.format();
 
         tracing::trace!(
-            frame_num,
+            frame_number,
             width,
             height,
             format = ?format,
@@ -230,28 +224,13 @@ impl<B: InferenceBackend> InferenceService<B> {
 
         // Write detections with trace context for downstream propagation
         detection_writer.write_with_trace_context(
-            frame_num,
+            frame_number,
             timestamp_ns,
             camera_id,
             &detections,
-            trace_ctx.as_ref(),
+            trace_ctx,
         )?;
 
         Ok(detections.len())
     }
-}
-
-/// Convert TraceContextBytes to an OpenTelemetry Context for span linking.
-fn trace_ctx_to_otel_context(ctx: &TraceContextBytes) -> opentelemetry::Context {
-    use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-
-    let span_context = SpanContext::new(
-        TraceId::from_bytes(ctx.trace_id),
-        SpanId::from_bytes(ctx.span_id),
-        TraceFlags::new(ctx.trace_flags),
-        true, // remote = true since this came from another process
-        TraceState::default(),
-    );
-
-    opentelemetry::Context::new().with_remote_span_context(span_context)
 }

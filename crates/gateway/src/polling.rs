@@ -1,12 +1,11 @@
 use crate::state::{FrameMessage, FramePacket};
 use bridge::{BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType, TraceContextBytes};
 use common::wait_for_resource_async;
-use opentelemetry::trace::TraceContextExt;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing_macros::traced;
 
 /// Frame data extracted from shared memory
 struct FrameData {
@@ -80,34 +79,26 @@ impl BufferPoller {
                 }
             };
 
-            // Create a span linked to the capture span via trace context
-            let span = tracing::info_span!(
-                "gateway_process_frame",
-                frame_number = frame_data.frame_number
-            );
-
-            // Link to parent trace from capture if available
-            if let Some(ref trace_ctx) = frame_data.trace_ctx {
-                let parent_ctx = trace_ctx_to_otel_context(trace_ctx);
-                let _ = span.set_parent(parent_ctx);
-            }
-
-            let _enter = span.enter();
-
-            // Encode frame to JPEG
-            let jpeg_data = self.encode_to_jpeg(&frame_data);
-
-            // Read detections if available
-            let detection_data = self.read_detections(!jpeg_data.is_empty());
-
-            // Build and broadcast packet
-            let packet = self.build_packet(frame_data, jpeg_data, detection_data);
-            self.broadcast_packet(packet);
+            let trace_ctx = frame_data.trace_ctx.clone();
+            self.process_and_broadcast(frame_data, trace_ctx.as_ref());
 
             // Mark buffers as read
             self.frame_reader.mark_read();
             self.detection_reader.mark_read();
         }
+    }
+
+    #[traced("gateway_process_frame", parent = trace_ctx)]
+    fn process_and_broadcast(&mut self, frame_data: FrameData, trace_ctx: Option<&TraceContextBytes>) {
+        // Encode frame to JPEG
+        let jpeg_data = self.encode_to_jpeg(&frame_data);
+
+        // Read detections if available
+        let detection_data = self.read_detections(!jpeg_data.is_empty());
+
+        // Build and broadcast packet
+        let packet = self.build_packet(frame_data, jpeg_data, detection_data);
+        self.broadcast_packet(packet);
     }
 
     /// Wait for frame ready signal from camera
@@ -333,21 +324,6 @@ pub fn pixels_to_jpeg(
     let jpeg_data = turbojpeg::compress(image, JPEG_QUALITY, turbojpeg::Subsamp::Sub2x2)?;
 
     Ok(jpeg_data.to_vec())
-}
-
-/// Convert TraceContextBytes to an OpenTelemetry Context for span linking.
-fn trace_ctx_to_otel_context(ctx: &TraceContextBytes) -> opentelemetry::Context {
-    use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-
-    let span_context = SpanContext::new(
-        TraceId::from_bytes(ctx.trace_id),
-        SpanId::from_bytes(ctx.span_id),
-        TraceFlags::new(ctx.trace_flags),
-        true, // remote = true since this came from another process
-        TraceState::default(),
-    );
-
-    opentelemetry::Context::new().with_remote_span_context(span_context)
 }
 
 #[cfg(test)]

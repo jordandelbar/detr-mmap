@@ -9,6 +9,27 @@ pub struct TraceContextBytes {
     pub trace_flags: u8,
 }
 
+impl TraceContextBytes {
+    /// Convert this trace context into an OpenTelemetry Context for span linking.
+    ///
+    /// The returned context can be used with `tracing::Span::set_parent()` to
+    /// link spans across process boundaries.
+    #[cfg(feature = "tracing")]
+    pub fn into_context(&self) -> opentelemetry::Context {
+        use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
+
+        let span_context = SpanContext::new(
+            TraceId::from_bytes(self.trace_id),
+            SpanId::from_bytes(self.span_id),
+            TraceFlags::new(self.trace_flags),
+            true, // remote = true since this came from another process
+            TraceState::default(),
+        );
+
+        opentelemetry::Context::new().with_remote_span_context(span_context)
+    }
+}
+
 #[cfg(feature = "tracing")]
 impl From<&crate::trace_context::TraceContext> for TraceContextBytes {
     fn from(ctx: &crate::trace_context::TraceContext) -> Self {
