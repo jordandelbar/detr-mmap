@@ -1,4 +1,6 @@
-use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceContextBytes};
+use crate::{
+    macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceContextBytes,
+};
 use anyhow::{Context, Result};
 use schema::{ColorFormat, FrameArgs};
 use std::time::{SystemTime, UNIX_EPOCH};

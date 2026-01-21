@@ -81,8 +81,8 @@ impl TelemetryGuard {
         global::set_meter_provider(meter_provider.clone());
 
         // Set up tracing-opentelemetry layer to bridge tracing spans to OpenTelemetry
-        let otel_layer = tracing_opentelemetry::layer()
-            .with_tracer(global::tracer(service_name.to_string()));
+        let otel_layer =
+            tracing_opentelemetry::layer().with_tracer(global::tracer(service_name.to_string()));
 
         let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));

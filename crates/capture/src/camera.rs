@@ -313,7 +313,8 @@ impl Camera {
                     };
 
                     // Capture trace context from the current span for propagation
-                    let trace_ctx = TraceContext::from_current().map(|ctx| TraceContextBytes::from(&ctx));
+                    let trace_ctx =
+                        TraceContext::from_current().map(|ctx| TraceContextBytes::from(&ctx));
 
                     if let Err(e) = self.frame_writer.write_with_trace_context(
                         &rgb_data,

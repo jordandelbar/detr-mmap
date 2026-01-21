@@ -1,5 +1,8 @@
 use crate::{
-    errors::BridgeError, macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths,
+    errors::BridgeError,
+    macros::impl_mmap_reader_base,
+    mmap_reader::MmapReader,
+    paths,
     retry::RetryConfig,
     types::{Detection, TraceContextBytes},
     utils::safe_flatbuffers_root,

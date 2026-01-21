@@ -13,7 +13,9 @@ impl TraceContextBytes {
     /// Convert this trace context into an OpenTelemetry Context for span linking.
     #[cfg(feature = "tracing")]
     fn into_context(&self) -> opentelemetry::Context {
-        use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
+        use opentelemetry::trace::{
+            SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
+        };
 
         let span_context = SpanContext::new(
             TraceId::from_bytes(self.trace_id),

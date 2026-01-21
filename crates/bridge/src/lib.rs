@@ -58,9 +58,9 @@ pub use retry::RetryConfig;
 pub use semaphore::{BridgeSemaphore, SemaphoreType};
 #[cfg(feature = "sentry")]
 pub use sentry_control::{SentryControl, SentryMode};
-pub use types::{Detection, FrameMetadata, TraceContextBytes};
 #[cfg(feature = "tracing")]
 pub use trace_context::TraceContext;
+pub use types::{Detection, FrameMetadata, TraceContextBytes};
 
 // Re-export schema types that services need
 pub use schema::ColorFormat;
