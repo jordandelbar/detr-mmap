@@ -12,7 +12,7 @@ pub struct TraceContextBytes {
 impl TraceContextBytes {
     /// Convert this trace context into an OpenTelemetry Context for span linking.
     #[cfg(feature = "tracing")]
-    fn into_context(&self) -> opentelemetry::Context {
+    fn as_context(&self) -> opentelemetry::Context {
         use opentelemetry::trace::{
             SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
         };
@@ -45,7 +45,7 @@ impl TraceContextBytes {
     #[cfg(feature = "tracing")]
     pub fn set_parent(&self, span: &tracing::Span) {
         use tracing_opentelemetry::OpenTelemetrySpanExt;
-        let _ = span.set_parent(self.into_context());
+        let _ = span.set_parent(self.as_context());
     }
 }
 
