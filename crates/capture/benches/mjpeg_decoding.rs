@@ -1,3 +1,4 @@
+use capture::{FrameDecoder, MjpegDecoder};
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 
 /// Create a JPEG encoded test image with noise pattern (simulates real camera data)
@@ -57,8 +58,9 @@ fn benchmark_mjpeg_decoding(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(pixel_count));
 
+        let decoder = MjpegDecoder;
         group.bench_with_input(BenchmarkId::from_parameter(label), &jpeg_data, |b, jpeg| {
-            b.iter(|| capture::mjpeg_to_rgb(black_box(jpeg)))
+            b.iter(|| decoder.decode(black_box(jpeg), width, height))
         });
     }
 

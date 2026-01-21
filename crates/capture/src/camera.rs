@@ -1,11 +1,11 @@
 use crate::config::CameraConfig;
+use crate::decoder::{FrameDecoder, MjpegDecoder, YuyvDecoder};
 use anyhow::{Context, Result, anyhow};
 use bridge::{
     BridgeSemaphore, FrameWriter, SemaphoreType, SentryControl, SentryMode, TraceContext,
     TraceContextBytes,
 };
 use common::retry::retry_with_backoff;
-use libc::{CLOCK_MONOTONIC, clock_gettime, timespec};
 use std::{
     sync::{
         Arc,
@@ -159,61 +159,15 @@ fn select_format(device: &Device) -> Result<PixelFormat> {
     ))
 }
 
-/// Convert YUYV (YUV 4:2:2) to RGB
-/// YUYV packs 2 pixels in 4 bytes: [Y0, U, Y1, V]
-/// Handles stride padding by only processing expected bytes per row.
-#[tracing::instrument(skip(yuyv))]
-fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> Vec<u8> {
-    let pixel_count = (width * height) as usize;
-    let mut rgb = Vec::with_capacity(pixel_count * 3);
-
-    let bytes_per_row = (width * 2) as usize; // YUYV = 2 bytes per pixel
-    let stride = yuyv.len() / height as usize; // Actual stride (may include padding)
-
-    for row in 0..height as usize {
-        let row_start = row * stride;
-        let row_data = &yuyv[row_start..row_start + bytes_per_row];
-
-        for chunk in row_data.chunks_exact(4) {
-            // YUYV: [Y0, U, Y1, V]
-            let y0 = chunk[0] as f32;
-            let u = chunk[1] as f32 - 128.0;
-            let y1 = chunk[2] as f32;
-            let v = chunk[3] as f32 - 128.0;
-
-            // First pixel
-            let r0 = (y0 + 1.402 * v).clamp(0.0, 255.0) as u8;
-            let g0 = (y0 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-            let b0 = (y0 + 1.772 * u).clamp(0.0, 255.0) as u8;
-            rgb.extend_from_slice(&[r0, g0, b0]);
-
-            // Second pixel
-            let r1 = (y1 + 1.402 * v).clamp(0.0, 255.0) as u8;
-            let g1 = (y1 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-            let b1 = (y1 + 1.772 * u).clamp(0.0, 255.0) as u8;
-            rgb.extend_from_slice(&[r1, g1, b1]);
-        }
-    }
-
-    rgb
-}
-
-/// Decode MJPEG frame to RGB using turbojpeg (libjpeg-turbo)
-#[tracing::instrument(skip(mjpeg))]
-pub fn mjpeg_to_rgb(mjpeg: &[u8]) -> Result<Vec<u8>> {
-    let image: turbojpeg::Image<Vec<u8>> =
-        turbojpeg::decompress(mjpeg, turbojpeg::PixelFormat::RGB)
-            .context("Failed to decode MJPEG frame")?;
-
-    Ok(image.pixels)
-}
+/// Number of frames to discard on mode transition to flush stale buffers
+const FLUSH_FRAME_COUNT: usize = 4;
 
 pub struct Camera {
     camera_id: u32,
     device: Device,
     width: u32,
     height: u32,
-    pixel_format: PixelFormat,
+    decoder: Box<dyn FrameDecoder>,
     max_frame_rate: f64,
     sentry_mode_rate: f64,
     frame_writer: FrameWriter,
@@ -248,6 +202,12 @@ impl Camera {
             pixel_format
         );
 
+        // Create decoder for the selected format
+        let decoder: Box<dyn FrameDecoder> = match pixel_format {
+            PixelFormat::Yuyv => Box::new(YuyvDecoder),
+            PixelFormat::Mjpeg => Box::new(MjpegDecoder),
+        };
+
         // Configure for crisp motion (fast shutter, no motion blur)
         configure_for_crisp_motion(&device);
 
@@ -263,7 +223,7 @@ impl Camera {
             device,
             width: format.width,
             height: format.height,
-            pixel_format,
+            decoder,
             max_frame_rate: frame_rate,
             sentry_mode_rate: config.sentry_mode_fps,
             frame_writer,
@@ -272,64 +232,30 @@ impl Camera {
         })
     }
 
-    /// Returns current monotonic time as (seconds, microseconds)
-    fn monotonic_now() -> (i64, i64) {
-        let mut ts = timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe { clock_gettime(CLOCK_MONOTONIC, &mut ts) };
-        (ts.tv_sec, ts.tv_nsec / 1000)
-    }
-
-    /// Flush frames captured before the mode change.
-    /// Returns the number of stale frames discarded.
+    /// Discard buffered frames to ensure fresh captures after mode transition.
     fn flush_stale_frames(stream: &mut Stream) -> usize {
-        let (ref_sec, ref_usec) = Self::monotonic_now();
         let mut flushed = 0;
-
-        // Safety limit to prevent runaway loops
-        const MAX_FLUSH_FRAMES: usize = 16;
-
-        while flushed < MAX_FLUSH_FRAMES {
-            match stream.next() {
-                Ok((_, meta)) => {
-                    let frame_sec = meta.timestamp.sec;
-                    let frame_usec = meta.timestamp.usec;
-
-                    // Frame is fresh if captured after (or very close to) our reference time
-                    let frame_age_usec =
-                        (ref_sec - frame_sec) * 1_000_000 + (ref_usec - frame_usec);
-
-                    if frame_age_usec < 50_000 {
-                        // Frame is fresh (captured within 50ms of mode change)
-                        break;
-                    }
-
-                    flushed += 1;
-                }
-                Err(_) => break,
+        for _ in 0..FLUSH_FRAME_COUNT {
+            if stream.next().is_ok() {
+                flushed += 1;
+            } else {
+                break;
             }
         }
-
         flushed
     }
 
-    /// Decode raw frame buffer to RGB based on pixel format
+    /// Decode raw frame buffer to RGB
     #[tracing::instrument(skip(self, raw))]
     fn decode_frame(&self, raw: &[u8]) -> Result<Vec<u8>> {
-        match self.pixel_format {
-            PixelFormat::Yuyv => Ok(yuyv_to_rgb(raw, self.width, self.height)),
-            PixelFormat::Mjpeg => mjpeg_to_rgb(raw),
-        }
+        self.decoder.decode(raw, self.width, self.height)
     }
 
     pub fn run(&mut self, shutdown: &Arc<AtomicBool>, sentry: &SentryControl) -> Result<()> {
         tracing::info!(
-            "Starting camera stream at {}x{} ({:?})...",
+            "Starting camera stream at {}x{}...",
             self.width,
             self.height,
-            self.pixel_format
         );
 
         let mut stream = Stream::with_buffers(&self.device, Type::VideoCapture, BUFFER_COUNT)
@@ -337,6 +263,7 @@ impl Camera {
 
         let mut frame_count = 0u64;
         let mut dropped_frames = 0u64;
+        let mut semaphore_failures = 0u64;
         let mut current_mode = SentryMode::Standby;
         let standby_duration = Duration::from_secs_f64(1.0 / self.sentry_mode_rate);
         let alarmed_duration = Duration::from_secs_f64(1.0 / self.max_frame_rate);
@@ -399,20 +326,34 @@ impl Camera {
                         dropped_frames += 1;
                         tracing::warn!("Frame #{} write error: {}", frame_count, e);
                     } else {
-                        let _ = self.inference_semaphore.post();
-                        let _ = self.gateway_semaphore.post();
+                        if self.inference_semaphore.post().is_err() {
+                            semaphore_failures += 1;
+                        }
+                        if self.gateway_semaphore.post().is_err() {
+                            semaphore_failures += 1;
+                        }
                         frame_count += 1;
                     }
 
                     if frame_count > 0 && frame_count.is_multiple_of(30) {
-                        tracing::debug!(
-                            "Status: [Frames: {}] [Dropped: {}] [Seq: {}] [V4L seq: {}] [Mode: {:?}]",
-                            frame_count,
-                            dropped_frames,
-                            self.frame_writer.sequence(),
-                            meta.sequence,
-                            current_mode
-                        );
+                        if semaphore_failures > 0 {
+                            tracing::warn!(
+                                "Status: [Frames: {}] [Dropped: {}] [Semaphore failures: {}] [Mode: {:?}]",
+                                frame_count,
+                                dropped_frames,
+                                semaphore_failures,
+                                current_mode
+                            );
+                        } else {
+                            tracing::debug!(
+                                "Status: [Frames: {}] [Dropped: {}] [Seq: {}] [V4L seq: {}] [Mode: {:?}]",
+                                frame_count,
+                                dropped_frames,
+                                self.frame_writer.sequence(),
+                                meta.sequence,
+                                current_mode
+                            );
+                        }
                     }
                 }
                 Err(e) => {
