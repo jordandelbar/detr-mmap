@@ -352,6 +352,7 @@ dependencies = [
  "anyhow",
  "bridge",
  "common",
+ "criterion",
  "image",
  "libc",
  "opentelemetry",

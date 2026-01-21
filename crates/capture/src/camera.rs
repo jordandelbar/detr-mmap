@@ -201,7 +201,7 @@ fn yuyv_to_rgb(yuyv: &[u8], width: u32, height: u32) -> Vec<u8> {
 
 /// Decode MJPEG frame to RGB
 #[tracing::instrument(skip(mjpeg))]
-fn mjpeg_to_rgb(mjpeg: &[u8]) -> Result<Vec<u8>> {
+pub fn mjpeg_to_rgb(mjpeg: &[u8]) -> Result<Vec<u8>> {
     let cursor = Cursor::new(mjpeg);
     let img = image::ImageReader::new(cursor)
         .with_guessed_format()?

@@ -24,3 +24,10 @@ tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 signal-hook = "0.3"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "mjpeg_decoding"
+harness = false
