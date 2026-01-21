@@ -2,6 +2,7 @@ use crate::{
     macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceContextBytes,
 };
 use anyhow::{Context, Result};
+use common::span;
 use schema::{ColorFormat, FrameArgs};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -37,6 +38,8 @@ impl FrameWriter {
         height: u32,
         trace_ctx: Option<&TraceContextBytes>,
     ) -> Result<()> {
+        let _s = span!("write_with_trace_context");
+
         let timestamp_ns = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("Time went backwards")?

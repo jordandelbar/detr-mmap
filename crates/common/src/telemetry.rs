@@ -110,3 +110,10 @@ impl Drop for TelemetryGuard {
         }
     }
 }
+
+#[macro_export]
+macro_rules! span {
+    ($name:literal) => {
+        tracing::info_span!($name).entered()
+    };
+}

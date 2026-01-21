@@ -3,6 +3,7 @@ use crate::{
     retry::RetryConfig, types::TraceContextBytes, utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
+use common::span;
 
 pub struct FrameReader {
     reader: MmapReader,
@@ -27,6 +28,8 @@ impl FrameReader {
     pub fn get_frame_with_context(
         &self,
     ) -> Result<Option<(schema::Frame<'_>, Option<TraceContextBytes>)>> {
+        let _s = span!("get_frame_with_context");
+
         if self.current_sequence() == 0 {
             return Ok(None);
         }

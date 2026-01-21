@@ -1,4 +1,5 @@
 use crate::config::DEFAULT_INPUT_SIZE;
+use common::span;
 use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image};
 use ndarray::{Array, IxDyn};
 use std::default::Default;
@@ -22,7 +23,6 @@ impl PreProcessor {
         }
     }
 
-    #[tracing::instrument(skip(self, pixels), fields(width, height, format = ?format))]
     pub fn preprocess_frame(
         &mut self,
         pixels: flatbuffers::Vector<u8>,
@@ -30,6 +30,8 @@ impl PreProcessor {
         height: u32,
         format: bridge::ColorFormat,
     ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
+        let _s = span!("preprocess_frame");
+
         tracing::trace!(
             width,
             height,
@@ -37,6 +39,24 @@ impl PreProcessor {
             pixel_bytes = pixels.len(),
             "Preprocessing frame dimensions"
         );
+
+        self.convert_to_rgb(pixels, width, height, format)?;
+
+        let (scale, offset_x, offset_y, resized) = self.resize_and_letterbox(width, height)?;
+
+        let input = Self::normalize(&resized)?;
+
+        Ok((input, scale, offset_x, offset_y))
+    }
+
+    fn convert_to_rgb(
+        &mut self,
+        pixels: flatbuffers::Vector<u8>,
+        width: u32,
+        height: u32,
+        format: bridge::ColorFormat,
+    ) -> anyhow::Result<()> {
+        let _s = span!("convert_to_rgb");
 
         let expected_size = (width * height * 3) as usize;
 
@@ -61,77 +81,94 @@ impl PreProcessor {
                 }
             }
             bridge::ColorFormat::GRAY => {
-                return Err(anyhow::anyhow!("Grayscale format not supported"));
+                anyhow::bail!("Grayscale format not supported");
             }
-            _ => {
-                return Err(anyhow::anyhow!("Unknown color format"));
-            }
+            _ => anyhow::bail!("Unknown color format"),
         }
 
         if self.rgb_buffer.len() != expected_size {
-            return Err(anyhow::anyhow!(
-                "Buffer size mismatch: expected {} bytes for {}x{} RGB, got {} bytes",
+            anyhow::bail!(
+                "Buffer size mismatch: expected {}, got {} bytes",
                 expected_size,
-                width,
-                height,
                 self.rgb_buffer.len()
-            ));
+            );
         }
+
+        Ok(())
+    }
+
+    fn resize_and_letterbox(
+        &mut self,
+        width: u32,
+        height: u32,
+    ) -> anyhow::Result<(f32, f32, f32, Image<'_>)> {
+        let _s = span!("resize_and_letterbox");
 
         let scale =
             (self.input_size.0 as f32 / width as f32).min(self.input_size.1 as f32 / height as f32);
         let new_width = (width as f32 * scale) as u32;
         let new_height = (height as f32 * scale) as u32;
+
         let offset_x = (self.input_size.0 - new_width) / 2;
         let offset_y = (self.input_size.1 - new_height) / 2;
 
-        let src_image = Image::from_slice_u8(width, height, &mut self.rgb_buffer, PixelType::U8x3)?;
+        let src = Image::from_slice_u8(width, height, &mut self.rgb_buffer, PixelType::U8x3)?;
 
-        let mut dst_image = Image::new(new_width, new_height, PixelType::U8x3);
+        let mut resized = Image::new(new_width, new_height, PixelType::U8x3);
 
-        let mut resizer = Resizer::new();
-        resizer.resize(
-            &src_image,
-            &mut dst_image,
+        Resizer::new().resize(
+            &src,
+            &mut resized,
             &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear)),
         )?;
 
         self.letterboxed_buffer.fill(LETTERBOX_COLOR);
 
-        let resized_data = dst_image.buffer();
+        let resized_data = resized.buffer();
+        let stride = self.input_size.0 * 3;
+
         for y in 0..new_height {
-            let src_row_start = (y * new_width * 3) as usize;
-            let src_row_end = src_row_start + (new_width * 3) as usize;
-            let dst_row_start = ((y + offset_y) * self.input_size.0 * 3 + offset_x * 3) as usize;
-            let dst_row_end = dst_row_start + (new_width * 3) as usize;
+            let src_row = (y * new_width * 3) as usize;
+            let dst_row = ((y + offset_y) * stride + offset_x * 3) as usize;
 
-            self.letterboxed_buffer[dst_row_start..dst_row_end]
-                .copy_from_slice(&resized_data[src_row_start..src_row_end]);
+            self.letterboxed_buffer[dst_row..dst_row + (new_width * 3) as usize]
+                .copy_from_slice(&resized_data[src_row..src_row + (new_width * 3) as usize]);
         }
 
-        let width = self.input_size.0 as usize;
-        let height = self.input_size.1 as usize;
-        let spatial_size = width * height;
+        let final_img = Image::from_slice_u8(
+            self.input_size.0,
+            self.input_size.1,
+            &mut self.letterboxed_buffer,
+            PixelType::U8x3,
+        )?;
 
-        // Pre-allocate output buffer for CHW planar format
-        let mut output = vec![0.0f32; 3 * spatial_size];
+        Ok((scale, offset_x as f32, offset_y as f32, final_img))
+    }
 
-        // Flattened loop - helps SIMD auto-vectorization
-        for (i, chunk) in self.letterboxed_buffer.chunks_exact(3).enumerate() {
-            let r = chunk[0] as f32 / 255.0;
-            let g = chunk[1] as f32 / 255.0;
-            let b = chunk[2] as f32 / 255.0;
+    fn normalize(image: &Image) -> anyhow::Result<Array<f32, IxDyn>> {
+        let _s = span!("normalize");
 
-            // Write to planar CHW layout
+        let width = image.width() as usize;
+        let height = image.height() as usize;
+        let spatial = width * height;
+
+        let mut output = vec![0.0f32; 3 * spatial];
+        let buf = image.buffer();
+
+        for (i, px) in buf.chunks_exact(3).enumerate() {
+            let r = px[0] as f32 / 255.0;
+            let g = px[1] as f32 / 255.0;
+            let b = px[2] as f32 / 255.0;
+
             output[i] = (r - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
-            output[i + spatial_size] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
-            output[i + 2 * spatial_size] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
+            output[i + spatial] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
+            output[i + 2 * spatial] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
         }
 
-        let input = Array::from_shape_vec(IxDyn(&[1, 3, height, width]), output)
-            .expect("Shape mismatch in normalization output");
-
-        Ok((input, scale, offset_x as f32, offset_y as f32))
+        Ok(Array::from_shape_vec(
+            IxDyn(&[1, 3, height, width]),
+            output,
+        )?)
     }
 }
 

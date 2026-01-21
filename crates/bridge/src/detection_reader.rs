@@ -8,6 +8,7 @@ use crate::{
     utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
+use common::span;
 
 pub struct DetectionReader {
     reader: MmapReader,
@@ -19,6 +20,8 @@ impl DetectionReader {
     /// Get all detections from the buffer with safe deserialization
     /// Returns None if sequence is 0 or on deserialization error
     pub fn get_detections(&self) -> Result<Option<Vec<Detection>>> {
+        let _s = span!("get_detections");
+
         if self.current_sequence() == 0 {
             return Ok(None);
         }
@@ -38,6 +41,8 @@ impl DetectionReader {
     pub fn get_detections_with_context(
         &self,
     ) -> Result<Option<(Vec<Detection>, Option<TraceContextBytes>)>> {
+        let _s = span!("get_detections_with_context");
+
         if self.current_sequence() == 0 {
             return Ok(None);
         }

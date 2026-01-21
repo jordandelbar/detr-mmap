@@ -1,6 +1,6 @@
 use crate::state::{FrameMessage, FramePacket};
 use bridge::{BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType, TraceContextBytes};
-use common::wait_for_resource_async;
+use common::{span, wait_for_resource_async};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -122,6 +122,8 @@ impl BufferPoller {
 
     /// Read and validate current frame from shared memory
     fn read_current_frame(&mut self) -> anyhow::Result<FrameData> {
+        let _s = span!("read_current_frame");
+
         let frame_seq = self.frame_reader.current_sequence();
 
         let (frame, trace_ctx) = match self.frame_reader.get_frame_with_context() {
@@ -148,6 +150,7 @@ impl BufferPoller {
 
         // Extract pixel data from frame
         let pixel_data = if let Some(pixels) = frame.pixels() {
+            // TODO: change to Cow<'a, [u8]> or Arc<[u8]>
             pixels.bytes().to_vec()
         } else {
             Vec::new()
@@ -166,6 +169,8 @@ impl BufferPoller {
 
     /// Read detections from shared memory if available
     fn read_detections(&mut self, has_jpeg: bool) -> Option<DetectionData> {
+        let _s = span!("read_detections");
+
         let detection_seq = self.detection_reader.current_sequence();
 
         if detection_seq == 0 {
@@ -191,6 +196,8 @@ impl BufferPoller {
 
     /// Encode frame pixels to JPEG
     fn encode_to_jpeg(&self, frame_data: &FrameData) -> Vec<u8> {
+        let _s = span!("encode_to_jpeg");
+
         if frame_data.pixel_data.is_empty() {
             return Vec::new();
         }
@@ -229,6 +236,8 @@ impl BufferPoller {
         jpeg_data: Vec<u8>,
         detection_data: Option<DetectionData>,
     ) -> FramePacket {
+        let _s = span!("build_packet");
+
         let (detections, status) = match detection_data {
             Some(DetectionData {
                 detections,
@@ -261,6 +270,8 @@ impl BufferPoller {
 
     /// Broadcast packet to WebSocket clients
     fn broadcast_packet(&self, packet: FramePacket) {
+        let _s = span!("broadcast_packet");
+
         let det_count = packet
             .metadata
             .detections
@@ -284,13 +295,14 @@ const JPEG_QUALITY: i32 = 80;
 
 /// Convert raw pixel data to JPEG format using turbojpeg
 /// Supports RGB and BGR color formats
-#[tracing::instrument(skip(pixel_data))]
 pub fn pixels_to_jpeg(
     pixel_data: &[u8],
     width: u32,
     height: u32,
     format: bridge::ColorFormat,
 ) -> anyhow::Result<Vec<u8>> {
+    let _s = span!("pixels_to_jpeg");
+
     let pixel_format = match format {
         bridge::ColorFormat::RGB => turbojpeg::PixelFormat::RGB,
         bridge::ColorFormat::BGR => turbojpeg::PixelFormat::BGR,

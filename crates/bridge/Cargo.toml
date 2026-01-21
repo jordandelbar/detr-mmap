@@ -25,6 +25,7 @@ mmap-writer = []
 ci = ["frame-reader", "frame-writer", "detection-reader", "detection-writer", "sentry", "semaphores", "tokio"]
 
 [dependencies]
+common = { path = "../common" }
 anyhow = "1"
 flatbuffers = "24.3"
 libc = "0.2"
