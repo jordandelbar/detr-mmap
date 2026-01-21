@@ -21,7 +21,6 @@ spec:
         app: detr-mmap
         component: capture
     spec:
-      # Node selector for edge simulation (can be overridden in overlays)
       nodeSelector:
         node-role: edge
 

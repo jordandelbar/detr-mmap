@@ -38,3 +38,113 @@ impl Environment {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn test_get_env_default() {
+        let key = "TEST_GET_ENV_KEY";
+        unsafe {
+            std::env::remove_var(key);
+        }
+
+        assert_eq!(get_env(key, 42), 42);
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_env_from_env() {
+        let key = "TEST_GET_ENV_KEY";
+
+        unsafe {
+            std::env::set_var(key, "123");
+        }
+
+        assert_eq!(get_env(key, 42), 123);
+
+        unsafe {
+            std::env::remove_var(key);
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_env_opt() {
+        let key = "TEST_GET_ENV_OPT_KEY";
+
+        unsafe {
+            std::env::remove_var(key);
+        }
+        assert_eq!(get_env_opt::<i32>(key), None);
+
+        unsafe {
+            std::env::set_var(key, "100");
+        }
+        assert_eq!(get_env_opt::<i32>(key), Some(100));
+
+        unsafe {
+            std::env::set_var(key, "invalid");
+        }
+        assert_eq!(get_env_opt::<i32>(key), None);
+
+        unsafe {
+            std::env::remove_var(key);
+        }
+    }
+
+    #[test]
+    fn test_environment_as_str() {
+        assert_eq!(Environment::Development.as_str(), "development");
+        assert_eq!(Environment::Production.as_str(), "production");
+    }
+
+    #[test]
+    #[serial]
+    fn test_environment_from_env() {
+        let key = "ENVIRONMENT";
+        let original = env::var(key);
+
+        unsafe {
+            env::remove_var(key);
+        }
+        assert!(matches!(Environment::from_env(), Environment::Development));
+
+        // Test production variants
+        unsafe {
+            env::set_var(key, "production");
+        }
+        assert!(matches!(Environment::from_env(), Environment::Production));
+
+        unsafe {
+            env::set_var(key, "Production");
+        }
+        assert!(matches!(Environment::from_env(), Environment::Production));
+
+        unsafe {
+            env::set_var(key, "prod");
+        }
+        assert!(matches!(Environment::from_env(), Environment::Production));
+
+        // Test development explicit
+        unsafe {
+            env::set_var(key, "development");
+        }
+        assert!(matches!(Environment::from_env(), Environment::Development));
+
+        // Test fallback
+        unsafe {
+            env::set_var(key, "staging");
+        }
+        assert!(matches!(Environment::from_env(), Environment::Development));
+
+        // Restore original
+        match original {
+            Ok(val) => unsafe { env::set_var(key, val) },
+            Err(_) => unsafe { env::remove_var(key) },
+        }
+    }
+}

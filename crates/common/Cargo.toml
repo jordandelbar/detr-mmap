@@ -19,3 +19,6 @@ opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "metrics", "t
 opentelemetry-semantic-conventions = "0.31"
 tracing-opentelemetry = { workspace = true }
 anyhow = "1"
+
+[dev-dependencies]
+serial_test = "3"
