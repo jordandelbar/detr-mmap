@@ -1,0 +1,7 @@
+namespace bridge.schema;
+
+table TraceMetadata {
+    trace_id: [ubyte] (required);
+    span_id: [ubyte] (required);
+    trace_flags: ubyte;
+}

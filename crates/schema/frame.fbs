@@ -1,3 +1,5 @@
+include "trace_metadata.fbs";
+
 namespace bridge.schema;
 
 enum ColorFormat : byte {
@@ -9,17 +11,12 @@ enum ColorFormat : byte {
 table Frame {
     frame_number: uint64;
     timestamp_ns: uint64;
-    camera_id: uint32;
 
     width: uint32;
     height: uint32;
     channels: uint8;
     format: ColorFormat;
-
     pixels: [ubyte];
 
-    // W3C Trace Context for distributed tracing
-    trace_id: [ubyte];       // W3C trace ID (128-bit, 16 bytes)
-    span_id: [ubyte];        // W3C span ID (64-bit, 8 bytes)
-    trace_flags: ubyte;      // Sampling flag (1 byte)
+    trace: TraceMetadata;
 }
