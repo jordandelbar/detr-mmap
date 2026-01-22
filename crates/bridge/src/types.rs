@@ -3,13 +3,13 @@ use serde::{Deserialize, Serialize};
 /// Trace context bytes for serialization into FlatBuffers.
 /// Contains W3C trace context fields for distributed tracing across IPC boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TraceContextBytes {
+pub struct TraceMetadata {
     pub trace_id: [u8; 16],
     pub span_id: [u8; 8],
     pub trace_flags: u8,
 }
 
-impl TraceContextBytes {
+impl TraceMetadata {
     /// Convert this trace context into an OpenTelemetry Context for span linking.
     #[cfg(feature = "tracing")]
     fn as_context(&self) -> opentelemetry::Context {
@@ -50,7 +50,7 @@ impl TraceContextBytes {
 }
 
 #[cfg(feature = "tracing")]
-impl From<&crate::trace_context::TraceContext> for TraceContextBytes {
+impl From<&crate::trace_context::TraceContext> for TraceMetadata {
     fn from(ctx: &crate::trace_context::TraceContext) -> Self {
         Self {
             trace_id: ctx.trace_id,
@@ -61,7 +61,7 @@ impl From<&crate::trace_context::TraceContext> for TraceContextBytes {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Detection {
+pub struct BoundingBox {
     pub x1: f32,
     pub y1: f32,
     pub x2: f32,
@@ -70,7 +70,7 @@ pub struct Detection {
     pub class_id: u32,
 }
 
-impl From<&schema::BoundingBox<'_>> for Detection {
+impl From<&schema::BoundingBox<'_>> for BoundingBox {
     fn from(bbox: &schema::BoundingBox) -> Self {
         Self {
             x1: bbox.x1(),
@@ -83,22 +83,20 @@ impl From<&schema::BoundingBox<'_>> for Detection {
     }
 }
 
-pub struct FrameMetadata {
+pub struct Frame {
     pub frame_number: u64,
     pub timestamp_ns: u64,
     pub width: u32,
     pub height: u32,
-    pub camera_id: u32,
 }
 
-impl From<&schema::Frame<'_>> for FrameMetadata {
+impl From<&schema::Frame<'_>> for Frame {
     fn from(frame: &schema::Frame) -> Self {
         Self {
             frame_number: frame.frame_number(),
             timestamp_ns: frame.timestamp_ns(),
             width: frame.width(),
             height: frame.height(),
-            camera_id: frame.camera_id(),
         }
     }
 }
