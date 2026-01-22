@@ -354,7 +354,6 @@ dependencies = [
  "bridge",
  "common",
  "criterion",
- "image",
  "libc",
  "opentelemetry",
  "schema",
@@ -1347,8 +1346,6 @@ dependencies = [
  "num-traits",
  "ravif",
  "rayon",
- "zune-core",
- "zune-jpeg",
 ]
 
 [[package]]
@@ -3929,25 +3926,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "zune-core"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "111f7d9820f05fd715df3144e254d6fc02ee4088b0644c0ffd0efc9e6d9d2773"
-
-[[package]]
 name = "zune-inflate"
 version = "0.2.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73ab332fe2f6680068f3582b16a24f90ad7096d5d39b974d1c0aff0125116f02"
 dependencies = [
  "simd-adler32",
-]
-
-[[package]]
-name = "zune-jpeg"
-version = "0.5.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e35aee689668bf9bd6f6f3a6c60bb29ba1244b3b43adfd50edd554a371da37d5"
-dependencies = [
- "zune-core",
 ]
