@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bridge::{BridgeSemaphore, FrameWriter, SemaphoreType, TraceContextBytes};
+use bridge::{BridgeSemaphore, FrameWriter, SemaphoreType, TraceMetadata};
 
 pub struct FrameSink {
     writer: FrameWriter,
@@ -19,14 +19,13 @@ impl FrameSink {
     pub fn write(
         &mut self,
         rgb: &[u8],
-        camera_id: u32,
         frame_no: u64,
         width: u32,
         height: u32,
-        trace: Option<&TraceContextBytes>,
+        trace: Option<&TraceMetadata>,
     ) -> Result<()> {
         self.writer
-            .write_with_trace_context(rgb, camera_id, frame_no, width, height, trace)?;
+            .write_with_trace_context(rgb, frame_no, width, height, trace)?;
         self.inference.post().ok();
         self.gateway.post().ok();
         Ok(())

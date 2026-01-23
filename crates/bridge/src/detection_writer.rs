@@ -1,7 +1,7 @@
 use crate::macros::impl_mmap_writer_base;
 use crate::mmap_writer::MmapWriter;
 use crate::paths;
-use crate::types::{Detection, TraceContextBytes};
+use crate::types::{BoundingBox, TraceMetadata};
 use anyhow::{Context, Result};
 
 pub struct DetectionWriter {
@@ -21,7 +21,7 @@ impl DetectionWriter {
         frame_number: u64,
         timestamp_ns: u64,
         camera_id: u32,
-        detections: &[Detection],
+        detections: &[BoundingBox],
     ) -> Result<()> {
         self.write_with_trace_context(frame_number, timestamp_ns, camera_id, detections, None)
     }
@@ -31,8 +31,8 @@ impl DetectionWriter {
         frame_number: u64,
         timestamp_ns: u64,
         camera_id: u32,
-        detections: &[Detection],
-        trace_ctx: Option<&TraceContextBytes>,
+        detections: &[BoundingBox],
+        trace_ctx: Option<&TraceMetadata>,
     ) -> Result<()> {
         self.builder.reset();
 

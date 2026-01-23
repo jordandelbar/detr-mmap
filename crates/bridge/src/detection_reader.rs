@@ -4,7 +4,7 @@ use crate::{
     mmap_reader::MmapReader,
     paths,
     retry::RetryConfig,
-    types::{Detection, TraceContextBytes},
+    types::{BoundingBox, TraceMetadata},
     utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
@@ -19,7 +19,7 @@ impl_mmap_reader_base!(DetectionReader, paths::DETECTION_BUFFER_PATH);
 impl DetectionReader {
     /// Get all detections from the buffer with safe deserialization
     /// Returns None if sequence is 0 or on deserialization error
-    pub fn get_detections(&self) -> Result<Option<Vec<Detection>>> {
+    pub fn get_detections(&self) -> Result<Option<Vec<BoundingBox>>> {
         let _s = span!("get_detections");
 
         if self.current_sequence() == 0 {
@@ -31,7 +31,7 @@ impl DetectionReader {
 
         let detections = detection_result
             .detections()
-            .map(|d| d.iter().map(|det| Detection::from(&det)).collect());
+            .map(|d| d.iter().map(|det| BoundingBox::from(&det)).collect());
 
         Ok(detections)
     }
@@ -40,7 +40,7 @@ impl DetectionReader {
     /// Returns None if sequence is 0.
     pub fn get_detections_with_context(
         &self,
-    ) -> Result<Option<(Vec<Detection>, Option<TraceContextBytes>)>> {
+    ) -> Result<Option<(Vec<BoundingBox>, Option<TraceMetadata>)>> {
         let _s = span!("get_detections_with_context");
 
         if self.current_sequence() == 0 {
@@ -52,7 +52,7 @@ impl DetectionReader {
 
         let detections = detection_result
             .detections()
-            .map(|d| d.iter().map(|det| Detection::from(&det)).collect())
+            .map(|d| d.iter().map(|det| BoundingBox::from(&det)).collect())
             .unwrap_or_default();
 
         let trace_ctx = extract_trace_context_from_detection(&detection_result);
@@ -89,7 +89,7 @@ impl DetectionReader {
     pub fn get_detections_with_retry(
         &self,
         config: &RetryConfig,
-    ) -> Result<Option<Vec<Detection>>> {
+    ) -> Result<Option<Vec<BoundingBox>>> {
         for attempt in 0..config.max_attempts {
             match self.get_detections()? {
                 Some(detections) => return Ok(Some(detections)),
@@ -111,7 +111,7 @@ impl DetectionReader {
     pub async fn get_detections_with_retry_async(
         &self,
         config: &RetryConfig,
-    ) -> Result<Option<Vec<Detection>>> {
+    ) -> Result<Option<Vec<BoundingBox>>> {
         for attempt in 0..config.max_attempts {
             match self.get_detections()? {
                 Some(detections) => return Ok(Some(detections)),
@@ -129,7 +129,7 @@ impl DetectionReader {
 /// Extract trace context from a DetectionResult if present and valid.
 fn extract_trace_context_from_detection(
     detection: &schema::DetectionResult<'_>,
-) -> Option<TraceContextBytes> {
+) -> Option<TraceMetadata> {
     let trace_id = detection.trace_id()?;
     let span_id = detection.span_id()?;
 
@@ -142,7 +142,7 @@ fn extract_trace_context_from_detection(
     tid.copy_from_slice(trace_id.bytes());
     sid.copy_from_slice(span_id.bytes());
 
-    Some(TraceContextBytes {
+    Some(TraceMetadata {
         trace_id: tid,
         span_id: sid,
         trace_flags: detection.trace_flags(),

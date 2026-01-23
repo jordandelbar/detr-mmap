@@ -1,6 +1,6 @@
 use crate::{
     errors::BridgeError, macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths,
-    retry::RetryConfig, types::TraceContextBytes, utils::safe_flatbuffers_root,
+    retry::RetryConfig, types::TraceMetadata, utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
 use common::span;
@@ -27,7 +27,7 @@ impl FrameReader {
     /// Returns None if sequence is 0.
     pub fn get_frame_with_context(
         &self,
-    ) -> Result<Option<(schema::Frame<'_>, Option<TraceContextBytes>)>> {
+    ) -> Result<Option<(schema::Frame<'_>, Option<TraceMetadata>)>> {
         let _s = span!("get_frame_with_context");
 
         if self.current_sequence() == 0 {
@@ -85,7 +85,7 @@ impl FrameReader {
 }
 
 /// Extract trace context from a Frame if present and valid.
-fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceContextBytes> {
+fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceMetadata> {
     let trace_id = frame.trace_id()?;
     let span_id = frame.span_id()?;
 
@@ -98,7 +98,7 @@ fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceCo
     tid.copy_from_slice(trace_id.bytes());
     sid.copy_from_slice(span_id.bytes());
 
-    Some(TraceContextBytes {
+    Some(TraceMetadata {
         trace_id: tid,
         span_id: sid,
         trace_flags: frame.trace_flags(),

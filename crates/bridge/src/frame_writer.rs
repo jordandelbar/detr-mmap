@@ -1,6 +1,4 @@
-use crate::{
-    macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceContextBytes,
-};
+use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceMetadata};
 use anyhow::{Context, Result};
 use common::span;
 use schema::{ColorFormat, FrameArgs};
@@ -21,22 +19,20 @@ impl FrameWriter {
     pub fn write(
         &mut self,
         pixel_data: &[u8],
-        camera_id: u32,
         frame_count: u64,
         width: u32,
         height: u32,
     ) -> Result<()> {
-        self.write_with_trace_context(pixel_data, camera_id, frame_count, width, height, None)
+        self.write_with_trace_context(pixel_data, frame_count, width, height, None)
     }
 
     pub fn write_with_trace_context(
         &mut self,
         pixel_data: &[u8],
-        camera_id: u32,
         frame_count: u64,
         width: u32,
         height: u32,
-        trace_ctx: Option<&TraceContextBytes>,
+        trace_ctx: Option<&TraceMetadata>,
     ) -> Result<()> {
         let _s = span!("write_with_trace_context");
 
@@ -48,30 +44,31 @@ impl FrameWriter {
         self.builder.reset();
         let pixels_vec = self.builder.create_vector(pixel_data);
 
-        // Create trace context vectors if provided
-        let (trace_id_vec, span_id_vec, trace_flags) = match trace_ctx {
-            Some(ctx) => (
-                Some(self.builder.create_vector(&ctx.trace_id)),
-                Some(self.builder.create_vector(&ctx.span_id)),
-                ctx.trace_flags,
-            ),
-            None => (None, None, 0),
-        };
+        // Create trace metadata if provided
+        let trace_offset = trace_ctx.map(|ctx| {
+            let trace_id_vec = self.builder.create_vector(&ctx.trace_id);
+            let span_id_vec = self.builder.create_vector(&ctx.span_id);
+            schema::TraceMetadata::create(
+                &mut self.builder,
+                &schema::TraceMetadataArgs {
+                    trace_id: Some(trace_id_vec),
+                    span_id: Some(span_id_vec),
+                    trace_flags: ctx.trace_flags,
+                },
+            )
+        });
 
         let frame_fb = schema::Frame::create(
             &mut self.builder,
             &FrameArgs {
                 frame_number: frame_count,
                 timestamp_ns,
-                camera_id,
                 width,
                 height,
                 channels: 3,
                 format: ColorFormat::RGB,
                 pixels: Some(pixels_vec),
-                trace_id: trace_id_vec,
-                span_id: span_id_vec,
-                trace_flags,
+                trace: trace_offset,
             },
         );
 

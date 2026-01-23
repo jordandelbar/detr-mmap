@@ -6,6 +6,7 @@ use crate::sink::FrameSink;
 use crate::source::FrameSource;
 use anyhow::Result;
 use bridge::{SentryControl, SentryMode, TraceMetadata};
+use common::span;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -90,11 +91,10 @@ impl Camera {
                     };
 
                     let trace_ctx =
-                        TraceContext::from_current().map(|ctx| TraceContextBytes::from(&ctx));
+                        TraceMetadata::from_current().map(|ctx| TraceMetadata::from(&ctx));
 
                     if let Err(e) = self.sink.write(
                         &rgb_data,
-                        self.camera_id,
                         frame_count,
                         self.device.width,
                         self.device.height,

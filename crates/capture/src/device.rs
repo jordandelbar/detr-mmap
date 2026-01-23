@@ -4,7 +4,6 @@ use common::retry::retry_with_backoff;
 use v4l::{
     Device, FourCC,
     control::{Control, Value},
-    prelude::*,
     video::Capture,
 };
 
