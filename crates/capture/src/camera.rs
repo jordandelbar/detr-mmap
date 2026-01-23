@@ -5,7 +5,7 @@ use crate::pacing::CapturePacing;
 use crate::sink::FrameSink;
 use crate::source::FrameSource;
 use anyhow::Result;
-use bridge::{SentryControl, SentryMode, TraceMetadata};
+use bridge::{SentryControl, SentryMode, TraceContext, TraceMetadata};
 use common::span;
 use std::sync::{
     Arc,
@@ -91,7 +91,7 @@ impl Camera {
                     };
 
                     let trace_ctx =
-                        TraceMetadata::from_current().map(|ctx| TraceMetadata::from(&ctx));
+                        TraceContext::from_current().map(|ctx| TraceMetadata::from(&ctx));
 
                     if let Err(e) = self.sink.write(
                         &rgb_data,

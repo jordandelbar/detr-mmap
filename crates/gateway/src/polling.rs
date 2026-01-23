@@ -1,5 +1,7 @@
 use crate::state::{FrameMessage, FramePacket};
-use bridge::{BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType, TraceContextBytes};
+use bridge::{
+    BoundingBox, BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType, TraceMetadata,
+};
 use common::{span, wait_for_resource_async};
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,12 +16,12 @@ struct FrameData {
     height: u32,
     pixel_data: Vec<u8>,
     format: bridge::ColorFormat,
-    trace_ctx: Option<TraceContextBytes>,
+    trace_ctx: Option<TraceMetadata>,
 }
 
 /// Detection data with status information
 struct DetectionData {
-    detections: Vec<bridge::Detection>,
+    detections: Vec<BoundingBox>,
     has_jpeg: bool,
 }
 

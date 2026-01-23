@@ -86,8 +86,9 @@ impl FrameReader {
 
 /// Extract trace context from a Frame if present and valid.
 fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceMetadata> {
-    let trace_id = frame.trace_id()?;
-    let span_id = frame.span_id()?;
+    let trace = frame.trace()?;
+    let trace_id = trace.trace_id();
+    let span_id = trace.span_id();
 
     if trace_id.len() != 16 || span_id.len() != 8 {
         return None;
@@ -101,6 +102,6 @@ fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceMe
     Some(TraceMetadata {
         trace_id: tid,
         span_id: sid,
-        trace_flags: frame.trace_flags(),
+        trace_flags: trace.trace_flags(),
     })
 }

@@ -14,7 +14,6 @@ table BoundingBox {
 table DetectionResult {
     frame_number: uint64;
     timestamp_ns: uint64;
-    camera_id: uint32;
     detections: [BoundingBox];
 
     trace: TraceMetadata;

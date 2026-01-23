@@ -179,7 +179,6 @@ impl<B: InferenceBackend> InferenceService<B> {
         // From here, all #[instrument] decorated functions become children
         let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
-        let camera_id = frame.camera_id();
         let width = frame.width();
         let height = frame.height();
 
@@ -223,7 +222,6 @@ impl<B: InferenceBackend> InferenceService<B> {
         detection_writer.write_with_trace_context(
             frame_number,
             timestamp_ns,
-            camera_id,
             &detections,
             trace_ctx.as_ref(),
         )?;

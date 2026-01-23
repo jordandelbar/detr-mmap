@@ -130,8 +130,9 @@ impl DetectionReader {
 fn extract_trace_context_from_detection(
     detection: &schema::DetectionResult<'_>,
 ) -> Option<TraceMetadata> {
-    let trace_id = detection.trace_id()?;
-    let span_id = detection.span_id()?;
+    let trace = detection.trace()?;
+    let trace_id = trace.trace_id();
+    let span_id = trace.span_id();
 
     if trace_id.len() != 16 || span_id.len() != 8 {
         return None;
@@ -145,6 +146,6 @@ fn extract_trace_context_from_detection(
     Some(TraceMetadata {
         trace_id: tid,
         span_id: sid,
-        trace_flags: detection.trace_flags(),
+        trace_flags: trace.trace_flags(),
     })
 }

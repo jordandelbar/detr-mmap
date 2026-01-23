@@ -1,4 +1,4 @@
-use bridge::types::Detection;
+use bridge::types::BoundingBox;
 
 pub struct TransformParams {
     pub orig_width: u32,
@@ -29,7 +29,7 @@ impl PostProcessor {
         dets: &ndarray::ArrayViewD<f32>, // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)
         logits: &ndarray::ArrayViewD<f32>, // [1, 300, 91] - class logits
         transform: &TransformParams,
-    ) -> anyhow::Result<Vec<Detection>> {
+    ) -> anyhow::Result<Vec<BoundingBox>> {
         let mut detections = Vec::new();
 
         let num_queries = dets.shape()[1];
@@ -89,7 +89,7 @@ impl PostProcessor {
                 .max(0.0)
                 .min(transform.orig_height as f32);
 
-            detections.push(Detection {
+            detections.push(BoundingBox {
                 x1,
                 y1,
                 x2,

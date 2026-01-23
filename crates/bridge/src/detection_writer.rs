@@ -20,17 +20,15 @@ impl DetectionWriter {
         &mut self,
         frame_number: u64,
         timestamp_ns: u64,
-        camera_id: u32,
         detections: &[BoundingBox],
     ) -> Result<()> {
-        self.write_with_trace_context(frame_number, timestamp_ns, camera_id, detections, None)
+        self.write_with_trace_context(frame_number, timestamp_ns, detections, None)
     }
 
     pub fn write_with_trace_context(
         &mut self,
         frame_number: u64,
         timestamp_ns: u64,
-        camera_id: u32,
         detections: &[BoundingBox],
         trace_ctx: Option<&TraceMetadata>,
     ) -> Result<()> {
@@ -55,26 +53,26 @@ impl DetectionWriter {
 
         let detection_offset = self.builder.create_vector(&bbox_vec);
 
-        // Create trace context vectors if provided
-        let (trace_id_vec, span_id_vec, trace_flags) = match trace_ctx {
-            Some(ctx) => (
-                Some(self.builder.create_vector(&ctx.trace_id)),
-                Some(self.builder.create_vector(&ctx.span_id)),
-                ctx.trace_flags,
-            ),
-            None => (None, None, 0),
-        };
+        let trace_offset = trace_ctx.map(|ctx| {
+            let trace_id_vec = self.builder.create_vector(&ctx.trace_id);
+            let span_id_vec = self.builder.create_vector(&ctx.span_id);
+            schema::TraceMetadata::create(
+                &mut self.builder,
+                &schema::TraceMetadataArgs {
+                    trace_id: Some(trace_id_vec),
+                    span_id: Some(span_id_vec),
+                    trace_flags: ctx.trace_flags,
+                },
+            )
+        });
 
         let detection_result = schema::DetectionResult::create(
             &mut self.builder,
             &schema::DetectionResultArgs {
                 frame_number,
                 timestamp_ns,
-                camera_id,
                 detections: Some(detection_offset),
-                trace_id: trace_id_vec,
-                span_id: span_id_vec,
-                trace_flags,
+                trace: trace_offset,
             },
         );
 

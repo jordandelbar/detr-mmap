@@ -29,6 +29,9 @@ impl<'a> FrameSource<'a> {
     }
 
     pub fn next(&mut self) -> Result<(&[u8], Metadata)> {
-        self.stream.next().map_err(Into::into)
+        self.stream
+            .next()
+            .map(|(data, meta)| (data, *meta))
+            .map_err(Into::into)
     }
 }
