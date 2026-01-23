@@ -169,7 +169,8 @@ impl BufferPoller {
         })
     }
 
-    /// Read detections from shared memory if available
+    /// Read detections from shared memory if available.
+    /// Converts from zero-copy FlatBuffers to owned BoundingBox for serialization.
     fn read_detections(&mut self, has_jpeg: bool) -> Option<DetectionData> {
         let _s = span!("read_detections");
 
@@ -180,10 +181,18 @@ impl BufferPoller {
         }
 
         match self.detection_reader.get_detections() {
-            Ok(Some(detections)) => Some(DetectionData {
-                detections,
-                has_jpeg,
-            }),
+            Ok(Some((detection_result, _trace_ctx))) => {
+                // Convert FlatBuffers detections to owned BoundingBox at serialization boundary
+                let detections = detection_result
+                    .detections()
+                    .map(|dets| dets.iter().map(|d| BoundingBox::from(&d)).collect())
+                    .unwrap_or_default();
+
+                Some(DetectionData {
+                    detections,
+                    has_jpeg,
+                })
+            }
             Ok(None) => None,
             Err(e) => {
                 tracing::error!(

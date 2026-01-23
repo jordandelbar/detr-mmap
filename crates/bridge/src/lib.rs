@@ -7,10 +7,6 @@ pub mod types;
 #[cfg(feature = "tracing")]
 pub mod trace_context;
 
-// Retry configuration for readers
-#[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
-pub mod retry;
-
 // Utility modules (internal)
 #[cfg(any(
     feature = "frame-writer",
@@ -52,8 +48,6 @@ pub use errors::BridgeError;
 pub use frame_reader::FrameReader;
 #[cfg(feature = "frame-writer")]
 pub use frame_writer::FrameWriter;
-#[cfg(any(feature = "frame-reader", feature = "detection-reader"))]
-pub use retry::RetryConfig;
 #[cfg(feature = "semaphores")]
 pub use semaphore::{BridgeSemaphore, SemaphoreType};
 #[cfg(feature = "sentry")]

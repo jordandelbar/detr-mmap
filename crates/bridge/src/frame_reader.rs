@@ -30,7 +30,7 @@ impl FrameReader {
 }
 
 /// Extract trace context from a Frame if present and valid.
-fn extract_trace_context_from_frame(frame: &schema::Frame<'_>) -> Option<TraceMetadata> {
+fn extract_trace_context_from_frame(frame: &Frame<'_>) -> Option<TraceMetadata> {
     let trace = frame.trace()?;
     let trace_id = trace.trace_id();
     let span_id = trace.span_id();
