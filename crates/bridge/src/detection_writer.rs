@@ -18,15 +18,7 @@ impl_mmap_writer_base!(
 impl DetectionWriter {
     pub fn write(
         &mut self,
-        frame_number: u64,
-        timestamp_ns: u64,
-        detections: &[BoundingBox],
-    ) -> Result<()> {
-        self.write_with_trace_context(frame_number, timestamp_ns, detections, None)
-    }
-
-    pub fn write_with_trace_context(
-        &mut self,
+        camera_id: u32,
         frame_number: u64,
         timestamp_ns: u64,
         detections: &[BoundingBox],
@@ -69,6 +61,7 @@ impl DetectionWriter {
         let detection_result = schema::DetectionResult::create(
             &mut self.builder,
             &schema::DetectionResultArgs {
+                camera_id,
                 frame_number,
                 timestamp_ns,
                 detections: Some(detection_offset),

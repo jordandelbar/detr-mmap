@@ -13,6 +13,7 @@ use std::sync::{
 };
 
 pub struct Camera {
+    camera_id: u32,
     device: CameraDevice,
     decoder: Box<dyn FrameDecoder>,
     sink: FrameSink,
@@ -21,6 +22,7 @@ pub struct Camera {
 
 impl Camera {
     pub fn build(config: CameraConfig) -> Result<Self> {
+        let camera_id = config.camera_id;
         let device = CameraDevice::open(&config)?;
 
         let decoder: Box<dyn FrameDecoder> = match device.pixel_format {
@@ -31,6 +33,7 @@ impl Camera {
         let sink = FrameSink::new()?;
 
         Ok(Self {
+            camera_id,
             device,
             decoder,
             sink,
@@ -95,6 +98,7 @@ impl Camera {
 
                     if let Err(e) = self.sink.write(
                         &rgb_data,
+                        self.camera_id,
                         frame_count,
                         self.device.width,
                         self.device.height,

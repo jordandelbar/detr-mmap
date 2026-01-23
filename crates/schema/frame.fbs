@@ -9,6 +9,7 @@ enum ColorFormat : byte {
 }
 
 table Frame {
+    camera_id: uint32;
     frame_number: uint64;
     timestamp_ns: uint64;
 

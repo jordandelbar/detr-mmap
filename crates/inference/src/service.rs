@@ -166,7 +166,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         detection_writer: &mut DetectionWriter,
     ) -> anyhow::Result<usize> {
         let (frame, trace_ctx) = frame_reader
-            .get_frame_with_context()?
+            .get_frame()?
             .ok_or_else(|| anyhow::anyhow!("No frame available"))?;
 
         // Create span and link to parent trace from capture service
@@ -176,7 +176,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         }
         let _guard = span.entered();
 
-        // From here, all #[instrument] decorated functions become children
+        let camera_id = frame.camera_id();
         let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let width = frame.width();
@@ -219,7 +219,8 @@ impl<B: InferenceBackend> InferenceService<B> {
                 .parse_detections(&dets.view(), &logits.view(), &transform)?;
 
         // Write detections with trace context for downstream propagation
-        detection_writer.write_with_trace_context(
+        detection_writer.write(
+            camera_id,
             frame_number,
             timestamp_ns,
             &detections,

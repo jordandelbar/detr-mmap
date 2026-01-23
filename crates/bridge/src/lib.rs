@@ -60,7 +60,7 @@ pub use semaphore::{BridgeSemaphore, SemaphoreType};
 pub use sentry_control::{SentryControl, SentryMode};
 #[cfg(feature = "tracing")]
 pub use trace_context::TraceContext;
-pub use types::{BoundingBox, Frame, TraceMetadata};
+pub use types::{BoundingBox, TraceMetadata};
 
 // Re-export schema types that services need
 pub use schema::ColorFormat;

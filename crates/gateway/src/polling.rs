@@ -128,7 +128,7 @@ impl BufferPoller {
 
         let frame_seq = self.frame_reader.current_sequence();
 
-        let (frame, trace_ctx) = match self.frame_reader.get_frame_with_context() {
+        let (frame, trace_ctx) = match self.frame_reader.get_frame() {
             Ok(Some(data)) => data,
             Ok(None) => {
                 anyhow::bail!("No frame available")

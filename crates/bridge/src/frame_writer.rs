@@ -18,16 +18,7 @@ impl_mmap_writer_base!(
 impl FrameWriter {
     pub fn write(
         &mut self,
-        pixel_data: &[u8],
-        frame_count: u64,
-        width: u32,
-        height: u32,
-    ) -> Result<()> {
-        self.write_with_trace_context(pixel_data, frame_count, width, height, None)
-    }
-
-    pub fn write_with_trace_context(
-        &mut self,
+        camera_id: u32,
         pixel_data: &[u8],
         frame_count: u64,
         width: u32,
@@ -61,6 +52,7 @@ impl FrameWriter {
         let frame_fb = schema::Frame::create(
             &mut self.builder,
             &FrameArgs {
+                camera_id,
                 frame_number: frame_count,
                 timestamp_ns,
                 width,

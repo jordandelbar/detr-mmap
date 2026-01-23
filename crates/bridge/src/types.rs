@@ -70,6 +70,7 @@ pub struct BoundingBox {
     pub class_id: u32,
 }
 
+// TODO: can be costly, to refactor
 impl From<&schema::BoundingBox<'_>> for BoundingBox {
     fn from(bbox: &schema::BoundingBox) -> Self {
         Self {
@@ -79,24 +80,6 @@ impl From<&schema::BoundingBox<'_>> for BoundingBox {
             y2: bbox.y2(),
             confidence: bbox.confidence(),
             class_id: bbox.class_id(),
-        }
-    }
-}
-
-pub struct Frame {
-    pub frame_number: u64,
-    pub timestamp_ns: u64,
-    pub width: u32,
-    pub height: u32,
-}
-
-impl From<&schema::Frame<'_>> for Frame {
-    fn from(frame: &schema::Frame) -> Self {
-        Self {
-            frame_number: frame.frame_number(),
-            timestamp_ns: frame.timestamp_ns(),
-            width: frame.width(),
-            height: frame.height(),
         }
     }
 }

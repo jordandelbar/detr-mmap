@@ -1,4 +1,4 @@
-use bridge::{Detection, DetectionReader, DetectionWriter};
+use bridge::{DetectionReader, DetectionWriter};
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use std::fs;
 

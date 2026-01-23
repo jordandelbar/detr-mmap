@@ -19,13 +19,14 @@ impl FrameSink {
     pub fn write(
         &mut self,
         rgb: &[u8],
+        camera_id: u32,
         frame_no: u64,
         width: u32,
         height: u32,
         trace: Option<&TraceMetadata>,
     ) -> Result<()> {
         self.writer
-            .write_with_trace_context(rgb, frame_no, width, height, trace)?;
+            .write(camera_id, rgb, frame_no, width, height, trace)?;
         self.inference.post().ok();
         self.gateway.post().ok();
         Ok(())
