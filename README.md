@@ -95,7 +95,10 @@ Follow [this guide](https://github.com/jordandelbar/yolo-tonic/blob/a146a7820c17
 
 ## Benchmarks & Performance
 
-Benchmarks and performance run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 RGB input frames.
+Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 RGB input frames.
+
+> **Note**: These benchmarks were run on high-end desktop hardware. Edge device performance will vary.
+> See [CONTRIBUTING.md](CONTRIBUTING.md) if you can provide benchmarks on Raspberry Pi or Jetson hardware.
 
 ### Benchmarks
 
@@ -103,36 +106,36 @@ Benchmarks and performance run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D 
 
 | Backend    | Latency   | Throughput |
 |------------|-----------|------------|
-| ORT (CPU)  | 67.7 ms   | ~15 FPS    |
-| ORT (CUDA) | 15.4 ms   | ~65 FPS    |
-| TensorRT   |  3.8 ms   | ~263 FPS   |
+| ORT (CPU)  | 66.8 ms   | ~15 FPS    |
+| ORT (CUDA) | 15.1 ms   | ~66 FPS    |
+| TensorRT   |  3.7 ms   | ~270 FPS   |
 
 #### Full Pipeline (preprocess → inference → postprocess)
 
 | Backend    | Latency   | Throughput |
 |------------|-----------|------------|
-| ORT (CPU)  | 72.6 ms   | ~14 FPS    |
-| ORT (CUDA) | 17.3 ms   | ~58 FPS    |
-| TensorRT   |  5.9 ms   | ~170 FPS   |
+| ORT (CPU)  | 68.7 ms   | ~15 FPS    |
+| ORT (CUDA) | 15.8 ms   | ~63 FPS    |
+| TensorRT   |  4.2 ms   | ~240 FPS   |
 
 #### Component Breakdown (1920x1080)
 
 | Component      | Latency  |
 |----------------|----------|
-| Preprocessing  | 5.2 ms   |
+| Preprocessing  | 412 µs   |
 | Postprocessing | 23 µs    |
 | Frame write    | 309 µs   |
-| Frame read     | 58 ns    |
+| Frame read     | 46 ns    |
 
 #### IPC Performance (FlatBuffers + mmap)
 
 | Scenario           | Write    | Read     | Roundtrip |
 |--------------------|----------|----------|-----------|
-| No detections      | 28 ns    | 52 ns    | 79 ns     |
-| Single detection   | 55 ns    | 116 ns   | 171 ns    |
-| Few detections (5) | 198 ns   | 363 ns   | 563 ns    |
-| Many detections    | 744 ns   | 1.3 µs   | 2.1 µs    |
-| Crowded scene      | 3.8 µs   | 6.2 µs   | 10 µs     |
+| No detections      | 22 ns    | 29 ns    | 53 ns     |
+| Single detection   | 51 ns    | 51 ns    | 101 ns    |
+| Few detections (5) | 113 ns   | 120 ns   | 228 ns    |
+| Many detections    | 352 ns   | 350 ns   | 703 ns    |
+| Crowded scene      | 1.6 µs   | 1.6 µs   | 3.2 µs    |
 
 Run benchmarks yourself:
 ```bash

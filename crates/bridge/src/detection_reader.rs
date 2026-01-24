@@ -2,6 +2,7 @@ use crate::{
     macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, utils::safe_flatbuffers_root,
 };
 use anyhow::Result;
+#[cfg(feature = "tracing")]
 use common::span;
 use schema::DetectionResult;
 
@@ -17,6 +18,7 @@ impl DetectionReader {
     ///
     /// The trace context can be accessed via `result.trace()` when needed for distributed tracing.
     pub fn get_detections(&self) -> Result<Option<DetectionResult<'_>>> {
+        #[cfg(feature = "tracing")]
         let _s = span!("get_detections");
 
         if self.current_sequence() == 0 {
