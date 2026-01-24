@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
 
-/// Frame metadata extracted from shared memory (zero-copy - no pixel data stored)
+/// Frame metadata extracted from shared memory
 struct FrameMetadata {
     frame_number: u64,
     timestamp_ns: u64,
@@ -153,17 +153,16 @@ impl BufferPoller {
             }
         };
 
-        // Extract metadata (small, cheap copies)
+        // Extract metadata
         let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let width = frame.width();
         let height = frame.height();
-        let format = frame.format();
 
         // Encode to JPEG directly from mmap'd pixel data (zero-copy read)
         let jpeg_data = if let Some(pixels) = frame.pixels() {
             let pixel_data = pixels.bytes(); // &[u8] borrowed from mmap
-            self.encode_pixels_to_jpeg(pixel_data, width, height, format)
+            self.encode_pixels_to_jpeg(pixel_data, width, height)
         } else {
             Vec::new()
         };
@@ -215,14 +214,8 @@ impl BufferPoller {
         }
     }
 
-    /// Encode pixel data to JPEG (borrows directly from mmap'd memory)
-    fn encode_pixels_to_jpeg(
-        &self,
-        pixel_data: &[u8],
-        width: u32,
-        height: u32,
-        format: bridge::ColorFormat,
-    ) -> Vec<u8> {
+    /// Encode RGB pixel data to JPEG
+    fn encode_pixels_to_jpeg(&self, pixel_data: &[u8], width: u32, height: u32) -> Vec<u8> {
         let _s = span!("encode_pixels_to_jpeg");
 
         if pixel_data.is_empty() {
@@ -231,7 +224,7 @@ impl BufferPoller {
 
         // Validate pixel data size
         let expected_size = (width * height * 3) as usize;
-        if pixel_data.len() < expected_size && format != bridge::ColorFormat::GRAY {
+        if pixel_data.len() < expected_size {
             tracing::error!(
                 expected = expected_size,
                 actual = pixel_data.len(),
@@ -240,7 +233,7 @@ impl BufferPoller {
             return Vec::new();
         }
 
-        match pixels_to_jpeg(pixel_data, width, height, format) {
+        match pixels_to_jpeg(pixel_data, width, height) {
             Ok(data) => data,
             Err(e) => {
                 tracing::error!("Image encoding error: {}", e);
@@ -312,27 +305,12 @@ impl BufferPoller {
 /// JPEG encoding quality (0-100)
 const JPEG_QUALITY: i32 = 80;
 
-/// Convert raw pixel data to JPEG format using turbojpeg
-/// Supports RGB and BGR color formats
+/// Convert raw RGB pixel data to JPEG format using turbojpeg
 pub fn pixels_to_jpeg(
     pixel_data: &[u8],
     width: u32,
     height: u32,
-    format: bridge::ColorFormat,
 ) -> anyhow::Result<Vec<u8>> {
-    let pixel_format = match format {
-        bridge::ColorFormat::RGB => turbojpeg::PixelFormat::RGB,
-        bridge::ColorFormat::BGR => turbojpeg::PixelFormat::BGR,
-        bridge::ColorFormat::GRAY => {
-            return Err(anyhow::anyhow!(
-                "Grayscale format not supported for JPEG encoding"
-            ));
-        }
-        _ => {
-            return Err(anyhow::anyhow!("Unknown color format"));
-        }
-    };
-
     // Validate buffer size to avoid panic in turbojpeg
     let expected_size = (width as usize) * (height as usize) * 3;
     if pixel_data.len() < expected_size {
@@ -348,7 +326,7 @@ pub fn pixels_to_jpeg(
         width: width as usize,
         pitch: (width * 3) as usize,
         height: height as usize,
-        format: pixel_format,
+        format: turbojpeg::PixelFormat::RGB,
     };
 
     let jpeg_data = turbojpeg::compress(image, JPEG_QUALITY, turbojpeg::Subsamp::Sub2x2)?;
@@ -373,9 +351,9 @@ mod tests {
     }
 
     #[test]
-    fn rgb_passthrough_produces_valid_jpeg() {
+    fn rgb_produces_valid_jpeg() {
         let pixels = solid_color_pixels(64, 64, 255, 0, 0); // Red
-        let result = pixels_to_jpeg(&pixels, 64, 64, bridge::ColorFormat::RGB);
+        let result = pixels_to_jpeg(&pixels, 64, 64);
 
         assert!(result.is_ok(), "Error: {:?}", result.err());
         let jpeg = result.unwrap();
@@ -385,32 +363,9 @@ mod tests {
     }
 
     #[test]
-    fn bgr_to_rgb_conversion() {
-        // BGR: Blue=255, Green=0, Red=0 -> should become RGB: Red=0, Green=0, Blue=255
-        let bgr_pixels = solid_color_pixels(64, 64, 0, 0, 255); // BGR order: B=0, G=0, R=255
-        let result = pixels_to_jpeg(&bgr_pixels, 64, 64, bridge::ColorFormat::BGR);
-
-        assert!(result.is_ok());
-        let jpeg = result.unwrap();
-        assert!(jpeg.len() > 2);
-        assert_eq!(&jpeg[0..2], &[0xFF, 0xD8]);
-    }
-
-    #[test]
-    fn grayscale_returns_error() {
-        let pixels = vec![128u8; 64 * 64]; // Single channel
-        let result = pixels_to_jpeg(&pixels, 64, 64, bridge::ColorFormat::GRAY);
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Grayscale"));
-    }
-
-    #[test]
-    fn empty_pixels_creates_empty_result_via_encode_to_jpeg() {
-        // pixels_to_jpeg itself doesn't check for empty, but encode_to_jpeg does
-        // Test the raw function with valid but minimal data
+    fn minimal_1x1_pixels() {
         let pixels = solid_color_pixels(1, 1, 0, 0, 0);
-        let result = pixels_to_jpeg(&pixels, 1, 1, bridge::ColorFormat::RGB);
+        let result = pixels_to_jpeg(&pixels, 1, 1);
         assert!(result.is_ok());
     }
 
@@ -418,7 +373,7 @@ mod tests {
     fn invalid_buffer_size_fails() {
         // Buffer too small for dimensions
         let pixels = vec![0u8; 100]; // Not enough for 64x64x3
-        let result = pixels_to_jpeg(&pixels, 64, 64, bridge::ColorFormat::RGB);
+        let result = pixels_to_jpeg(&pixels, 64, 64);
 
         assert!(result.is_err());
     }
@@ -433,7 +388,7 @@ mod tests {
 
         for (width, height, label) in test_cases {
             let pixels = solid_color_pixels(width, height, 128, 128, 128);
-            let result = pixels_to_jpeg(&pixels, width, height, bridge::ColorFormat::RGB);
+            let result = pixels_to_jpeg(&pixels, width, height);
 
             assert!(result.is_ok(), "Failed for {}", label);
             let jpeg = result.unwrap();
