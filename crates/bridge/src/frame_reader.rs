@@ -1,4 +1,6 @@
-use crate::{macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, utils::safe_flatbuffers_root};
+use crate::{
+    macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, utils::safe_flatbuffers_root,
+};
 use anyhow::Result;
 use common::span;
 use schema::Frame;

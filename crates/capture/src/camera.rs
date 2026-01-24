@@ -78,18 +78,18 @@ impl Camera {
                     let _s = span!("capture_frame");
 
                     // Decode directly using split borrow (decoder + sink are separate fields)
-                    let rgb_data = match self.decoder.decode(
-                        buf,
-                        self.device.width,
-                        self.device.height,
-                    ) {
-                        Ok(data) => data,
-                        Err(e) => {
-                            dropped_frames += 1;
-                            tracing::warn!("Frame #{} decode error: {}", frame_count, e);
-                            continue;
-                        }
-                    };
+                    let rgb_data =
+                        match self
+                            .decoder
+                            .decode(buf, self.device.width, self.device.height)
+                        {
+                            Ok(data) => data,
+                            Err(e) => {
+                                dropped_frames += 1;
+                                tracing::warn!("Frame #{} decode error: {}", frame_count, e);
+                                continue;
+                            }
+                        };
 
                     let trace_ctx = capture_current_trace();
 

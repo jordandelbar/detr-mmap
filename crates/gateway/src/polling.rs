@@ -1,5 +1,7 @@
 use crate::state::{FrameMessage, FramePacket};
-use bridge::{BridgeSemaphore, Detection, DetectionReader, FrameReader, SemaphoreType, set_trace_parent};
+use bridge::{
+    BridgeSemaphore, Detection, DetectionReader, FrameReader, SemaphoreType, set_trace_parent,
+};
 use common::{span, wait_for_resource_async};
 use std::sync::Arc;
 use std::time::Duration;

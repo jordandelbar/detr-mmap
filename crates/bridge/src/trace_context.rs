@@ -61,8 +61,6 @@ pub fn set_trace_parent(trace: &schema::TraceContext, span: &tracing::Span) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn set_trace_parent_creates_valid_span_context() {
         let trace = schema::TraceContext::new(&[0x01; 16], &[0x02; 8], 0x01);

@@ -68,7 +68,9 @@ fn test_frame_writer_reader_synchronization() {
     // TEST 5: Multiple consecutive writes
     for i in 3..=10 {
         let pixels = vec![(i * 10) as u8; 640 * 480 * 3];
-        writer.write_frame(i as u32, &pixels, i, 640, 480, None).unwrap();
+        writer
+            .write_frame(i as u32, &pixels, i, 640, 480, None)
+            .unwrap();
 
         let frame = reader.get_frame().unwrap();
         assert!(frame.is_some(), "Reader should detect frame {}", i);
@@ -115,7 +117,9 @@ fn test_concurrent_frame_producer_consumer() {
             // Embed frame number in first 8 bytes for verification
             pixels[..8].copy_from_slice(&frame_num.to_le_bytes());
 
-            writer.write_frame(0, &pixels, frame_num, WIDTH, HEIGHT, None).unwrap();
+            writer
+                .write_frame(0, &pixels, frame_num, WIDTH, HEIGHT, None)
+                .unwrap();
 
             // Simulate realistic frame rate (~100 FPS)
             thread::sleep(Duration::from_millis(10));
@@ -231,7 +235,9 @@ fn test_multiple_frame_readers() {
     // Write frames and verify all readers see them
     for i in 1..=NUM_FRAMES {
         let pixels = vec![(i * 13) as u8; (WIDTH * HEIGHT * 3) as usize];
-        writer.write_frame(0, &pixels, i as u64, WIDTH, HEIGHT, None).unwrap();
+        writer
+            .write_frame(0, &pixels, i as u64, WIDTH, HEIGHT, None)
+            .unwrap();
 
         // All readers should detect new frame
         let frame1 = reader1.get_frame().unwrap();
@@ -335,7 +341,9 @@ fn test_various_frame_resolutions() {
         let reader = FrameReader::with_path(path_str).unwrap();
 
         let pixels = vec![200u8; (*width * *height * 3) as usize];
-        writer.write_frame(0, &pixels, 1, *width, *height, None).unwrap();
+        writer
+            .write_frame(0, &pixels, 1, *width, *height, None)
+            .unwrap();
 
         let frame = reader.get_frame().unwrap();
         assert!(frame.is_some(), "{} frame should be readable", label);

@@ -30,7 +30,13 @@ fn write_detections(
     }
 
     let detections_vector = builder.create_vector(&detection_offsets);
-    writer.write_detections(camera_id, frame_number, timestamp_ns, detections_vector, None)
+    writer.write_detections(
+        camera_id,
+        frame_number,
+        timestamp_ns,
+        detections_vector,
+        None,
+    )
 }
 
 /// Test basic detection writer-reader synchronization
@@ -190,8 +196,14 @@ fn test_concurrent_detection_producer_consumer() {
                 })
                 .collect();
 
-            write_detections(&mut writer, 1, batch_num, 1234567890 + batch_num, &detections)
-                .unwrap();
+            write_detections(
+                &mut writer,
+                1,
+                batch_num,
+                1234567890 + batch_num,
+                &detections,
+            )
+            .unwrap();
 
             // Simulate realistic inference rate
             thread::sleep(Duration::from_millis(10));
@@ -224,10 +236,7 @@ fn test_concurrent_detection_producer_consumer() {
                 batches_seen.push(batches_seen.len() as u64 + 1);
 
                 // Verify detection count varies (we don't know exact count without frame number from API)
-                let count = detection_result
-                    .detections()
-                    .map(|d| d.len())
-                    .unwrap_or(0);
+                let count = detection_result.detections().map(|d| d.len()).unwrap_or(0);
                 assert!(count <= 10, "Detection count should be reasonable");
 
                 reader.mark_read();
@@ -301,8 +310,14 @@ fn test_multiple_detection_readers() {
             })
             .collect();
 
-        write_detections(&mut writer, i as u32, i as u64, 1234567890 + i as u64, &detections)
-            .unwrap();
+        write_detections(
+            &mut writer,
+            i as u32,
+            i as u64,
+            1234567890 + i as u64,
+            &detections,
+        )
+        .unwrap();
 
         // All readers should detect new batch
         let result1 = reader1.get_detections().unwrap();
@@ -433,10 +448,7 @@ fn test_various_detection_counts() {
         assert!(result.is_some(), "{} should be readable", label);
 
         let detection_result = result.unwrap();
-        let actual_count = detection_result
-            .detections()
-            .map(|d| d.len())
-            .unwrap_or(0);
+        let actual_count = detection_result.detections().map(|d| d.len()).unwrap_or(0);
         assert_eq!(actual_count, *count as usize, "{} count mismatch", label);
 
         // Verify detection data integrity for non-empty cases
