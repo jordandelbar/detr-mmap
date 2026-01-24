@@ -1,7 +1,7 @@
 namespace bridge.schema;
 
-table TraceContext {
-    trace_id: [ubyte] (required);
-    span_id: [ubyte] (required);
-    trace_flags: ubyte;
+struct TraceContext {
+   trace_id: [ubyte:16];
+   span_id: [ubyte:8];
+   trace_flags: ubyte;
 }

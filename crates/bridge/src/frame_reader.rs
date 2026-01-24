@@ -22,7 +22,7 @@ impl FrameReader {
             return Ok(None);
         }
 
-        let frame = safe_flatbuffers_root::<schema::Frame>(self.reader.buffer())?;
+        let frame = safe_flatbuffers_root::<Frame>(self.reader.buffer())?;
         let trace_ctx = extract_trace_context_from_frame(&frame);
 
         Ok(Some((frame, trace_ctx)))
@@ -32,21 +32,10 @@ impl FrameReader {
 /// Extract trace context from a Frame if present and valid.
 fn extract_trace_context_from_frame(frame: &Frame<'_>) -> Option<TraceMetadata> {
     let trace = frame.trace()?;
-    let trace_id = trace.trace_id();
-    let span_id = trace.span_id();
-
-    if trace_id.len() != 16 || span_id.len() != 8 {
-        return None;
-    }
-
-    let mut tid = [0u8; 16];
-    let mut sid = [0u8; 8];
-    tid.copy_from_slice(trace_id.bytes());
-    sid.copy_from_slice(span_id.bytes());
 
     Some(TraceMetadata {
-        trace_id: tid,
-        span_id: sid,
+        trace_id: std::array::from_fn(|i| trace.trace_id().get(i)),
+        span_id: std::array::from_fn(|i| trace.span_id().get(i)),
         trace_flags: trace.trace_flags(),
     })
 }

@@ -1,7 +1,7 @@
 use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceMetadata};
 use anyhow::{Context, Result};
 use common::span;
-use schema::{ColorFormat, FrameArgs};
+use schema::{ColorFormat, Frame, FrameArgs, TraceContext};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct FrameWriter {
@@ -35,21 +35,10 @@ impl FrameWriter {
         self.builder.reset();
         let pixels_vec = self.builder.create_vector(pixel_data);
 
-        // Create trace metadata if provided
-        let trace_offset = trace_ctx.map(|ctx| {
-            let trace_id_vec = self.builder.create_vector(&ctx.trace_id);
-            let span_id_vec = self.builder.create_vector(&ctx.span_id);
-            schema::TraceMetadata::create(
-                &mut self.builder,
-                &schema::TraceMetadataArgs {
-                    trace_id: Some(trace_id_vec),
-                    span_id: Some(span_id_vec),
-                    trace_flags: ctx.trace_flags,
-                },
-            )
-        });
+        let trace =
+            trace_ctx.map(|ctx| TraceContext::new(&ctx.trace_id, &ctx.span_id, ctx.trace_flags));
 
-        let frame_fb = schema::Frame::create(
+        let frame_fb = Frame::create(
             &mut self.builder,
             &FrameArgs {
                 camera_id,
@@ -60,7 +49,7 @@ impl FrameWriter {
                 channels: 3,
                 format: ColorFormat::RGB,
                 pixels: Some(pixels_vec),
-                trace: trace_offset,
+                trace: trace.as_ref(),
             },
         );
 

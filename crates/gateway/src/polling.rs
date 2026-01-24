@@ -1,6 +1,6 @@
 use crate::state::{FrameMessage, FramePacket};
 use bridge::{
-    BoundingBox, BridgeSemaphore, DetectionReader, FrameReader, SemaphoreType, TraceMetadata,
+    BridgeSemaphore, Detection, DetectionReader, FrameReader, SemaphoreType, TraceMetadata,
 };
 use common::{span, wait_for_resource_async};
 use std::sync::Arc;
@@ -21,7 +21,7 @@ struct FrameData {
 
 /// Detection data with status information
 struct DetectionData {
-    detections: Vec<BoundingBox>,
+    detections: Vec<Detection>,
     has_jpeg: bool,
 }
 
@@ -182,10 +182,10 @@ impl BufferPoller {
 
         match self.detection_reader.get_detections() {
             Ok(Some((detection_result, _trace_ctx))) => {
-                // Convert FlatBuffers detections to owned BoundingBox at serialization boundary
+                // Convert FlatBuffers detections to owned Detection at serialization boundary
                 let detections = detection_result
                     .detections()
-                    .map(|dets| dets.iter().map(|d| BoundingBox::from(&d)).collect())
+                    .map(|dets| dets.iter().map(|d| Detection::from(&d)).collect())
                     .unwrap_or_default();
 
                 Some(DetectionData {

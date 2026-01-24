@@ -1,11 +1,13 @@
 use crate::macros::impl_mmap_writer_base;
 use crate::mmap_writer::MmapWriter;
 use crate::paths;
+use crate::types::TraceMetadata;
 use anyhow::{Context, Result};
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
 pub struct DetectionWriter {
     writer: MmapWriter,
-    builder: flatbuffers::FlatBufferBuilder<'static>,
+    builder: FlatBufferBuilder<'static>,
 }
 
 impl_mmap_writer_base!(
@@ -15,47 +17,35 @@ impl_mmap_writer_base!(
 );
 
 impl DetectionWriter {
+    /// Returns a mutable reference to the internal FlatBufferBuilder.
+    /// Call `reset()` on the builder before building, and `commit()` after finishing.
+    #[inline]
+    pub fn builder(&mut self) -> &mut FlatBufferBuilder<'static> {
+        &mut self.builder
+    }
+
+    /// Commit the finished FlatBuffer data to shared memory.
+    /// Call this after `builder.finish(...)`.
+    pub fn commit(&mut self) -> Result<()> {
+        let data = self.builder.finished_data();
+        self.writer
+            .write(data)
+            .context("Failed to write detection data")?;
+        Ok(())
+    }
+
+    /// Build and write a DetectionResult with pre-built detection offsets.
+    /// This is the zero-copy path where detections are built directly into the buffer.
     pub fn write(
         &mut self,
         camera_id: u32,
         frame_number: u64,
         timestamp_ns: u64,
-        detections: &[BoundingBox],
+        detections: WIPOffset<Vector<'_, ForwardsUOffset<schema::Detection<'_>>>>,
         trace_ctx: Option<&TraceMetadata>,
     ) -> Result<()> {
-        self.builder.reset();
-
-        let bbox_vec: Vec<_> = detections
-            .iter()
-            .map(|d| {
-                schema::BoundingBox::create(
-                    &mut self.builder,
-                    &schema::BoundingBoxArgs {
-                        x1: d.x1,
-                        y1: d.y1,
-                        x2: d.x2,
-                        y2: d.y2,
-                        confidence: d.confidence,
-                        class_id: d.class_id,
-                    },
-                )
-            })
-            .collect();
-
-        let detection_offset = self.builder.create_vector(&bbox_vec);
-
-        let trace_offset = trace_ctx.map(|ctx| {
-            let trace_id_vec = self.builder.create_vector(&ctx.trace_id);
-            let span_id_vec = self.builder.create_vector(&ctx.span_id);
-            schema::TraceMetadata::create(
-                &mut self.builder,
-                &schema::TraceMetadataArgs {
-                    trace_id: Some(trace_id_vec),
-                    span_id: Some(span_id_vec),
-                    trace_flags: ctx.trace_flags,
-                },
-            )
-        });
+        let trace = trace_ctx
+            .map(|ctx| schema::TraceContext::new(&ctx.trace_id, &ctx.span_id, ctx.trace_flags));
 
         let detection_result = schema::DetectionResult::create(
             &mut self.builder,
@@ -63,18 +53,12 @@ impl DetectionWriter {
                 camera_id,
                 frame_number,
                 timestamp_ns,
-                detections: Some(detection_offset),
-                trace: trace_offset,
+                detections: Some(detections),
+                trace: trace.as_ref(),
             },
         );
 
         self.builder.finish(detection_result, None);
-        let data = self.builder.finished_data();
-
-        self.writer
-            .write(data)
-            .context("Failed to write detection data")?;
-
-        Ok(())
+        self.commit()
     }
 }

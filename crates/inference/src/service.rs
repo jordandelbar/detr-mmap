@@ -214,19 +214,24 @@ impl<B: InferenceBackend> InferenceService<B> {
             offset_y,
         };
 
-        let detections =
-            self.postprocessor
-                .parse_detections(&dets.view(), &logits.view(), &transform)?;
+        let builder = detection_writer.builder();
+        builder.reset();
 
-        // Write detections with trace context for downstream propagation
+        let (detections_offset, count) = self.postprocessor.parse_detections_direct(
+            builder,
+            &dets.view(),
+            &logits.view(),
+            &transform,
+        )?;
+
         detection_writer.write(
             camera_id,
             frame_number,
             timestamp_ns,
-            &detections,
+            detections_offset,
             trace_ctx.as_ref(),
         )?;
 
-        Ok(detections.len())
+        Ok(count)
     }
 }

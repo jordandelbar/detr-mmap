@@ -1,4 +1,4 @@
-use bridge::types::BoundingBox;
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
 pub struct TransformParams {
     pub orig_width: u32,
@@ -21,26 +21,30 @@ impl PostProcessor {
         }
     }
 
-    /// Parse detections from RF-DETR output format
-    /// RF-DETR outputs: dets (boxes in cxcywh normalized), labels (logits per class)
-    #[tracing::instrument(skip(self, dets, logits, transform))]
-    pub fn parse_detections(
+    /// Parse detections from RF-DETR output and build directly into FlatBuffer.
+    #[tracing::instrument(skip(self, builder, dets, logits, transform))]
+    pub fn parse_detections_direct<'a>(
         &self,
+        builder: &mut FlatBufferBuilder<'a>,
         dets: &ndarray::ArrayViewD<f32>, // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)
         logits: &ndarray::ArrayViewD<f32>, // [1, 300, 91] - class logits
         transform: &TransformParams,
-    ) -> anyhow::Result<Vec<BoundingBox>> {
-        let mut detections = Vec::new();
-
+    ) -> anyhow::Result<(
+        WIPOffset<Vector<'a, ForwardsUOffset<schema::Detection<'a>>>>,
+        usize,
+    )> {
         let num_queries = dets.shape()[1];
         let num_classes = logits.shape()[2];
+
+        // First pass: collect detection offsets
+        let mut detection_offsets = Vec::new();
 
         for i in 0..num_queries {
             // Find max logit and its index (argmax for class_id)
             // RF-DETR uses 1-indexed classes (0=background, 1=person, 2=bicycle, ...)
             // Skip index 0 (background) and convert to 0-indexed COCO IDs
             let mut max_logit = f32::NEG_INFINITY;
-            let mut class_idx = 1usize; // Starts from 1
+            let mut class_idx = 1usize;
             for c in 1..num_classes {
                 let logit = logits[[0, i, c]];
                 if logit > max_logit {
@@ -50,8 +54,7 @@ impl PostProcessor {
             }
 
             // Convert RF-DETR 1-indexed class to 0-indexed COCO class
-            // RF-DETR class 1 (person) -> COCO class 0 (person)
-            let class_id = class_idx - 1;
+            let class_id = (class_idx - 1) as u16;
 
             // Apply sigmoid to max logit for confidence
             let confidence = sigmoid(max_logit);
@@ -89,17 +92,23 @@ impl PostProcessor {
                 .max(0.0)
                 .min(transform.orig_height as f32);
 
-            detections.push(BoundingBox {
-                x1,
-                y1,
-                x2,
-                y2,
-                confidence,
-                class_id: class_id as u32,
-            });
+            // Build Detection directly into FlatBuffer
+            let bbox = schema::BoundingBox::new(x1, y1, x2, y2);
+            let detection = schema::Detection::create(
+                builder,
+                &schema::DetectionArgs {
+                    box_: Some(&bbox),
+                    confidence,
+                    class_id,
+                },
+            );
+            detection_offsets.push(detection);
         }
 
-        Ok(detections)
+        let count = detection_offsets.len();
+        let detections_vector = builder.create_vector(&detection_offsets);
+
+        Ok((detections_vector, count))
     }
 }
 

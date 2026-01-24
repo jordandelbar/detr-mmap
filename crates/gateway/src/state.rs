@@ -1,4 +1,4 @@
-use bridge::types::BoundingBox;
+use bridge::Detection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -10,7 +10,7 @@ pub struct FrameMessage {
     pub width: u32,
     pub height: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub detections: Option<Vec<BoundingBox>>,
+    pub detections: Option<Vec<Detection>>,
     pub status: String,
 }
 
