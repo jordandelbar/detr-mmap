@@ -188,19 +188,17 @@ impl<B: InferenceBackend> InferenceService<B> {
         let pixels = frame
             .pixels()
             .ok_or_else(|| anyhow::anyhow!("No pixel data"))?;
-        let format = frame.format();
 
         tracing::trace!(
             frame_number,
             width,
             height,
-            format = ?format,
             "Preprocessing frame"
         );
 
         let (preprocessed, scale, offset_x, offset_y) = self
             .preprocessor
-            .preprocess_frame(pixels, width, height, format)?;
+            .preprocess_frame(pixels, width, height)?;
 
         let InferenceOutput { dets, logits } = {
             let _infer_span = tracing::info_span!("model_inference").entered();

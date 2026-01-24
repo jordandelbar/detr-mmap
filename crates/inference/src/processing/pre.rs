@@ -28,19 +28,17 @@ impl PreProcessor {
         pixels: flatbuffers::Vector<u8>,
         width: u32,
         height: u32,
-        format: bridge::ColorFormat,
     ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
         let _s = span!("preprocess_frame");
 
         tracing::trace!(
             width,
             height,
-            format = ?format,
             pixel_bytes = pixels.len(),
             "Preprocessing frame dimensions"
         );
 
-        self.convert_to_rgb(pixels, width, height, format)?;
+        self.copy_rgb_pixels(pixels, width, height)?;
 
         let (scale, offset_x, offset_y, resized) = self.resize_and_letterbox(width, height)?;
 
@@ -49,14 +47,13 @@ impl PreProcessor {
         Ok((input, scale, offset_x, offset_y))
     }
 
-    fn convert_to_rgb(
+    fn copy_rgb_pixels(
         &mut self,
         pixels: flatbuffers::Vector<u8>,
         width: u32,
         height: u32,
-        format: bridge::ColorFormat,
     ) -> anyhow::Result<()> {
-        let _s = span!("convert_to_rgb");
+        let _s = span!("copy_rgb_pixels");
 
         let expected_size = (width * height * 3) as usize;
 
@@ -65,26 +62,7 @@ impl PreProcessor {
                 .reserve(expected_size - self.rgb_buffer.len());
         }
         self.rgb_buffer.clear();
-
-        match format {
-            bridge::ColorFormat::RGB => {
-                self.rgb_buffer.extend_from_slice(pixels.bytes());
-            }
-            bridge::ColorFormat::BGR => {
-                for i in (0..pixels.len()).step_by(3) {
-                    let b = pixels.get(i);
-                    let g = pixels.get(i + 1);
-                    let r = pixels.get(i + 2);
-                    self.rgb_buffer.push(r);
-                    self.rgb_buffer.push(g);
-                    self.rgb_buffer.push(b);
-                }
-            }
-            bridge::ColorFormat::GRAY => {
-                anyhow::bail!("Grayscale format not supported");
-            }
-            _ => anyhow::bail!("Unknown color format"),
-        }
+        self.rgb_buffer.extend_from_slice(pixels.bytes());
 
         if self.rgb_buffer.len() != expected_size {
             anyhow::bail!(
@@ -184,12 +162,7 @@ mod tests {
     use flatbuffers::FlatBufferBuilder;
 
     /// Helper function to create a FlatBuffers Frame for testing
-    fn create_test_frame(
-        width: u32,
-        height: u32,
-        format: bridge::ColorFormat,
-        pixels: Vec<u8>,
-    ) -> Vec<u8> {
+    fn create_test_frame(width: u32, height: u32, pixels: Vec<u8>) -> Vec<u8> {
         let mut builder = FlatBufferBuilder::new();
 
         let pixel_vector = builder.create_vector(&pixels);
@@ -203,7 +176,7 @@ mod tests {
                 width,
                 height,
                 channels: 3,
-                format,
+                format: bridge::ColorFormat::RGB,
                 pixels: Some(pixel_vector),
                 trace: None,
             },
@@ -213,46 +186,9 @@ mod tests {
         builder.finished_data().to_vec()
     }
 
-    /// Test BGR to RGB conversion
+    /// Test RGB preprocessing
     #[test]
-    fn test_bgr_to_rgb_conversion() {
-        let pixels = vec![
-            255, 0, 0, // Blue pixel (BGR: 255,0,0 → RGB: 0,0,255)
-            0, 255, 0, // Green pixel (BGR: 0,255,0 → RGB: 0,255,0)
-            0, 0, 255, // Red pixel (BGR: 0,0,255 → RGB: 255,0,0)
-            128, 128, 128, // Gray pixel
-        ];
-
-        let frame_data = create_test_frame(2, 2, bridge::ColorFormat::BGR, pixels);
-        let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
-
-        let mut preprocessor = PreProcessor::default();
-        let (output, scale, offset_x, offset_y) = preprocessor
-            .preprocess_frame(
-                frame.pixels().unwrap(),
-                frame.width(),
-                frame.height(),
-                frame.format(),
-            )
-            .unwrap();
-
-        // Verify output shape (512x512 for RF-DETR)
-        assert_eq!(output.shape(), &[1, 3, 512, 512]);
-
-        // Verify scale and offsets
-        // 2x2 → 512x512: scale = 512/2 = 256
-        assert_eq!(scale, 256.0);
-        assert_eq!(offset_x, 0.0);
-        assert_eq!(offset_y, 0.0);
-
-        // Validate basic shape
-        assert!(output.shape()[0] == 1);
-        assert!(output.shape()[1] == 3);
-    }
-
-    /// Test RGB passthrough
-    #[test]
-    fn test_rgb_to_rgb_passthrough() {
+    fn test_rgb_preprocessing() {
         let pixels = vec![
             255, 0, 0, // Red pixel
             0, 255, 0, // Green pixel
@@ -260,7 +196,7 @@ mod tests {
             255, 255, 255, // White pixel
         ];
 
-        let frame_data = create_test_frame(2, 2, bridge::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(2, 2, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let mut preprocessor = PreProcessor::default();
@@ -268,35 +204,11 @@ mod tests {
             frame.pixels().unwrap(),
             frame.width(),
             frame.height(),
-            frame.format(),
         );
 
-        assert!(result.is_ok(), "RGB passthrough should succeed");
+        assert!(result.is_ok(), "RGB preprocessing should succeed");
         let (output, _, _, _) = result.unwrap();
         assert_eq!(output.shape(), &[1, 3, 512, 512]);
-    }
-
-    /// Test that grayscale format returns error
-    #[test]
-    fn test_gray_format_returns_error() {
-        let pixels = vec![128; 100]; // 10x10 grayscale
-
-        let frame_data = create_test_frame(10, 10, bridge::ColorFormat::GRAY, pixels);
-        let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
-
-        let mut preprocessor = PreProcessor::default();
-        let result = preprocessor.preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-            frame.format(),
-        );
-
-        assert!(result.is_err(), "Grayscale should return error");
-        assert!(
-            result.unwrap_err().to_string().contains("Grayscale"),
-            "Error should mention grayscale"
-        );
     }
 
     /// Test buffer size mismatch detection
@@ -304,7 +216,7 @@ mod tests {
     fn test_buffer_size_mismatch_detection() {
         let pixels = vec![0u8; 200]; // Wrong size for 10x10
 
-        let frame_data = create_test_frame(10, 10, bridge::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(10, 10, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let mut preprocessor = PreProcessor::default();
@@ -312,7 +224,6 @@ mod tests {
             frame.pixels().unwrap(),
             frame.width(),
             frame.height(),
-            frame.format(),
         );
 
         assert!(result.is_err(), "Size mismatch should return error");
@@ -328,7 +239,7 @@ mod tests {
         // 800x600 image (4:3 aspect ratio)
         let pixels = vec![128u8; 800 * 600 * 3];
 
-        let frame_data = create_test_frame(800, 600, bridge::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(800, 600, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let mut preprocessor = PreProcessor::default();
@@ -337,7 +248,6 @@ mod tests {
                 frame.pixels().unwrap(),
                 frame.width(),
                 frame.height(),
-                frame.format(),
             )
             .unwrap();
 
@@ -360,7 +270,7 @@ mod tests {
         // Create image with known pixel values (128, 128, 128 = mid gray)
         let pixels = vec![128u8; 2 * 2 * 3];
 
-        let frame_data = create_test_frame(2, 2, bridge::ColorFormat::RGB, pixels);
+        let frame_data = create_test_frame(2, 2, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let mut preprocessor = PreProcessor::new((512, 512));
@@ -369,7 +279,6 @@ mod tests {
                 frame.pixels().unwrap(),
                 frame.width(),
                 frame.height(),
-                frame.format(),
             )
             .unwrap();
 

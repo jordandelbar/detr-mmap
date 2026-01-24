@@ -5,7 +5,6 @@ use inference::{
     processing::{post::PostProcessor, pre::PreProcessor},
 };
 use ndarray::{Array, IxDyn};
-use schema::ColorFormat;
 use std::path::Path;
 
 #[cfg(feature = "ort-backend")]
@@ -15,7 +14,7 @@ use inference::backend::ort::OrtBackend;
 use inference::backend::trt::TrtBackend;
 
 /// Helper function to create a FlatBuffers Frame for benchmarking
-fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
+fn create_test_frame(width: u32, height: u32) -> Vec<u8> {
     let pixel_count = (width * height * 3) as usize;
     let pixels = vec![128u8; pixel_count]; // Mid-gray image
 
@@ -31,7 +30,7 @@ fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
             width,
             height,
             channels: 3,
-            format,
+            format: schema::ColorFormat::RGB,
             pixels: Some(pixel_vector),
             trace: None,
         },
@@ -77,12 +76,12 @@ fn benchmark_preprocessing(c: &mut Criterion) {
     let resolutions = [(640, 480), (1280, 720), (1920, 1080)];
 
     for (width, height) in resolutions.iter() {
-        let frame_data = create_test_frame(*width, *height, ColorFormat::BGR);
+        let frame_data = create_test_frame(*width, *height);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
         let mut preprocessor = PreProcessor::default();
 
         group.bench_with_input(
-            BenchmarkId::new("bgr_letterbox", format!("{}x{}", width, height)),
+            BenchmarkId::new("letterbox", format!("{}x{}", width, height)),
             &frame,
             |b, frame| {
                 b.iter(|| {
@@ -91,7 +90,6 @@ fn benchmark_preprocessing(c: &mut Criterion) {
                             black_box(frame.pixels().unwrap()),
                             black_box(frame.width()),
                             black_box(frame.height()),
-                            black_box(frame.format()),
                         )
                         .unwrap()
                 });
@@ -142,46 +140,6 @@ fn benchmark_postprocessing(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_bgr_conversion(c: &mut Criterion) {
-    let mut group = c.benchmark_group("format_conversion");
-
-    // BGR path (expensive - pixel-by-pixel conversion)
-    let bgr_frame_data = create_test_frame(1920, 1080, ColorFormat::BGR);
-    let bgr_frame = flatbuffers::root::<schema::Frame>(&bgr_frame_data).unwrap();
-    let mut preprocessor = PreProcessor::default();
-
-    group.bench_function("bgr_to_rgb_1920x1080", |b| {
-        b.iter(|| {
-            preprocessor
-                .preprocess_frame(
-                    black_box(bgr_frame.pixels().unwrap()),
-                    black_box(1920),
-                    black_box(1080),
-                    black_box(ColorFormat::BGR),
-                )
-                .unwrap()
-        });
-    });
-
-    // RGB path (production path - frames arrive as RGB from capture)
-    let rgb_frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
-    let rgb_frame = flatbuffers::root::<schema::Frame>(&rgb_frame_data).unwrap();
-
-    group.bench_function("rgb_passthrough_1920x1080", |b| {
-        b.iter(|| {
-            preprocessor
-                .preprocess_frame(
-                    black_box(rgb_frame.pixels().unwrap()),
-                    black_box(1920),
-                    black_box(1080),
-                    black_box(ColorFormat::RGB),
-                )
-                .unwrap()
-        });
-    });
-
-    group.finish();
-}
 
 #[cfg(any(feature = "ort-backend", feature = "trt-backend"))]
 fn benchmark_inference(c: &mut Criterion) {
@@ -255,7 +213,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
     let mut group = c.benchmark_group("full_pipeline");
 
     // Create test frame
-    let frame_data = create_test_frame(1920, 1080, ColorFormat::RGB);
+    let frame_data = create_test_frame(1920, 1080);
     let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
     let mut preprocessor = PreProcessor::new((512, 512));
@@ -278,7 +236,6 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                                 black_box(frame.pixels().unwrap()),
                                 black_box(frame.width()),
                                 black_box(frame.height()),
-                                black_box(frame.format()),
                             )
                             .unwrap();
 
@@ -322,7 +279,6 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                                 black_box(frame.pixels().unwrap()),
                                 black_box(frame.width()),
                                 black_box(frame.height()),
-                                black_box(frame.format()),
                             )
                             .unwrap();
 
@@ -374,7 +330,6 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                                 black_box(frame.pixels().unwrap()),
                                 black_box(frame.width()),
                                 black_box(frame.height()),
-                                black_box(frame.format()),
                             )
                             .unwrap();
 
@@ -422,7 +377,6 @@ criterion_group!(
     benches,
     benchmark_preprocessing,
     benchmark_postprocessing,
-    benchmark_bgr_conversion,
     benchmark_inference,
     benchmark_full_pipeline
 );
