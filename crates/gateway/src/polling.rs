@@ -6,15 +6,19 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time;
 
-/// Frame data extracted from shared memory
-struct FrameData {
+/// Frame metadata extracted from shared memory (zero-copy - no pixel data stored)
+struct FrameMetadata {
     frame_number: u64,
     timestamp_ns: u64,
     width: u32,
     height: u32,
-    pixel_data: Vec<u8>,
-    format: bridge::ColorFormat,
     trace_ctx: Option<schema::TraceContext>,
+}
+
+/// Result of processing a frame: metadata + encoded JPEG
+struct ProcessedFrame {
+    metadata: FrameMetadata,
+    jpeg_data: Vec<u8>,
 }
 
 /// Detection data with status information
@@ -69,30 +73,27 @@ impl BufferPoller {
                 continue;
             }
 
-            // Read current frame
-            let frame_data = match self.read_current_frame() {
+            // Process frame: read from shared memory and encode to JPEG (zero-copy)
+            let processed = match self.process_frame() {
                 Ok(data) => data,
                 Err(e) => {
-                    tracing::error!(error = %e, "Failed to read frame - skipping");
+                    tracing::error!(error = %e, "Failed to process frame - skipping");
                     continue;
                 }
             };
 
             // Create span and link to parent trace from capture service
             let span = tracing::info_span!("gateway_process_frame");
-            if let Some(ref ctx) = frame_data.trace_ctx {
+            if let Some(ref ctx) = processed.metadata.trace_ctx {
                 set_trace_parent(ctx, &span);
             }
             let _guard = span.entered();
 
-            // Encode frame to JPEG
-            let jpeg_data = self.encode_to_jpeg(&frame_data);
-
             // Read detections if available
-            let detection_data = self.read_detections(!jpeg_data.is_empty());
+            let detection_data = self.read_detections(!processed.jpeg_data.is_empty());
 
             // Build and broadcast packet
-            let packet = self.build_packet(frame_data, jpeg_data, detection_data);
+            let packet = self.build_packet(processed, detection_data);
             self.broadcast_packet(packet);
 
             // Mark buffers as read
@@ -120,9 +121,10 @@ impl BufferPoller {
         }
     }
 
-    /// Read and validate current frame from shared memory
-    fn read_current_frame(&mut self) -> anyhow::Result<FrameData> {
-        let _s = span!("read_current_frame");
+    /// Process frame: read from shared memory and encode to JPEG in one step.
+    /// This avoids copying pixel data by encoding while holding the mmap borrow.
+    fn process_frame(&mut self) -> anyhow::Result<ProcessedFrame> {
+        let _s = span!("process_frame");
 
         let frame_seq = self.frame_reader.current_sequence();
 
@@ -142,31 +144,31 @@ impl BufferPoller {
             }
         };
 
+        // Extract metadata (small, cheap copies)
         let frame_number = frame.frame_number();
         let timestamp_ns = frame.timestamp_ns();
         let width = frame.width();
         let height = frame.height();
         let format = frame.format();
-
-        // Extract trace context if present (copy the 25-byte struct)
         let trace_ctx = frame.trace().copied();
 
-        // Extract pixel data from frame
-        let pixel_data = if let Some(pixels) = frame.pixels() {
-            // TODO: change to Cow<'a, [u8]> or Arc<[u8]>
-            pixels.bytes().to_vec()
+        // Encode to JPEG directly from mmap'd pixel data (zero-copy read)
+        let jpeg_data = if let Some(pixels) = frame.pixels() {
+            let pixel_data = pixels.bytes(); // &[u8] borrowed from mmap
+            self.encode_pixels_to_jpeg(pixel_data, width, height, format)
         } else {
             Vec::new()
         };
 
-        Ok(FrameData {
-            frame_number,
-            timestamp_ns,
-            width,
-            height,
-            pixel_data,
-            format,
-            trace_ctx,
+        Ok(ProcessedFrame {
+            metadata: FrameMetadata {
+                frame_number,
+                timestamp_ns,
+                width,
+                height,
+                trace_ctx,
+            },
+            jpeg_data,
         })
     }
 
@@ -206,33 +208,32 @@ impl BufferPoller {
         }
     }
 
-    /// Encode frame pixels to JPEG
-    fn encode_to_jpeg(&self, frame_data: &FrameData) -> Vec<u8> {
-        let _s = span!("encode_to_jpeg");
+    /// Encode pixel data to JPEG (borrows directly from mmap'd memory)
+    fn encode_pixels_to_jpeg(
+        &self,
+        pixel_data: &[u8],
+        width: u32,
+        height: u32,
+        format: bridge::ColorFormat,
+    ) -> Vec<u8> {
+        let _s = span!("encode_pixels_to_jpeg");
 
-        if frame_data.pixel_data.is_empty() {
+        if pixel_data.is_empty() {
             return Vec::new();
         }
 
         // Validate pixel data size
-        let expected_size = (frame_data.width * frame_data.height * 3) as usize;
-        if frame_data.pixel_data.len() < expected_size
-            && frame_data.format != bridge::ColorFormat::GRAY
-        {
+        let expected_size = (width * height * 3) as usize;
+        if pixel_data.len() < expected_size && format != bridge::ColorFormat::GRAY {
             tracing::error!(
                 expected = expected_size,
-                actual = frame_data.pixel_data.len(),
+                actual = pixel_data.len(),
                 "Pixel buffer size mismatch - skipping JPEG encoding"
             );
             return Vec::new();
         }
 
-        match pixels_to_jpeg(
-            &frame_data.pixel_data,
-            frame_data.width,
-            frame_data.height,
-            frame_data.format,
-        ) {
+        match pixels_to_jpeg(pixel_data, width, height, format) {
             Ok(data) => data,
             Err(e) => {
                 tracing::error!("Image encoding error: {}", e);
@@ -244,8 +245,7 @@ impl BufferPoller {
     /// Build packet for broadcast
     fn build_packet(
         &self,
-        frame_data: FrameData,
-        jpeg_data: Vec<u8>,
+        processed: ProcessedFrame,
         detection_data: Option<DetectionData>,
     ) -> FramePacket {
         let _s = span!("build_packet");
@@ -266,17 +266,17 @@ impl BufferPoller {
         };
 
         let metadata = FrameMessage {
-            frame_number: frame_data.frame_number,
-            timestamp_ns: frame_data.timestamp_ns,
-            width: frame_data.width,
-            height: frame_data.height,
+            frame_number: processed.metadata.frame_number,
+            timestamp_ns: processed.metadata.timestamp_ns,
+            width: processed.metadata.width,
+            height: processed.metadata.height,
             detections,
             status,
         };
 
         FramePacket {
             metadata,
-            jpeg_data,
+            jpeg_data: processed.jpeg_data,
         }
     }
 
