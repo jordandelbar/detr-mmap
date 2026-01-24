@@ -36,7 +36,6 @@ impl FrameDecoder for YuyvDecoder {
         let pixel_count = (width * height) as usize;
         let rgb_size = pixel_count * 3;
 
-        // Ensure buffer is large enough
         if self.rgb_buffer.len() < rgb_size {
             self.rgb_buffer.resize(rgb_size, 0);
         }
@@ -51,21 +50,29 @@ impl FrameDecoder for YuyvDecoder {
 
             for chunk in row_data.chunks_exact(4) {
                 // YUYV: [Y0, U, Y1, V]
-                let y0 = chunk[0] as f32;
-                let u = chunk[1] as f32 - 128.0;
-                let y1 = chunk[2] as f32;
-                let v = chunk[3] as f32 - 128.0;
+                let y0 = chunk[0] as i32;
+                let u = chunk[1] as i32 - 128;
+                let y1 = chunk[2] as i32;
+                let v = chunk[3] as i32 - 128;
+
+                // BT.601 fixed-point coefficients (8-bit fraction)
+                // R = Y + 1.402*V  -> Y + (359*V >> 8)
+                // G = Y - 0.344*U - 0.714*V -> Y - ((88*U + 183*V) >> 8)
+                // B = Y + 1.772*U -> Y + (454*U >> 8)
+                let rv = (359 * v) >> 8;
+                let gu = (88 * u + 183 * v) >> 8;
+                let bu = (454 * u) >> 8;
 
                 // First pixel
-                self.rgb_buffer[out_idx] = (y0 + 1.402 * v).clamp(0.0, 255.0) as u8;
-                self.rgb_buffer[out_idx + 1] = (y0 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-                self.rgb_buffer[out_idx + 2] = (y0 + 1.772 * u).clamp(0.0, 255.0) as u8;
+                self.rgb_buffer[out_idx] = (y0 + rv).clamp(0, 255) as u8;
+                self.rgb_buffer[out_idx + 1] = (y0 - gu).clamp(0, 255) as u8;
+                self.rgb_buffer[out_idx + 2] = (y0 + bu).clamp(0, 255) as u8;
                 out_idx += 3;
 
                 // Second pixel
-                self.rgb_buffer[out_idx] = (y1 + 1.402 * v).clamp(0.0, 255.0) as u8;
-                self.rgb_buffer[out_idx + 1] = (y1 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-                self.rgb_buffer[out_idx + 2] = (y1 + 1.772 * u).clamp(0.0, 255.0) as u8;
+                self.rgb_buffer[out_idx] = (y1 + rv).clamp(0, 255) as u8;
+                self.rgb_buffer[out_idx + 1] = (y1 - gu).clamp(0, 255) as u8;
+                self.rgb_buffer[out_idx + 2] = (y1 + bu).clamp(0, 255) as u8;
                 out_idx += 3;
             }
         }
