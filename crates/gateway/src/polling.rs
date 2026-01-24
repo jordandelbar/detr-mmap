@@ -14,7 +14,6 @@ struct FrameMetadata {
     timestamp_ns: u64,
     width: u32,
     height: u32,
-    trace_ctx: Option<schema::TraceContext>,
 }
 
 /// Result of processing a frame: metadata + encoded JPEG
@@ -75,7 +74,14 @@ impl BufferPoller {
                 continue;
             }
 
-            // Process frame: read from shared memory and encode to JPEG (zero-copy)
+            let trace_ctx = self.peek_trace_context();
+
+            let span = tracing::info_span!("gateway_process_frame");
+            if let Some(ref ctx) = trace_ctx {
+                set_trace_parent(ctx, &span);
+            }
+            let _guard = span.entered();
+
             let processed = match self.process_frame() {
                 Ok(data) => data,
                 Err(e) => {
@@ -83,13 +89,6 @@ impl BufferPoller {
                     continue;
                 }
             };
-
-            // Create span and link to parent trace from capture service
-            let span = tracing::info_span!("gateway_process_frame");
-            if let Some(ref ctx) = processed.metadata.trace_ctx {
-                set_trace_parent(ctx, &span);
-            }
-            let _guard = span.entered();
 
             // Read detections if available
             let detection_data = self.read_detections(!processed.jpeg_data.is_empty());
@@ -102,6 +101,14 @@ impl BufferPoller {
             self.frame_reader.mark_read();
             self.detection_reader.mark_read();
         }
+    }
+
+    fn peek_trace_context(&self) -> Option<schema::TraceContext> {
+        self.frame_reader
+            .get_frame()
+            .ok()
+            .flatten()
+            .and_then(|f| f.trace().copied())
     }
 
     /// Wait for frame ready signal from camera
@@ -152,7 +159,6 @@ impl BufferPoller {
         let width = frame.width();
         let height = frame.height();
         let format = frame.format();
-        let trace_ctx = frame.trace().copied();
 
         // Encode to JPEG directly from mmap'd pixel data (zero-copy read)
         let jpeg_data = if let Some(pixels) = frame.pixels() {
@@ -168,7 +174,6 @@ impl BufferPoller {
                 timestamp_ns,
                 width,
                 height,
-                trace_ctx,
             },
             jpeg_data,
         })
@@ -315,8 +320,6 @@ pub fn pixels_to_jpeg(
     height: u32,
     format: bridge::ColorFormat,
 ) -> anyhow::Result<Vec<u8>> {
-    let _s = span!("pixels_to_jpeg");
-
     let pixel_format = match format {
         bridge::ColorFormat::RGB => turbojpeg::PixelFormat::RGB,
         bridge::ColorFormat::BGR => turbojpeg::PixelFormat::BGR,

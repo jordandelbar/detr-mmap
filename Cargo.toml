@@ -6,3 +6,4 @@ members = ["crates/bridge","crates/common","crates/capture","crates/inference", 
 criterion = { version = "0.5", features = ["html_reports"] }
 opentelemetry = { version = "0.31", features = ["metrics", "trace"] }
 tracing-opentelemetry = "0.32"
+tracing = { version = "0.1", features = ["release_max_level_info"] }

@@ -14,7 +14,7 @@ anyhow = "1"
 ndarray = "0.17"
 image = { version = "0.25", default-features = false }
 fast_image_resize = { version = "5.0", features = ["rayon"] }
-tracing = { version = "0.1.44", default-features = false }
+tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -30,7 +30,6 @@ impl YuyvDecoder {
 }
 
 impl FrameDecoder for YuyvDecoder {
-    #[tracing::instrument(skip(self, raw))]
     fn decode(&mut self, raw: &[u8], width: u32, height: u32) -> Result<&[u8]> {
         let _s = span!("decode");
 

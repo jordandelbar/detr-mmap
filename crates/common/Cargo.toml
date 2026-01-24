@@ -10,7 +10,7 @@ path = "src/lib.rs"
 async = ["tokio"]
 
 [dependencies]
-tracing = { version = "0.1.44", default-features = false }
+tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 tokio = { version = "1", features = ["time"], optional = true }
 opentelemetry = { workspace = true }

@@ -19,7 +19,7 @@ schema = { path = "../schema" }
 bridge = { path = "../bridge", features = ["frame-writer", "sentry", "semaphores", "tracing"] }
 common = { path = "../common" }
 anyhow = "1"
-tracing = { version = "0.1.44", default-features = false }
+tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread"] }

@@ -111,9 +111,18 @@ impl Drop for TelemetryGuard {
     }
 }
 
+/// Creates an info-level span and enters it.
 #[macro_export]
 macro_rules! span {
     ($name:literal) => {
         tracing::info_span!($name).entered()
+    };
+}
+
+/// Creates a debug-level span and enters it.
+#[macro_export]
+macro_rules! span_debug {
+    ($name:literal) => {
+        tracing::debug_span!($name).entered()
     };
 }
