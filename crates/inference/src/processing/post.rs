@@ -1,3 +1,4 @@
+use common::span;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
 pub struct TransformParams {
@@ -21,8 +22,7 @@ impl PostProcessor {
         }
     }
 
-    /// Parse detections from RF-DETR output and build directly into FlatBuffer.
-    #[tracing::instrument(skip(self, builder, dets, logits, transform))]
+    /// Parse detections from RF-DETR output
     pub fn parse_detections<'a>(
         &self,
         builder: &mut FlatBufferBuilder<'a>,
@@ -33,6 +33,8 @@ impl PostProcessor {
         WIPOffset<Vector<'a, ForwardsUOffset<schema::Detection<'a>>>>,
         usize,
     )> {
+        let _s = span!("parse_detections");
+
         let num_queries = dets.shape()[1];
         let num_classes = logits.shape()[2];
 
