@@ -53,8 +53,8 @@ pub use semaphore::{BridgeSemaphore, SemaphoreType};
 #[cfg(feature = "sentry")]
 pub use sentry_control::{SentryControl, SentryMode};
 #[cfg(feature = "tracing")]
-pub use trace_context::TraceContext;
-pub use types::{Detection, TraceMetadata};
+pub use trace_context::{capture_current_trace, set_trace_parent};
+pub use types::Detection;
 
 // Re-export schema types that services need
 pub use schema::ColorFormat;

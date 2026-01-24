@@ -1,4 +1,4 @@
-use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths, types::TraceMetadata};
+use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths};
 use anyhow::{Context, Result};
 use common::span;
 use schema::{ColorFormat, Frame, FrameArgs, TraceContext};
@@ -23,7 +23,7 @@ impl FrameWriter {
         frame_count: u64,
         width: u32,
         height: u32,
-        trace_ctx: Option<&TraceMetadata>,
+        trace_ctx: Option<&TraceContext>,
     ) -> Result<()> {
         let _s = span!("write_with_trace_context");
 
@@ -34,9 +34,6 @@ impl FrameWriter {
 
         self.builder.reset();
         let pixels_vec = self.builder.create_vector(pixel_data);
-
-        let trace =
-            trace_ctx.map(|ctx| TraceContext::new(&ctx.trace_id, &ctx.span_id, ctx.trace_flags));
 
         let frame_fb = Frame::create(
             &mut self.builder,
@@ -49,7 +46,7 @@ impl FrameWriter {
                 channels: 3,
                 format: ColorFormat::RGB,
                 pixels: Some(pixels_vec),
-                trace: trace.as_ref(),
+                trace: trace_ctx,
             },
         );
 

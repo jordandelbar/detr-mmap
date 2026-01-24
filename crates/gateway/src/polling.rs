@@ -1,7 +1,5 @@
 use crate::state::{FrameMessage, FramePacket};
-use bridge::{
-    BridgeSemaphore, Detection, DetectionReader, FrameReader, SemaphoreType, TraceMetadata,
-};
+use bridge::{BridgeSemaphore, Detection, DetectionReader, FrameReader, SemaphoreType, set_trace_parent};
 use common::{span, wait_for_resource_async};
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,7 +14,7 @@ struct FrameData {
     height: u32,
     pixel_data: Vec<u8>,
     format: bridge::ColorFormat,
-    trace_ctx: Option<TraceMetadata>,
+    trace_ctx: Option<schema::TraceContext>,
 }
 
 /// Detection data with status information
@@ -83,7 +81,7 @@ impl BufferPoller {
             // Create span and link to parent trace from capture service
             let span = tracing::info_span!("gateway_process_frame");
             if let Some(ref ctx) = frame_data.trace_ctx {
-                ctx.set_parent(&span);
+                set_trace_parent(ctx, &span);
             }
             let _guard = span.entered();
 
@@ -128,7 +126,7 @@ impl BufferPoller {
 
         let frame_seq = self.frame_reader.current_sequence();
 
-        let (frame, trace_ctx) = match self.frame_reader.get_frame() {
+        let frame = match self.frame_reader.get_frame() {
             Ok(Some(data)) => data,
             Ok(None) => {
                 anyhow::bail!("No frame available")
@@ -149,6 +147,9 @@ impl BufferPoller {
         let width = frame.width();
         let height = frame.height();
         let format = frame.format();
+
+        // Extract trace context if present (copy the 25-byte struct)
+        let trace_ctx = frame.trace().copied();
 
         // Extract pixel data from frame
         let pixel_data = if let Some(pixels) = frame.pixels() {
@@ -181,7 +182,7 @@ impl BufferPoller {
         }
 
         match self.detection_reader.get_detections() {
-            Ok(Some((detection_result, _trace_ctx))) => {
+            Ok(Some(detection_result)) => {
                 // Convert FlatBuffers detections to owned Detection at serialization boundary
                 let detections = detection_result
                     .detections()

@@ -1,7 +1,6 @@
 use crate::macros::impl_mmap_writer_base;
 use crate::mmap_writer::MmapWriter;
 use crate::paths;
-use crate::types::TraceMetadata;
 use anyhow::{Context, Result};
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
@@ -42,11 +41,8 @@ impl DetectionWriter {
         frame_number: u64,
         timestamp_ns: u64,
         detections: WIPOffset<Vector<'_, ForwardsUOffset<schema::Detection<'_>>>>,
-        trace_ctx: Option<&TraceMetadata>,
+        trace_ctx: Option<&schema::TraceContext>,
     ) -> Result<()> {
-        let trace = trace_ctx
-            .map(|ctx| schema::TraceContext::new(&ctx.trace_id, &ctx.span_id, ctx.trace_flags));
-
         let detection_result = schema::DetectionResult::create(
             &mut self.builder,
             &schema::DetectionResultArgs {
@@ -54,7 +50,7 @@ impl DetectionWriter {
                 frame_number,
                 timestamp_ns,
                 detections: Some(detections),
-                trace: trace.as_ref(),
+                trace: trace_ctx,
             },
         );
 

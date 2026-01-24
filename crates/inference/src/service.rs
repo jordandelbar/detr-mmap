@@ -6,7 +6,7 @@ use crate::{
         pre::PreProcessor,
     },
 };
-use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType};
+use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType, set_trace_parent};
 use common::wait_for_resource;
 use opentelemetry::{
     global,
@@ -165,14 +165,17 @@ impl<B: InferenceBackend> InferenceService<B> {
         frame_reader: &FrameReader,
         detection_writer: &mut DetectionWriter,
     ) -> anyhow::Result<usize> {
-        let (frame, trace_ctx) = frame_reader
+        let frame = frame_reader
             .get_frame()?
             .ok_or_else(|| anyhow::anyhow!("No frame available"))?;
 
+        // Extract trace context (Copy type, 25 bytes) for later use
+        let trace_ctx = frame.trace().copied();
+
         // Create span and link to parent trace from capture service
         let span = tracing::info_span!("inference_process_frame");
-        if let Some(ref ctx) = trace_ctx {
-            ctx.set_parent(&span);
+        if let Some(ref trace) = trace_ctx {
+            set_trace_parent(trace, &span);
         }
         let _guard = span.entered();
 

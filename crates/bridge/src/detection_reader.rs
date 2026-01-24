@@ -1,7 +1,4 @@
-use crate::{
-    macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, types::TraceMetadata,
-    utils::safe_flatbuffers_root,
-};
+use crate::{macros::impl_mmap_reader_base, mmap_reader::MmapReader, paths, utils::safe_flatbuffers_root};
 use anyhow::Result;
 use common::span;
 use schema::DetectionResult;
@@ -15,7 +12,9 @@ impl_mmap_reader_base!(DetectionReader, paths::DETECTION_BUFFER_PATH);
 impl DetectionReader {
     /// Get detections from the buffer.
     /// Returns None if sequence is 0.
-    pub fn get_detections(&self) -> Result<Option<(DetectionResult<'_>, Option<TraceMetadata>)>> {
+    ///
+    /// The trace context can be accessed via `result.trace()` when needed for distributed tracing.
+    pub fn get_detections(&self) -> Result<Option<DetectionResult<'_>>> {
         let _s = span!("get_detections");
 
         if self.current_sequence() == 0 {
@@ -23,9 +22,7 @@ impl DetectionReader {
         }
 
         let detection_result = safe_flatbuffers_root::<DetectionResult>(self.reader.buffer())?;
-        let trace_ctx = extract_trace_context(&detection_result);
-
-        Ok(Some((detection_result, trace_ctx)))
+        Ok(Some(detection_result))
     }
 
     /// Check if a person (class_id == 0) is detected in the current buffer
@@ -46,15 +43,4 @@ impl DetectionReader {
 
         Ok(false)
     }
-}
-
-/// Extract trace context from a DetectionResult if present and valid.
-fn extract_trace_context(detection: &DetectionResult<'_>) -> Option<TraceMetadata> {
-    let trace = detection.trace()?;
-
-    Some(TraceMetadata {
-        trace_id: std::array::from_fn(|i| trace.trace_id().get(i)),
-        span_id: std::array::from_fn(|i| trace.span_id().get(i)),
-        trace_flags: trace.trace_flags(),
-    })
 }
