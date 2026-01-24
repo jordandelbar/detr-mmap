@@ -1,6 +1,9 @@
 use crate::config::DEFAULT_INPUT_SIZE;
 use common::span;
-use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image};
+use fast_image_resize::{
+    FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer,
+    images::{Image, ImageRef},
+};
 use ndarray::{Array, IxDyn};
 use std::default::Default;
 
@@ -10,7 +13,6 @@ const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
 
 pub struct PreProcessor {
     pub input_size: (u32, u32),
-    rgb_buffer: Vec<u8>,
     letterboxed_buffer: Vec<u8>,
 }
 
@@ -18,7 +20,6 @@ impl PreProcessor {
     pub fn new(input_size: (u32, u32)) -> Self {
         Self {
             input_size,
-            rgb_buffer: Vec::with_capacity(1920 * 1080 * 3),
             letterboxed_buffer: vec![LETTERBOX_COLOR; (input_size.0 * input_size.1 * 3) as usize],
         }
     }
@@ -38,45 +39,26 @@ impl PreProcessor {
             "Preprocessing frame dimensions"
         );
 
-        self.copy_rgb_pixels(pixels, width, height)?;
+        let expected_size = (width * height * 3) as usize;
+        if pixels.len() != expected_size {
+            anyhow::bail!(
+                "Buffer size mismatch: expected {}, got {} bytes",
+                expected_size,
+                pixels.len()
+            );
+        }
 
-        let (scale, offset_x, offset_y, resized) = self.resize_and_letterbox(width, height)?;
+        let (scale, offset_x, offset_y, resized) =
+            self.resize_and_letterbox(pixels.bytes(), width, height)?;
 
         let input = Self::normalize(&resized)?;
 
         Ok((input, scale, offset_x, offset_y))
     }
 
-    fn copy_rgb_pixels(
-        &mut self,
-        pixels: flatbuffers::Vector<u8>,
-        width: u32,
-        height: u32,
-    ) -> anyhow::Result<()> {
-        let _s = span!("copy_rgb_pixels");
-
-        let expected_size = (width * height * 3) as usize;
-
-        if self.rgb_buffer.capacity() < expected_size {
-            self.rgb_buffer
-                .reserve(expected_size - self.rgb_buffer.len());
-        }
-        self.rgb_buffer.clear();
-        self.rgb_buffer.extend_from_slice(pixels.bytes());
-
-        if self.rgb_buffer.len() != expected_size {
-            anyhow::bail!(
-                "Buffer size mismatch: expected {}, got {} bytes",
-                expected_size,
-                self.rgb_buffer.len()
-            );
-        }
-
-        Ok(())
-    }
-
     fn resize_and_letterbox(
         &mut self,
+        pixels: &[u8],
         width: u32,
         height: u32,
     ) -> anyhow::Result<(f32, f32, f32, Image<'_>)> {
@@ -90,7 +72,7 @@ impl PreProcessor {
         let offset_x = (self.input_size.0 - new_width) / 2;
         let offset_y = (self.input_size.1 - new_height) / 2;
 
-        let src = Image::from_slice_u8(width, height, &mut self.rgb_buffer, PixelType::U8x3)?;
+        let src = ImageRef::new(width, height, pixels, PixelType::U8x3)?;
 
         let mut resized = Image::new(new_width, new_height, PixelType::U8x3);
 
@@ -200,11 +182,8 @@ mod tests {
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let mut preprocessor = PreProcessor::default();
-        let result = preprocessor.preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-        );
+        let result =
+            preprocessor.preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height());
 
         assert!(result.is_ok(), "RGB preprocessing should succeed");
         let (output, _, _, _) = result.unwrap();
@@ -220,11 +199,8 @@ mod tests {
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
         let mut preprocessor = PreProcessor::default();
-        let result = preprocessor.preprocess_frame(
-            frame.pixels().unwrap(),
-            frame.width(),
-            frame.height(),
-        );
+        let result =
+            preprocessor.preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height());
 
         assert!(result.is_err(), "Size mismatch should return error");
         assert!(
@@ -244,11 +220,7 @@ mod tests {
 
         let mut preprocessor = PreProcessor::default();
         let (output, scale, offset_x, offset_y) = preprocessor
-            .preprocess_frame(
-                frame.pixels().unwrap(),
-                frame.width(),
-                frame.height(),
-            )
+            .preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height())
             .unwrap();
 
         // Scale should be min(512/800, 512/600) = 512/800 = 0.64
@@ -275,11 +247,7 @@ mod tests {
 
         let mut preprocessor = PreProcessor::new((512, 512));
         let (output, _, _, _) = preprocessor
-            .preprocess_frame(
-                frame.pixels().unwrap(),
-                frame.width(),
-                frame.height(),
-            )
+            .preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height())
             .unwrap();
 
         // Verify output shape is 512x512
