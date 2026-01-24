@@ -2,9 +2,10 @@ use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_ma
 use flatbuffers::FlatBufferBuilder;
 use inference::{
     backend::{InferenceBackend, InferenceOutput},
-    processing::{post::PostProcessor, pre::PreProcessor},
+    processing::post::PostProcessor,
 };
 use ndarray::{Array, IxDyn};
+use preprocess::PreProcessor;
 use std::path::Path;
 
 #[cfg(feature = "ort-backend")]
@@ -184,7 +185,7 @@ fn benchmark_inference(c: &mut Criterion) {
 
     #[cfg(feature = "trt-backend")]
     {
-        let trt_model_path = "../../models/rfdetr_S/rfdetr.engine";
+        let trt_model_path = "../../models/rfdetr_S/rfdetr_int8.engine";
 
         if Path::new(trt_model_path).exists() {
             if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
@@ -317,7 +318,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
 
     #[cfg(feature = "trt-backend")]
     {
-        let trt_model_path = "../../models/rfdetr_S/rfdetr.engine";
+        let trt_model_path = "../../models/rfdetr_S/rfdetr_int8.engine";
 
         if Path::new(trt_model_path).exists() {
             if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {

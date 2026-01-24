@@ -70,6 +70,12 @@ impl MmapWriter {
     pub fn write(&mut self, data: &[u8]) -> Result<(), BridgeError> {
         let available_space = self.mmap.len() - Header::SIZE;
         if data.len() > available_space {
+            tracing::error!(
+                "Buffer too small: data={} bytes, available={} bytes, mmap={}",
+                data.len(),
+                available_space,
+                self.mmap.len()
+            );
             return Err(BridgeError::SizeMismatch);
         }
 

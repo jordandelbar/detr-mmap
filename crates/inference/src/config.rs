@@ -1,7 +1,5 @@
 use common::{Environment, get_env, get_env_opt};
-
-/// RF-DETR default input size
-pub const DEFAULT_INPUT_SIZE: (u32, u32) = (512, 512);
+use preprocess::DEFAULT_INPUT_SIZE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExecutionProvider {
@@ -36,7 +34,10 @@ impl InferenceConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             environment: Environment::from_env(),
-            model_path: get_env("MODEL_PATH", "/models/rfdetr_S/rfdetr.engine".to_string()),
+            model_path: get_env(
+                "MODEL_PATH",
+                "/models/rfdetr_S/rfdetr_int8.engine".to_string(),
+            ),
             input_size: (
                 get_env("INPUT_WIDTH", DEFAULT_INPUT_SIZE.0),
                 get_env("INPUT_HEIGHT", DEFAULT_INPUT_SIZE.1),

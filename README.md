@@ -159,7 +159,6 @@ ffmpeg -re -stream_loop -1 -i video.mp4 -c:v mjpeg -f v4l2 /dev/video0
 ## Ideas about what to do with this repo
 
  - DevOps: Deploy with KubeEdge instead of K3s (KinD + KubeEdge)
- - MLE: Quantize model to INT8 for lower latency
  - SWE: Replace WebSocket streaming with proper H.264 setup
 
 ## Contributing

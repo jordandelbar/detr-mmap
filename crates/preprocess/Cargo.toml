@@ -1,0 +1,23 @@
+[package]
+name = "preprocess"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+schema = { path = "../schema" }
+bridge = { path = "../bridge", features = ["frame-reader", "detection-writer", "semaphores", "tracing"] }
+common = { path = "../common" }
+flatbuffers = "24.3"
+anyhow = "1"
+ndarray = "0.17"
+fast_image_resize = { version = "5.0", features = ["rayon"] }
+tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+flatbuffers = "24.3"

@@ -1,6 +1,16 @@
 [workspace]
 resolver = "3"
-members = ["crates/bridge","crates/common","crates/capture","crates/inference", "crates/gateway", "crates/schema", "crates/controller"]
+members = [
+  "crates/bridge",
+  "crates/calibration",
+  "crates/common",
+  "crates/controller",
+  "crates/capture",
+  "crates/gateway",
+  "crates/inference",
+  "crates/preprocess",
+  "crates/schema",
+]
 
 [workspace.dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

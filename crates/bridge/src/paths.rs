@@ -25,8 +25,8 @@ pub const SEMAPHORE_FRAME_GATEWAY: &str = "/bridge_frame_gateway";
 /// Semaphore name for controller detection notifications
 pub const SEMAPHORE_DETECTION_CONTROLLER: &str = "/bridge_detection_controller";
 
-/// Default frame buffer size (6MB - enough for 1920x1080 RGB)
-pub const DEFAULT_FRAME_BUFFER_SIZE: usize = 6 * 1024 * 1024;
+/// Default frame buffer size (12MB - enough for 1920x1920 RGB + flatbuffers overhead)
+pub const DEFAULT_FRAME_BUFFER_SIZE: usize = 8 * 1024 * 1024;
 
 /// Default detection buffer size (1MB - enough for many detections)
 pub const DEFAULT_DETECTION_BUFFER_SIZE: usize = 1024 * 1024;

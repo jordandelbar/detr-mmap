@@ -7,6 +7,7 @@ edition = "2024"
 schema = { path = "../schema" }
 bridge = { path = "../bridge", features = ["frame-reader", "detection-writer", "semaphores", "tracing"] }
 common = { path = "../common" }
+preprocess = { path = "../preprocess" }
 ort = { version = "2.0.0-rc.11", features = ["cuda"], optional = true }
 flatbuffers = "24.3"
 memmap2 = "0.9"

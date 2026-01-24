@@ -56,6 +56,18 @@ impl PreProcessor {
         Ok((input, scale, offset_x, offset_y))
     }
 
+    pub fn preprocess_from_u8_slice(
+        &mut self,
+        pixels: &[u8],
+        width: u32,
+        height: u32,
+    ) -> anyhow::Result<(Array<f32, IxDyn>, f32, f32, f32)> {
+        let (scale, offset_x, offset_y, resized) =
+            self.resize_and_letterbox(pixels, width, height)?;
+        let input = Self::normalize(&resized)?;
+        Ok((input, scale, offset_x, offset_y))
+    }
+
     fn resize_and_letterbox(
         &mut self,
         pixels: &[u8],

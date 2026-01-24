@@ -347,6 +347,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b35204fbdc0b3f4446b89fc1ac2cf84a8a68971995d0bf2e925ec7cd960f9cb3"
 
 [[package]]
+name = "calibration"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "flatbuffers",
+ "glob",
+ "image",
+ "ndarray",
+ "preprocess",
+]
+
+[[package]]
 name = "capture"
 version = "0.1.0"
 dependencies = [
@@ -1384,6 +1397,7 @@ dependencies = [
  "ndarray",
  "opentelemetry",
  "ort",
+ "preprocess",
  "schema",
  "tokio",
  "tracing",
@@ -2129,6 +2143,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "preprocess"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bridge",
+ "common",
+ "criterion",
+ "fast_image_resize",
+ "flatbuffers",
+ "ndarray",
+ "opentelemetry",
+ "schema",
+ "tracing",
+ "tracing-opentelemetry",
 ]
 
 [[package]]

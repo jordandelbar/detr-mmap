@@ -1,10 +1,7 @@
 use crate::{
     backend::{InferenceBackend, InferenceOutput},
     config::InferenceConfig,
-    processing::{
-        post::{PostProcessor, TransformParams},
-        pre::PreProcessor,
-    },
+    processing::post::{PostProcessor, TransformParams},
 };
 use bridge::{BridgeSemaphore, DetectionWriter, FrameReader, SemaphoreType, set_trace_parent};
 use common::wait_for_resource;
@@ -12,6 +9,7 @@ use opentelemetry::{
     global,
     metrics::{Counter, Histogram},
 };
+use preprocess::PreProcessor;
 use std::thread;
 use std::time::{Duration, Instant};
 
