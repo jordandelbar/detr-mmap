@@ -27,6 +27,10 @@ pub struct InferenceConfig {
     pub poll_interval_ms: u64,
     pub confidence_threshold: f32,
     pub otel_endpoint: Option<String>,
+    /// Use GPU preprocessing (requires gpu-preprocess feature)
+    pub use_gpu_preprocess: bool,
+    /// Maximum expected input image size for GPU preprocessing
+    pub max_input_size: (u32, u32),
 }
 
 impl InferenceConfig {
@@ -45,6 +49,11 @@ impl InferenceConfig {
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 100),
             confidence_threshold: get_env("CONFIDENCE_THRESHOLD", 0.7),
             otel_endpoint: get_env_opt("OTEL_EXPORTER_OTLP_ENDPOINT"),
+            use_gpu_preprocess: get_env("GPU_PREPROCESS", false),
+            max_input_size: (
+                get_env("MAX_INPUT_WIDTH", 3840),
+                get_env("MAX_INPUT_HEIGHT", 2160),
+            ),
         })
     }
 
@@ -58,6 +67,8 @@ impl InferenceConfig {
             poll_interval_ms: 100,
             confidence_threshold: 0.7,
             otel_endpoint: None,
+            use_gpu_preprocess: false,
+            max_input_size: (1920, 1080),
         }
     }
 }

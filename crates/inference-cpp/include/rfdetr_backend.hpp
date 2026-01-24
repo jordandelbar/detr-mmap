@@ -33,10 +33,16 @@ public:
     bool load_engine(const char* engine_path);
 
     /// Run inference with raw output pointers (FFI friendly)
-    /// images: [1, 3, 512, 512] float32
+    /// images: [1, 3, 512, 512] float32 on host
     /// out_dets: [num_queries * 4] float32 - cxcywh boxes (normalized 0-1)
     /// out_logits: [num_queries * num_classes] float32 - class logits
     bool infer_raw(const float* images, float* out_dets, float* out_logits);
+
+    /// Run inference with device pointer input (zero-copy from GPU preprocessing)
+    /// d_images: device pointer to [1, 3, 512, 512] float32 already on GPU
+    /// out_dets: [num_queries * 4] float32 - cxcywh boxes (normalized 0-1) on host
+    /// out_logits: [num_queries * num_classes] float32 - class logits on host
+    bool infer_from_device(void* d_images, float* out_dets, float* out_logits);
 
     int get_num_queries() const { return num_queries_; }
     int get_num_classes() const { return num_classes_; }

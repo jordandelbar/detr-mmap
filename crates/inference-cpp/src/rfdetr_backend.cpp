@@ -192,6 +192,33 @@ bool RFDetrBackend::infer_raw(const float* images, float* out_dets, float* out_l
     return true;
 }
 
+bool RFDetrBackend::infer_from_device(void* d_images, float* out_dets, float* out_logits) {
+    // Use provided device pointer directly (zero-copy from GPU preprocessing)
+    void* bindings[] = {
+        d_images, // input already on device
+        d_dets_,  // dets
+        d_logits_ // labels (logits)
+    };
+
+    // Execute inference
+    if (!context_->executeV2(bindings)) {
+        LOG_ERROR("Failed to execute RF-DETR inference (from device)");
+        return false;
+    }
+
+    // Copy outputs from device to host
+    if (cudaMemcpy(out_dets, d_dets_, dets_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        LOG_ERROR("Failed to copy dets from device");
+        return false;
+    }
+    if (cudaMemcpy(out_logits, d_logits_, logits_size_, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        LOG_ERROR("Failed to copy logits from device");
+        return false;
+    }
+
+    return true;
+}
+
 std::unique_ptr<RFDetrBackend> new_rfdetr_backend() {
     return std::make_unique<RFDetrBackend>();
 }

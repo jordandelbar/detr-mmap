@@ -1,5 +1,6 @@
 use super::{InferenceBackend, InferenceOutput};
 use ndarray::{Array, IxDyn};
+use preprocess::PreprocessOutput;
 
 use std::ffi::CString;
 
@@ -22,11 +23,20 @@ mod ffi {
         #[namespace = "bridge"]
         unsafe fn load_engine(self: Pin<&mut RFDetrBackend>, path: *const c_char) -> bool;
 
-        // Maps to RFDetrBackend::infer_raw
+        // Maps to RFDetrBackend::infer_raw (host-to-device copy)
         #[namespace = "bridge"]
         unsafe fn infer_raw(
             self: Pin<&mut RFDetrBackend>,
             images: *const f32,
+            out_dets: *mut f32,
+            out_logits: *mut f32,
+        ) -> bool;
+
+        // Maps to RFDetrBackend::infer_from_device (zero-copy, input already on GPU)
+        #[namespace = "bridge"]
+        unsafe fn infer_from_device(
+            self: Pin<&mut RFDetrBackend>,
+            d_images: *mut c_void,
             out_dets: *mut f32,
             out_logits: *mut f32,
         ) -> bool;
@@ -95,5 +105,34 @@ impl InferenceBackend for TrtBackend {
         }
 
         Ok(InferenceOutput { dets, logits })
+    }
+
+    #[tracing::instrument(skip(self, input))]
+    fn infer_preprocessed(&mut self, input: &PreprocessOutput) -> anyhow::Result<InferenceOutput> {
+        match input {
+            PreprocessOutput::Cpu(arr) => self.infer(arr),
+            PreprocessOutput::Gpu { ptr, .. } => {
+                // Prepare output buffers
+                let mut dets = Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_queries, 4]));
+                let mut logits =
+                    Array::<f32, IxDyn>::zeros(IxDyn(&[1, self.num_queries, self.num_classes]));
+
+                let success = unsafe {
+                    self.inner.pin_mut().infer_from_device(
+                        *ptr as *mut std::ffi::c_void,
+                        dets.as_mut_ptr(),
+                        logits.as_mut_ptr(),
+                    )
+                };
+
+                if !success {
+                    return Err(anyhow::anyhow!(
+                        "RF-DETR TensorRT inference from device failed"
+                    ));
+                }
+
+                Ok(InferenceOutput { dets, logits })
+            }
+        }
     }
 }

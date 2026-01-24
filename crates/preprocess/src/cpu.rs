@@ -1,4 +1,5 @@
 use crate::config::DEFAULT_INPUT_SIZE;
+use crate::{Preprocess, PreprocessOutput, PreprocessResult};
 use common::span;
 use fast_image_resize::{
     FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer,
@@ -11,12 +12,12 @@ const LETTERBOX_COLOR: u8 = 114;
 const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
 const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
 
-pub struct PreProcessor {
+pub struct CpuPreProcessor {
     pub input_size: (u32, u32),
     letterboxed_buffer: Vec<u8>,
 }
 
-impl PreProcessor {
+impl CpuPreProcessor {
     pub fn new(input_size: (u32, u32)) -> Self {
         Self {
             input_size,
@@ -144,9 +145,25 @@ impl PreProcessor {
     }
 }
 
-impl Default for PreProcessor {
+impl Default for CpuPreProcessor {
     fn default() -> Self {
         Self::new(DEFAULT_INPUT_SIZE)
+    }
+}
+
+impl Preprocess for CpuPreProcessor {
+    fn preprocess(&mut self, pixels: &[u8], width: u32, height: u32) -> anyhow::Result<PreprocessResult> {
+        let (array, scale, offset_x, offset_y) = self.preprocess_from_u8_slice(pixels, width, height)?;
+        Ok(PreprocessResult {
+            data: PreprocessOutput::Cpu(array),
+            scale,
+            offset_x,
+            offset_y,
+        })
+    }
+
+    fn input_size(&self) -> (u32, u32) {
+        self.input_size
     }
 }
 
@@ -192,7 +209,7 @@ mod tests {
         let frame_data = create_test_frame(2, 2, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let mut preprocessor = PreProcessor::default();
+        let mut preprocessor = CpuPreProcessor::default();
         let result =
             preprocessor.preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height());
 
@@ -209,7 +226,7 @@ mod tests {
         let frame_data = create_test_frame(10, 10, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let mut preprocessor = PreProcessor::default();
+        let mut preprocessor = CpuPreProcessor::default();
         let result =
             preprocessor.preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height());
 
@@ -229,7 +246,7 @@ mod tests {
         let frame_data = create_test_frame(800, 600, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let mut preprocessor = PreProcessor::default();
+        let mut preprocessor = CpuPreProcessor::default();
         let (output, scale, offset_x, offset_y) = preprocessor
             .preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height())
             .unwrap();
@@ -256,7 +273,7 @@ mod tests {
         let frame_data = create_test_frame(2, 2, pixels);
         let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-        let mut preprocessor = PreProcessor::new((512, 512));
+        let mut preprocessor = CpuPreProcessor::new((512, 512));
         let (output, _, _, _) = preprocessor
             .preprocess_frame(frame.pixels().unwrap(), frame.width(), frame.height())
             .unwrap();
@@ -304,5 +321,19 @@ mod tests {
             "B channel should be ~0.427 (got {})",
             b
         );
+    }
+
+    /// Test the Preprocess trait implementation
+    #[test]
+    fn test_preprocess_trait() {
+        let pixels = vec![128u8; 100 * 100 * 3];
+        let mut preprocessor = CpuPreProcessor::default();
+
+        let result = preprocessor.preprocess(&pixels, 100, 100);
+        assert!(result.is_ok());
+
+        let preprocess_result = result.unwrap();
+        assert!(matches!(preprocess_result.data, PreprocessOutput::Cpu(_)));
+        assert!(preprocess_result.scale > 0.0);
     }
 }

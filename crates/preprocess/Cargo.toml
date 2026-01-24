@@ -6,6 +6,10 @@ edition = "2024"
 [lib]
 path = "src/lib.rs"
 
+[features]
+default = []
+gpu = ["dep:cudarc"]
+
 [dependencies]
 schema = { path = "../schema" }
 bridge = { path = "../bridge", features = ["frame-reader", "detection-writer", "semaphores", "tracing"] }
@@ -17,6 +21,10 @@ fast_image_resize = { version = "5.0", features = ["rayon"] }
 tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
+cudarc = { version = "0.12", optional = true }
+
+[build-dependencies]
+cc = "1.2"
 
 [dev-dependencies]
 criterion = { workspace = true }

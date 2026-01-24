@@ -9,15 +9,43 @@ use opentelemetry::{
     global,
     metrics::{Counter, Histogram},
 };
-use preprocess::PreProcessor;
+use preprocess::{CpuPreProcessor, Preprocess, PreprocessResult};
 use std::thread;
 use std::time::{Duration, Instant};
+
+#[cfg(feature = "gpu-preprocess")]
+use preprocess::GpuPreProcessor;
+
+/// Enum to hold either CPU or GPU preprocessor
+enum PreprocessorVariant {
+    Cpu(CpuPreProcessor),
+    #[cfg(feature = "gpu-preprocess")]
+    Gpu(GpuPreProcessor),
+}
+
+impl Preprocess for PreprocessorVariant {
+    fn preprocess(&mut self, pixels: &[u8], width: u32, height: u32) -> anyhow::Result<PreprocessResult> {
+        match self {
+            PreprocessorVariant::Cpu(p) => p.preprocess(pixels, width, height),
+            #[cfg(feature = "gpu-preprocess")]
+            PreprocessorVariant::Gpu(p) => p.preprocess(pixels, width, height),
+        }
+    }
+
+    fn input_size(&self) -> (u32, u32) {
+        match self {
+            PreprocessorVariant::Cpu(p) => p.input_size(),
+            #[cfg(feature = "gpu-preprocess")]
+            PreprocessorVariant::Gpu(p) => p.input_size(),
+        }
+    }
+}
 
 pub struct InferenceService<B: InferenceBackend> {
     backend: B,
     config: InferenceConfig,
     postprocessor: PostProcessor,
-    preprocessor: PreProcessor,
+    preprocessor: PreprocessorVariant,
 }
 
 fn init_metrics(
@@ -58,13 +86,43 @@ fn init_metrics(
 impl<B: InferenceBackend> InferenceService<B> {
     pub fn new(backend: B, config: InferenceConfig) -> Self {
         let postprocessor = PostProcessor::new(config.confidence_threshold);
-        let preprocessor = PreProcessor::new(config.input_size);
+
+        let preprocessor = Self::create_preprocessor(&config);
+
         Self {
             backend,
             config,
             postprocessor,
             preprocessor,
         }
+    }
+
+    fn create_preprocessor(config: &InferenceConfig) -> PreprocessorVariant {
+        #[cfg(feature = "gpu-preprocess")]
+        if config.use_gpu_preprocess {
+            match GpuPreProcessor::new(config.input_size, config.max_input_size) {
+                Ok(gpu_preprocessor) => {
+                    tracing::info!("GPU preprocessing enabled");
+                    return PreprocessorVariant::Gpu(gpu_preprocessor);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to initialize GPU preprocessor, falling back to CPU"
+                    );
+                }
+            }
+        }
+
+        #[cfg(not(feature = "gpu-preprocess"))]
+        if config.use_gpu_preprocess {
+            tracing::warn!(
+                "GPU preprocessing requested but gpu-preprocess feature not enabled, using CPU"
+            );
+        }
+
+        tracing::info!("Using CPU preprocessing");
+        PreprocessorVariant::Cpu(CpuPreProcessor::new(config.input_size))
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
@@ -189,12 +247,18 @@ impl<B: InferenceBackend> InferenceService<B> {
 
         tracing::trace!(frame_number, width, height, "Preprocessing frame");
 
-        let (preprocessed, scale, offset_x, offset_y) =
-            self.preprocessor.preprocess_frame(pixels, width, height)?;
+        // Use the Preprocess trait - works for both CPU and GPU
+        let PreprocessResult {
+            data: preprocessed,
+            scale,
+            offset_x,
+            offset_y,
+        } = self.preprocessor.preprocess(pixels.bytes(), width, height)?;
 
         let InferenceOutput { dets, logits } = {
             let _infer_span = tracing::info_span!("model_inference").entered();
-            self.backend.infer(&preprocessed)?
+            // Use infer_preprocessed which handles both CPU and GPU inputs
+            self.backend.infer_preprocessed(&preprocessed)?
         };
 
         let transform = TransformParams {
