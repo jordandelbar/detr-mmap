@@ -1,4 +1,4 @@
-include "trace_metadata.fbs";
+include "trace_context.fbs";
 
 namespace bridge.schema;
 
@@ -19,5 +19,5 @@ table Frame {
     format: ColorFormat;
     pixels: [ubyte];
 
-    trace: TraceMetadata;
+    trace: TraceContext;
 }

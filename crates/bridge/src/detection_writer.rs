@@ -1,7 +1,6 @@
 use crate::macros::impl_mmap_writer_base;
 use crate::mmap_writer::MmapWriter;
 use crate::paths;
-use crate::types::{BoundingBox, TraceMetadata};
 use anyhow::{Context, Result};
 
 pub struct DetectionWriter {

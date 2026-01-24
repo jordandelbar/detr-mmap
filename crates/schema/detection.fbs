@@ -1,23 +1,27 @@
-include "trace_metadata.fbs";
+include "trace_context.fbs";
 
 namespace bridge.schema;
 
-table BoundingBox {
+struct BoundingBox {
     x1: float;
     y1: float;
     x2: float;
     y2: float;
+}
+
+table Detection {
+    box: BoundingBox;
     confidence: float;
-    class_id: uint32;
+    class_id: uint16;
 }
 
 table DetectionResult {
     camera_id: uint32;
     frame_number: uint64;
     timestamp_ns: uint64;
-    detections: [BoundingBox];
+    detections: [Detection];
 
-    trace: TraceMetadata;
+    trace: TraceContext;
 }
 
 root_type DetectionResult;
