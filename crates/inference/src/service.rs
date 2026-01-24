@@ -220,7 +220,7 @@ impl<B: InferenceBackend> InferenceService<B> {
         let builder = detection_writer.builder();
         builder.reset();
 
-        let (detections_offset, count) = self.postprocessor.parse_detections_direct(
+        let (detections_offset, count) = self.postprocessor.parse_detections(
             builder,
             &dets.view(),
             &logits.view(),

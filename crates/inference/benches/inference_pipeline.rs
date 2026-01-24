@@ -33,9 +33,7 @@ fn create_test_frame(width: u32, height: u32, format: ColorFormat) -> Vec<u8> {
             channels: 3,
             format,
             pixels: Some(pixel_vector),
-            trace_id: None,
-            span_id: None,
-            trace_flags: 0,
+            trace: None,
         },
     );
 
@@ -127,8 +125,10 @@ fn benchmark_postprocessing(c: &mut Criterion) {
                     offset_y: 0.0,
                 };
                 b.iter(|| {
+                    let mut builder = FlatBufferBuilder::new();
                     post_processor
                         .parse_detections(
+                            black_box(&mut builder),
                             black_box(&dets.view()),
                             black_box(&logits.view()),
                             black_box(&transform),
@@ -295,8 +295,10 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                         let InferenceOutput { dets, logits } =
                             cpu_backend.infer(black_box(&preprocessed)).unwrap();
 
+                        let mut builder = FlatBufferBuilder::new();
                         post_processor
                             .parse_detections(
+                                black_box(&mut builder),
                                 black_box(&dets.view()),
                                 black_box(&logits.view()),
                                 black_box(&transform),
@@ -337,8 +339,10 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                         let InferenceOutput { dets, logits } =
                             cuda_backend.infer(black_box(&preprocessed)).unwrap();
 
+                        let mut builder = FlatBufferBuilder::new();
                         post_processor
                             .parse_detections(
+                                black_box(&mut builder),
                                 black_box(&dets.view()),
                                 black_box(&logits.view()),
                                 black_box(&transform),
@@ -387,8 +391,10 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
                         let InferenceOutput { dets, logits } =
                             trt_backend.infer(black_box(&preprocessed)).unwrap();
 
+                        let mut builder = FlatBufferBuilder::new();
                         post_processor
                             .parse_detections(
+                                black_box(&mut builder),
                                 black_box(&dets.view()),
                                 black_box(&logits.view()),
                                 black_box(&transform),

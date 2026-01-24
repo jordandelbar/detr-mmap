@@ -23,7 +23,7 @@ impl PostProcessor {
 
     /// Parse detections from RF-DETR output and build directly into FlatBuffer.
     #[tracing::instrument(skip(self, builder, dets, logits, transform))]
-    pub fn parse_detections_direct<'a>(
+    pub fn parse_detections<'a>(
         &self,
         builder: &mut FlatBufferBuilder<'a>,
         dets: &ndarray::ArrayViewD<f32>, // [1, 300, 4] - boxes in cxcywh format (normalized 0-1)
@@ -133,6 +133,16 @@ mod tests {
     use super::*;
     use ndarray::{Array, IxDyn};
 
+    /// Detection struct for test verification
+    struct TestDetection {
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        confidence: f32,
+        class_id: u16,
+    }
+
     /// Helper to create a default RF-DETR PostProcessor for tests
     fn test_postprocessor() -> PostProcessor {
         PostProcessor {
@@ -157,6 +167,52 @@ mod tests {
             offset_x,
             offset_y,
         }
+    }
+
+    /// Helper to run parse_detections and extract results for verification
+    fn run_parse_detections(
+        post_processor: &PostProcessor,
+        dets: &ndarray::ArrayViewD<f32>,
+        logits: &ndarray::ArrayViewD<f32>,
+        transform: &TransformParams,
+    ) -> anyhow::Result<Vec<TestDetection>> {
+        let mut builder = FlatBufferBuilder::new();
+        let (detections_vector, count) =
+            post_processor.parse_detections(&mut builder, dets, logits, transform)?;
+
+        // Build a DetectionResult to finish the buffer
+        let result = schema::DetectionResult::create(
+            &mut builder,
+            &schema::DetectionResultArgs {
+                camera_id: 0,
+                frame_number: 0,
+                timestamp_ns: 0,
+                detections: Some(detections_vector),
+                trace: None,
+            },
+        );
+        builder.finish(result, None);
+
+        // Read back the detections
+        let buf = builder.finished_data();
+        let detection_result = flatbuffers::root::<schema::DetectionResult>(buf)?;
+
+        let mut results = Vec::with_capacity(count);
+        if let Some(detections) = detection_result.detections() {
+            for det in detections {
+                let bbox = det.box_().unwrap();
+                results.push(TestDetection {
+                    x1: bbox.x1(),
+                    y1: bbox.y1(),
+                    x2: bbox.x2(),
+                    y2: bbox.y2(),
+                    confidence: det.confidence(),
+                    class_id: det.class_id(),
+                });
+            }
+        }
+
+        Ok(results)
     }
 
     /// Helper to create RF-DETR format test data from logits
@@ -233,9 +289,9 @@ mod tests {
 
         let post_processor = test_postprocessor();
         let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         // Should have 2 detections (0.7 and 0.8), not 0.65
         assert_eq!(detections.len(), 2, "Should filter out confidence < 0.7");
@@ -275,9 +331,9 @@ mod tests {
 
         let post_processor = test_postprocessor();
         let transform = test_transform(800, 600, 0.64, 0.0, 64.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         assert_eq!(detections.len(), 1);
         let det = &detections[0];
@@ -321,9 +377,9 @@ mod tests {
         let post_processor = test_postprocessor();
         // Use offset to push first detection into negative territory
         let transform = test_transform(400, 400, 1.0, 50.0, 50.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         assert_eq!(detections.len(), 3);
 
@@ -362,9 +418,9 @@ mod tests {
 
         let post_processor = test_postprocessor();
         let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         assert_eq!(
             detections.len(),
@@ -398,9 +454,9 @@ mod tests {
 
         let post_processor = test_postprocessor();
         let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         assert_eq!(detections.len(), 4);
 
@@ -420,9 +476,9 @@ mod tests {
 
         let post_processor = test_postprocessor();
         let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         assert_eq!(
             detections.len(),
@@ -467,9 +523,9 @@ mod tests {
 
         let post_processor = test_postprocessor();
         let transform = test_transform(512, 512, 1.0, 0.0, 0.0);
-        let detections = post_processor
-            .parse_detections(&dets.view(), &logits.view(), &transform)
-            .unwrap();
+        let detections =
+            run_parse_detections(&post_processor, &dets.view(), &logits.view(), &transform)
+                .unwrap();
 
         // Only 3 detections should pass threshold
         assert_eq!(

@@ -205,9 +205,7 @@ mod tests {
                 channels: 3,
                 format,
                 pixels: Some(pixel_vector),
-                trace_id: None,
-                span_id: None,
-                trace_flags: 0,
+                trace: None,
             },
         );
 
