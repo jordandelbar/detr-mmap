@@ -73,7 +73,7 @@ impl Camera {
                 );
             }
 
-            match source.next() {
+            match source.next_frame() {
                 Ok((buf, meta)) => {
                     let _s = span!("capture_frame");
 

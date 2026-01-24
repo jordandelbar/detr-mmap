@@ -15,6 +15,12 @@ pub struct YuyvDecoder {
     rgb_buffer: Vec<u8>,
 }
 
+impl Default for YuyvDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl YuyvDecoder {
     pub fn new() -> Self {
         Self {
@@ -73,6 +79,12 @@ impl FrameDecoder for YuyvDecoder {
 pub struct MjpegDecoder {
     decompressor: turbojpeg::Decompressor,
     rgb_buffer: Vec<u8>,
+}
+
+impl Default for MjpegDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MjpegDecoder {

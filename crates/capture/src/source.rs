@@ -28,7 +28,7 @@ impl<'a> FrameSource<'a> {
             .count()
     }
 
-    pub fn next(&mut self) -> Result<(&[u8], Metadata)> {
+    pub fn next_frame(&mut self) -> Result<(&[u8], Metadata)> {
         self.stream
             .next()
             .map(|(data, meta)| (data, *meta))
