@@ -227,7 +227,7 @@ impl<B: InferenceBackend> InferenceService<B> {
             &transform,
         )?;
 
-        detection_writer.write(
+        detection_writer.write_detections(
             camera_id,
             frame_number,
             timestamp_ns,

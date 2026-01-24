@@ -26,8 +26,8 @@ impl Camera {
         let device = CameraDevice::open(&config)?;
 
         let decoder: Box<dyn FrameDecoder> = match device.pixel_format {
-            PixelFormat::Yuyv => Box::new(YuyvDecoder),
-            PixelFormat::Mjpeg => Box::new(MjpegDecoder),
+            PixelFormat::Yuyv => Box::new(YuyvDecoder::new()),
+            PixelFormat::Mjpeg => Box::new(MjpegDecoder::new()),
         };
 
         let sink = FrameSink::new()?;
@@ -39,13 +39,6 @@ impl Camera {
             sink,
             sentry_mode_fps: config.sentry_mode_fps,
         })
-    }
-
-    /// Decode raw frame buffer to RGB
-    #[tracing::instrument(skip(self, raw))]
-    fn decode_frame(&self, raw: &[u8]) -> Result<Vec<u8>> {
-        self.decoder
-            .decode(raw, self.device.width, self.device.height)
     }
 
     pub fn run(&mut self, shutdown: &Arc<AtomicBool>, sentry: &SentryControl) -> Result<()> {
@@ -84,7 +77,12 @@ impl Camera {
                 Ok((buf, meta)) => {
                     let _s = span!("capture_frame");
 
-                    let rgb_data = match self.decode_frame(buf) {
+                    // Decode directly using split borrow (decoder + sink are separate fields)
+                    let rgb_data = match self.decoder.decode(
+                        buf,
+                        self.device.width,
+                        self.device.height,
+                    ) {
                         Ok(data) => data,
                         Err(e) => {
                             dropped_frames += 1;
@@ -96,7 +94,7 @@ impl Camera {
                     let trace_ctx = capture_current_trace();
 
                     if let Err(e) = self.sink.write(
-                        &rgb_data,
+                        rgb_data,
                         self.camera_id,
                         frame_count,
                         self.device.width,

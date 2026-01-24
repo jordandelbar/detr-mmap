@@ -35,7 +35,7 @@ impl DetectionWriter {
 
     /// Build and write a DetectionResult with pre-built detection offsets.
     /// This is the zero-copy path where detections are built directly into the buffer.
-    pub fn write(
+    pub fn write_detections(
         &mut self,
         camera_id: u32,
         frame_number: u64,

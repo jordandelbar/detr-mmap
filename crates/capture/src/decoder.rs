@@ -1,26 +1,45 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
+use common::span;
 
-/// Trait for decoding raw camera frames to RGB
-pub trait FrameDecoder: Send + Sync {
-    /// Decode raw frame data to RGB (3 bytes per pixel)
-    fn decode(&self, raw: &[u8], width: u32, height: u32) -> Result<Vec<u8>>;
+/// Trait for decoding raw camera frames to RGB.
+pub trait FrameDecoder: Send {
+    /// Decode raw frame data to RGB (3 bytes per pixel).
+    /// Returns a reference to the decoder's internal buffer.
+    fn decode(&mut self, raw: &[u8], width: u32, height: u32) -> Result<&[u8]>;
 }
 
-/// YUYV (YUV 4:2:2) decoder
+/// YUYV (YUV 4:2:2) decoder.
 ///
 /// YUYV packs 2 pixels in 4 bytes: [Y0, U, Y1, V]
-/// Handles stride padding by only processing expected bytes per row.
-pub struct YuyvDecoder;
+pub struct YuyvDecoder {
+    rgb_buffer: Vec<u8>,
+}
+
+impl YuyvDecoder {
+    pub fn new() -> Self {
+        Self {
+            rgb_buffer: vec![0u8; 1920 * 1080 * 3],
+        }
+    }
+}
 
 impl FrameDecoder for YuyvDecoder {
     #[tracing::instrument(skip(self, raw))]
-    fn decode(&self, raw: &[u8], width: u32, height: u32) -> Result<Vec<u8>> {
+    fn decode(&mut self, raw: &[u8], width: u32, height: u32) -> Result<&[u8]> {
+        let _s = span!("decode");
+
         let pixel_count = (width * height) as usize;
-        let mut rgb = Vec::with_capacity(pixel_count * 3);
+        let rgb_size = pixel_count * 3;
 
-        let bytes_per_row = (width * 2) as usize; // YUYV = 2 bytes per pixel
-        let stride = raw.len() / height as usize; // Actual stride (may include padding)
+        // Ensure buffer is large enough
+        if self.rgb_buffer.len() < rgb_size {
+            self.rgb_buffer.resize(rgb_size, 0);
+        }
 
+        let bytes_per_row = (width * 2) as usize;
+        let stride = raw.len() / height as usize;
+
+        let mut out_idx = 0;
         for row in 0..height as usize {
             let row_start = row * stride;
             let row_data = &raw[row_start..row_start + bytes_per_row];
@@ -33,34 +52,62 @@ impl FrameDecoder for YuyvDecoder {
                 let v = chunk[3] as f32 - 128.0;
 
                 // First pixel
-                let r0 = (y0 + 1.402 * v).clamp(0.0, 255.0) as u8;
-                let g0 = (y0 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-                let b0 = (y0 + 1.772 * u).clamp(0.0, 255.0) as u8;
-                rgb.extend_from_slice(&[r0, g0, b0]);
+                self.rgb_buffer[out_idx] = (y0 + 1.402 * v).clamp(0.0, 255.0) as u8;
+                self.rgb_buffer[out_idx + 1] = (y0 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
+                self.rgb_buffer[out_idx + 2] = (y0 + 1.772 * u).clamp(0.0, 255.0) as u8;
+                out_idx += 3;
 
                 // Second pixel
-                let r1 = (y1 + 1.402 * v).clamp(0.0, 255.0) as u8;
-                let g1 = (y1 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-                let b1 = (y1 + 1.772 * u).clamp(0.0, 255.0) as u8;
-                rgb.extend_from_slice(&[r1, g1, b1]);
+                self.rgb_buffer[out_idx] = (y1 + 1.402 * v).clamp(0.0, 255.0) as u8;
+                self.rgb_buffer[out_idx + 1] = (y1 - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
+                self.rgb_buffer[out_idx + 2] = (y1 + 1.772 * u).clamp(0.0, 255.0) as u8;
+                out_idx += 3;
             }
         }
 
-        Ok(rgb)
+        Ok(&self.rgb_buffer[..rgb_size])
     }
 }
 
 /// MJPEG decoder using turbojpeg (libjpeg-turbo)
-pub struct MjpegDecoder;
+pub struct MjpegDecoder {
+    decompressor: turbojpeg::Decompressor,
+    rgb_buffer: Vec<u8>,
+}
+
+impl MjpegDecoder {
+    pub fn new() -> Self {
+        Self {
+            decompressor: turbojpeg::Decompressor::new().unwrap(),
+            rgb_buffer: vec![0u8; 1920 * 1080 * 3],
+        }
+    }
+}
 
 impl FrameDecoder for MjpegDecoder {
-    #[tracing::instrument(skip(self, raw))]
-    fn decode(&self, raw: &[u8], _width: u32, _height: u32) -> Result<Vec<u8>> {
-        let image: turbojpeg::Image<Vec<u8>> =
-            turbojpeg::decompress(raw, turbojpeg::PixelFormat::RGB)
-                .context("Failed to decode MJPEG frame")?;
+    fn decode(&mut self, raw: &[u8], _width: u32, _height: u32) -> Result<&[u8]> {
+        let _s = span!("decode");
 
-        Ok(image.pixels)
+        let header = self.decompressor.read_header(raw)?;
+        let width = header.width;
+        let height = header.height;
+        let rgb_size = width * height * 3;
+
+        if self.rgb_buffer.len() < rgb_size {
+            self.rgb_buffer.resize(rgb_size, 0);
+        }
+
+        let output = turbojpeg::Image {
+            pixels: &mut self.rgb_buffer[..rgb_size],
+            width,
+            pitch: width * 3,
+            height,
+            format: turbojpeg::PixelFormat::RGB,
+        };
+
+        self.decompressor.decompress(raw, output)?;
+
+        Ok(&self.rgb_buffer[..rgb_size])
     }
 }
 
@@ -70,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_yuyv_decoder_basic() {
-        let decoder = YuyvDecoder;
+        let mut decoder = YuyvDecoder::new();
         // 2x1 image: 2 pixels = 4 bytes YUYV
         // Y=128 (gray), U=128, V=128 (neutral chroma)
         let yuyv = vec![128, 128, 128, 128];
@@ -80,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_mjpeg_decoder_invalid_data() {
-        let decoder = MjpegDecoder;
+        let mut decoder = MjpegDecoder::new();
         let invalid = vec![0, 1, 2, 3];
         assert!(decoder.decode(&invalid, 640, 480).is_err());
     }

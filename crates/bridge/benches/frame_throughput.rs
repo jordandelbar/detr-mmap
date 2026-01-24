@@ -30,12 +30,13 @@ fn benchmark_frame_write(c: &mut Criterion) {
             let mut frame_count = 0u64;
             b.iter(|| {
                 writer
-                    .write(
-                        black_box(&pixel_data),
+                    .write_frame(
                         black_box(0),
+                        black_box(&pixel_data),
                         black_box(frame_count),
                         black_box(*width),
                         black_box(*height),
+                        black_box(None),
                     )
                     .unwrap();
                 frame_count += 1;
@@ -69,7 +70,9 @@ fn benchmark_frame_read(c: &mut Criterion) {
         {
             let mut writer = FrameWriter::build_with_path(&path, buffer_size).unwrap();
             let pixel_data = vec![128u8; (width * height * 3) as usize];
-            writer.write(&pixel_data, 0, 1, *width, *height).unwrap();
+            writer
+                .write_frame(0, &pixel_data, 1, *width, *height, None)
+                .unwrap();
         }
 
         let reader = FrameReader::with_path(&path).unwrap();
@@ -111,12 +114,13 @@ fn benchmark_frame_roundtrip(c: &mut Criterion) {
         {
             let mut writer = FrameWriter::build_with_path(&path, buffer_size).unwrap();
             writer
-                .write(
-                    &vec![0u8; (width * height * 3) as usize],
+                .write_frame(
                     0,
+                    &vec![0u8; (width * height * 3) as usize],
                     0,
                     *width,
                     *height,
+                    None,
                 )
                 .unwrap();
         }
@@ -130,12 +134,13 @@ fn benchmark_frame_roundtrip(c: &mut Criterion) {
             let mut frame_count = 0u64;
             b.iter(|| {
                 writer
-                    .write(
-                        black_box(&pixel_data),
+                    .write_frame(
                         black_box(0),
+                        black_box(&pixel_data),
                         black_box(frame_count),
                         black_box(*width),
                         black_box(*height),
+                        black_box(None),
                     )
                     .unwrap();
 

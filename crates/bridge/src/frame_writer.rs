@@ -16,7 +16,7 @@ impl_mmap_writer_base!(
 );
 
 impl FrameWriter {
-    pub fn write(
+    pub fn write_frame(
         &mut self,
         camera_id: u32,
         pixel_data: &[u8],
@@ -25,7 +25,7 @@ impl FrameWriter {
         height: u32,
         trace_ctx: Option<&TraceContext>,
     ) -> Result<()> {
-        let _s = span!("write_with_trace_context");
+        let _s = span!("write_frame");
 
         let timestamp_ns = SystemTime::now()
             .duration_since(UNIX_EPOCH)

@@ -26,7 +26,7 @@ impl FrameSink {
         trace: Option<&schema::TraceContext>,
     ) -> Result<()> {
         self.writer
-            .write(camera_id, rgb, frame_no, width, height, trace)?;
+            .write_frame(camera_id, rgb, frame_no, width, height, trace)?;
         self.inference.post().ok();
         self.gateway.post().ok();
         Ok(())

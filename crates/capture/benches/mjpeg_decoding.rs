@@ -58,9 +58,12 @@ fn benchmark_mjpeg_decoding(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(pixel_count));
 
-        let decoder = MjpegDecoder;
+        let mut decoder = MjpegDecoder::new();
         group.bench_with_input(BenchmarkId::from_parameter(label), &jpeg_data, |b, jpeg| {
-            b.iter(|| decoder.decode(black_box(jpeg), width, height))
+            b.iter(|| {
+                let result = decoder.decode(black_box(jpeg), width, height);
+                black_box(result.map(|data| data.len()))
+            })
         });
     }
 
