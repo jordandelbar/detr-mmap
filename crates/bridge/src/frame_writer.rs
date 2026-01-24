@@ -1,7 +1,7 @@
 use crate::{macros::impl_mmap_writer_base, mmap_writer::MmapWriter, paths};
 use anyhow::{Context, Result};
 use common::span;
-use schema::{ColorFormat, Frame, FrameArgs, TraceContext};
+use schema::{Frame, FrameArgs, TraceContext};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct FrameWriter {
@@ -44,7 +44,6 @@ impl FrameWriter {
                 width,
                 height,
                 channels: 3,
-                format: ColorFormat::RGB,
                 pixels: Some(pixels_vec),
                 trace: trace_ctx,
             },

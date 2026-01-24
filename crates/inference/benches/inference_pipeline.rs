@@ -30,7 +30,6 @@ fn create_test_frame(width: u32, height: u32) -> Vec<u8> {
             width,
             height,
             channels: 3,
-            format: schema::ColorFormat::RGB,
             pixels: Some(pixel_vector),
             trace: None,
         },
@@ -139,7 +138,6 @@ fn benchmark_postprocessing(c: &mut Criterion) {
 
     group.finish();
 }
-
 
 #[cfg(any(feature = "ort-backend", feature = "trt-backend"))]
 fn benchmark_inference(c: &mut Criterion) {

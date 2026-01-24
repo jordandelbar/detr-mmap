@@ -306,11 +306,7 @@ impl BufferPoller {
 const JPEG_QUALITY: i32 = 80;
 
 /// Convert raw RGB pixel data to JPEG format using turbojpeg
-pub fn pixels_to_jpeg(
-    pixel_data: &[u8],
-    width: u32,
-    height: u32,
-) -> anyhow::Result<Vec<u8>> {
+pub fn pixels_to_jpeg(pixel_data: &[u8], width: u32, height: u32) -> anyhow::Result<Vec<u8>> {
     // Validate buffer size to avoid panic in turbojpeg
     let expected_size = (width as usize) * (height as usize) * 3;
     if pixel_data.len() < expected_size {

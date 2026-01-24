@@ -55,6 +55,3 @@ pub use sentry_control::{SentryControl, SentryMode};
 #[cfg(feature = "tracing")]
 pub use trace_context::{capture_current_trace, set_trace_parent};
 pub use types::Detection;
-
-// Re-export schema types that services need
-pub use schema::ColorFormat;

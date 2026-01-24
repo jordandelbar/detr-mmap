@@ -158,7 +158,6 @@ mod tests {
                 width,
                 height,
                 channels: 3,
-                format: bridge::ColorFormat::RGB,
                 pixels: Some(pixel_vector),
                 trace: None,
             },
