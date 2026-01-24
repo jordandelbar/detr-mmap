@@ -30,7 +30,7 @@ fn test_frame_writer_reader_synchronization() {
 
     // TEST 2: Write first frame
     let pixels1 = vec![255u8; 640 * 480 * 3]; // VGA frame
-    writer.write(&pixels1, 0, 1, 640, 480).unwrap();
+    writer.write_frame(0, &pixels1, 1, 640, 480, None).unwrap();
 
     // Reader should detect new frame
     let frame1 = reader.get_frame().unwrap();
@@ -55,7 +55,7 @@ fn test_frame_writer_reader_synchronization() {
 
     // TEST 4: Write second frame with different data
     let pixels2 = vec![128u8; 640 * 480 * 3];
-    writer.write(&pixels2, 1, 2, 640, 480).unwrap();
+    writer.write_frame(1, &pixels2, 2, 640, 480, None).unwrap();
 
     // Reader should detect new frame
     let frame2 = reader.get_frame().unwrap();
@@ -68,7 +68,7 @@ fn test_frame_writer_reader_synchronization() {
     // TEST 5: Multiple consecutive writes
     for i in 3..=10 {
         let pixels = vec![(i * 10) as u8; 640 * 480 * 3];
-        writer.write(&pixels, i as u32, i, 640, 480).unwrap();
+        writer.write_frame(i as u32, &pixels, i, 640, 480, None).unwrap();
 
         let frame = reader.get_frame().unwrap();
         assert!(frame.is_some(), "Reader should detect frame {}", i);
@@ -115,7 +115,7 @@ fn test_concurrent_frame_producer_consumer() {
             // Embed frame number in first 8 bytes for verification
             pixels[..8].copy_from_slice(&frame_num.to_le_bytes());
 
-            writer.write(&pixels, 0, frame_num, WIDTH, HEIGHT).unwrap();
+            writer.write_frame(0, &pixels, frame_num, WIDTH, HEIGHT, None).unwrap();
 
             // Simulate realistic frame rate (~100 FPS)
             thread::sleep(Duration::from_millis(10));
@@ -231,7 +231,7 @@ fn test_multiple_frame_readers() {
     // Write frames and verify all readers see them
     for i in 1..=NUM_FRAMES {
         let pixels = vec![(i * 13) as u8; (WIDTH * HEIGHT * 3) as usize];
-        writer.write(&pixels, 0, i as u64, WIDTH, HEIGHT).unwrap();
+        writer.write_frame(0, &pixels, i as u64, WIDTH, HEIGHT, None).unwrap();
 
         // All readers should detect new frame
         let frame1 = reader1.get_frame().unwrap();
@@ -275,7 +275,7 @@ fn test_frame_write_fails_when_buffer_too_small() {
 
     // Try to write a large frame (640x480x3 = ~900KB)
     let large_pixels = vec![0u8; 640 * 480 * 3];
-    let result = writer.write(&large_pixels, 0, 1, 640, 480);
+    let result = writer.write_frame(0, &large_pixels, 1, 640, 480, None);
 
     // Should fail - verify we got an error
     // (The exact error message may vary, but it should fail)
@@ -335,7 +335,7 @@ fn test_various_frame_resolutions() {
         let reader = FrameReader::with_path(path_str).unwrap();
 
         let pixels = vec![200u8; (*width * *height * 3) as usize];
-        writer.write(&pixels, 0, 1, *width, *height).unwrap();
+        writer.write_frame(0, &pixels, 1, *width, *height, None).unwrap();
 
         let frame = reader.get_frame().unwrap();
         assert!(frame.is_some(), "{} frame should be readable", label);

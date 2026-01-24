@@ -3,6 +3,36 @@ use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
+/// Helper to write detections using the FlatBuffer API
+fn write_detections(
+    writer: &mut DetectionWriter,
+    camera_id: u32,
+    frame_number: u64,
+    timestamp_ns: u64,
+    detections: &[Detection],
+) -> anyhow::Result<()> {
+    let builder = writer.builder();
+    builder.reset();
+
+    // Build detection offsets
+    let mut detection_offsets = Vec::with_capacity(detections.len());
+    for det in detections {
+        let bbox = schema::BoundingBox::new(det.x1, det.y1, det.x2, det.y2);
+        let detection = schema::Detection::create(
+            builder,
+            &schema::DetectionArgs {
+                box_: Some(&bbox),
+                confidence: det.confidence,
+                class_id: det.class_id,
+            },
+        );
+        detection_offsets.push(detection);
+    }
+
+    let detections_vector = builder.create_vector(&detection_offsets);
+    writer.write_detections(camera_id, frame_number, timestamp_ns, detections_vector, None)
+}
+
 /// Test basic detection writer-reader synchronization
 ///
 /// Tests:
@@ -30,14 +60,18 @@ fn test_detection_writer_reader_synchronization() {
 
     // TEST 2: Write first detection batch (empty)
     let detections1: Vec<Detection> = vec![];
-    writer.write(1, 1234567890, 0, &detections1).unwrap();
+    write_detections(&mut writer, 1, 1, 1234567890, &detections1).unwrap();
 
     // Reader should detect new data
     let result1 = reader.get_detections().unwrap();
     assert!(result1.is_some(), "Reader should detect new data");
 
-    let dets = result1.unwrap();
-    assert_eq!(dets.len(), 0, "Should have no detections");
+    let detection_result = result1.unwrap();
+    let dets = detection_result.detections();
+    assert!(
+        dets.is_none() || dets.unwrap().len() == 0,
+        "Should have no detections"
+    );
 
     // TEST 3: Mark as read
     reader.mark_read();
@@ -65,44 +99,50 @@ fn test_detection_writer_reader_synchronization() {
         },
     ];
 
-    writer.write(2, 1234567891, 0, &detections2).unwrap();
+    write_detections(&mut writer, 2, 2, 1234567891, &detections2).unwrap();
 
     // Reader should detect new detections
     let result2 = reader.get_detections().unwrap();
     assert!(result2.is_some(), "Reader should detect second batch");
 
-    let dets = result2.unwrap();
+    let detection_result = result2.unwrap();
+    let dets = detection_result.detections().unwrap();
     assert_eq!(dets.len(), 2, "Should have 2 detections");
 
     // Verify detection data
-    assert_eq!(dets[0].x1, 10.0);
-    assert_eq!(dets[0].y1, 20.0);
-    assert_eq!(dets[0].confidence, 0.95);
-    assert_eq!(dets[0].class_id, 0);
+    let det0 = dets.get(0);
+    let bbox0 = det0.box_().unwrap();
+    assert_eq!(bbox0.x1(), 10.0);
+    assert_eq!(bbox0.y1(), 20.0);
+    assert_eq!(det0.confidence(), 0.95);
+    assert_eq!(det0.class_id(), 0);
 
-    assert_eq!(dets[1].x1, 150.0);
-    assert_eq!(dets[1].confidence, 0.88);
-    assert_eq!(dets[1].class_id, 1);
+    let det1 = dets.get(1);
+    let bbox1 = det1.box_().unwrap();
+    assert_eq!(bbox1.x1(), 150.0);
+    assert_eq!(det1.confidence(), 0.88);
+    assert_eq!(det1.class_id(), 1);
 
     // TEST 5: Multiple consecutive writes with varying detection counts
-    for i in 3..=10 {
-        let detections: Vec<Detection> = (0..i)
+    for i in 3..=10u64 {
+        let detections: Vec<Detection> = (0..i as usize)
             .map(|j| Detection {
                 x1: (j * 10) as f32,
                 y1: (j * 10) as f32,
                 x2: (j * 10 + 50) as f32,
                 y2: (j * 10 + 50) as f32,
                 confidence: 0.9,
-                class_id: j as u32,
+                class_id: j as u16,
             })
             .collect();
 
-        writer.write(i, 1234567890 + i, 0, &detections).unwrap();
+        write_detections(&mut writer, i as u32, i, 1234567890 + i, &detections).unwrap();
 
         let result = reader.get_detections().unwrap();
         assert!(result.is_some(), "Reader should detect batch {}", i);
 
-        let dets = result.unwrap();
+        let detection_result = result.unwrap();
+        let dets = detection_result.detections().unwrap();
         assert_eq!(dets.len(), i as usize, "Should have {} detections", i);
 
         reader.mark_read();
@@ -146,12 +186,11 @@ fn test_concurrent_detection_producer_consumer() {
                     x2: (i * 10 + 50) as f32,
                     y2: (i * 10 + 50) as f32,
                     confidence: 0.85,
-                    class_id: i as u32,
+                    class_id: i as u16,
                 })
                 .collect();
 
-            writer
-                .write(batch_num, 1234567890 + batch_num, 0, &detections)
+            write_detections(&mut writer, 1, batch_num, 1234567890 + batch_num, &detections)
                 .unwrap();
 
             // Simulate realistic inference rate
@@ -180,15 +219,16 @@ fn test_concurrent_detection_producer_consumer() {
                 );
             }
 
-            if let Some(detections) = reader.get_detections().unwrap() {
+            if let Some(detection_result) = reader.get_detections().unwrap() {
                 // Record this batch
                 batches_seen.push(batches_seen.len() as u64 + 1);
 
                 // Verify detection count varies (we don't know exact count without frame number from API)
-                assert!(
-                    detections.len() <= 10,
-                    "Detection count should be reasonable"
-                );
+                let count = detection_result
+                    .detections()
+                    .map(|d| d.len())
+                    .unwrap_or(0);
+                assert!(count <= 10, "Detection count should be reasonable");
 
                 reader.mark_read();
             } else {
@@ -257,12 +297,11 @@ fn test_multiple_detection_readers() {
                 x2: (i * j * 10 + 50) as f32,
                 y2: (i * j * 10 + 50) as f32,
                 confidence: 0.9,
-                class_id: j as u32,
+                class_id: j as u16,
             })
             .collect();
 
-        writer
-            .write(i as u64, 1234567890 + i as u64, 0, &detections)
+        write_detections(&mut writer, i as u32, i as u64, 1234567890 + i as u64, &detections)
             .unwrap();
 
         // All readers should detect new batch
@@ -275,13 +314,13 @@ fn test_multiple_detection_readers() {
         assert!(result3.is_some(), "Reader 3 should see batch {}", i);
 
         // All should read same data
-        let d1 = result1.unwrap();
-        let d2 = result2.unwrap();
-        let d3 = result3.unwrap();
+        let d1_len = result1.unwrap().detections().map(|d| d.len()).unwrap_or(0);
+        let d2_len = result2.unwrap().detections().map(|d| d.len()).unwrap_or(0);
+        let d3_len = result3.unwrap().detections().map(|d| d.len()).unwrap_or(0);
 
-        assert_eq!(d1.len(), d2.len());
-        assert_eq!(d2.len(), d3.len());
-        assert_eq!(d1.len(), 5);
+        assert_eq!(d1_len, d2_len);
+        assert_eq!(d2_len, d3_len);
+        assert_eq!(d1_len, 5);
 
         // Mark as read independently
         reader1.mark_read();
@@ -315,11 +354,11 @@ fn test_detection_write_fails_when_buffer_too_small() {
             x2: (i + 50) as f32,
             y2: (i + 50) as f32,
             confidence: 0.9,
-            class_id: i,
+            class_id: i as u16,
         })
         .collect();
 
-    let result = writer.write(1, 1234567890, 0, &large_batch);
+    let result = write_detections(&mut writer, 1, 1, 1234567890, &large_batch);
 
     // Should fail - verify we got an error
     // (The exact error message may vary, but it should fail)
@@ -384,22 +423,31 @@ fn test_various_detection_counts() {
                 x2: (i * 10 + 50) as f32,
                 y2: (i * 10 + 50) as f32,
                 confidence: 0.85,
-                class_id: i,
+                class_id: i as u16,
             })
             .collect();
 
-        writer.write(1, 1234567890, 0, &detections).unwrap();
+        write_detections(&mut writer, 1, 1, 1234567890, &detections).unwrap();
 
         let result = reader.get_detections().unwrap();
         assert!(result.is_some(), "{} should be readable", label);
 
-        let dets = result.unwrap();
-        assert_eq!(dets.len(), *count as usize, "{} count mismatch", label);
+        let detection_result = result.unwrap();
+        let actual_count = detection_result
+            .detections()
+            .map(|d| d.len())
+            .unwrap_or(0);
+        assert_eq!(actual_count, *count as usize, "{} count mismatch", label);
 
-        // Verify detection data integrity
-        for (i, det) in dets.iter().enumerate() {
-            assert_eq!(det.x1, (i * 10) as f32, "{} x1 mismatch", label);
-            assert_eq!(det.class_id, i as u32, "{} class_id mismatch", label);
+        // Verify detection data integrity for non-empty cases
+        if *count > 0 {
+            let dets = detection_result.detections().unwrap();
+            for i in 0..dets.len() {
+                let det = dets.get(i);
+                let bbox = det.box_().unwrap();
+                assert_eq!(bbox.x1(), (i * 10) as f32, "{} x1 mismatch", label);
+                assert_eq!(det.class_id(), i as u16, "{} class_id mismatch", label);
+            }
         }
     }
 }
@@ -436,23 +484,28 @@ fn test_detection_float_precision() {
         },
     ];
 
-    writer.write(1, 1234567890, 0, &detections).unwrap();
+    write_detections(&mut writer, 1, 1, 1234567890, &detections).unwrap();
 
     let result = reader.get_detections().unwrap();
     assert!(result.is_some(), "Should read detections");
 
-    let dets = result.unwrap();
+    let detection_result = result.unwrap();
+    let dets = detection_result.detections().unwrap();
     assert_eq!(dets.len(), 2);
 
     // Verify float precision (FlatBuffers uses f32, so some precision loss expected)
     let epsilon = 0.0001; // Acceptable precision loss for f32
 
-    assert!((dets[0].x1 - 123.456).abs() < epsilon);
-    assert!((dets[0].y1 - 789.012).abs() < epsilon);
-    assert!((dets[0].confidence - 0.987654).abs() < epsilon);
-    assert_eq!(dets[0].class_id, 42);
+    let det0 = dets.get(0);
+    let bbox0 = det0.box_().unwrap();
+    assert!((bbox0.x1() - 123.456).abs() < epsilon);
+    assert!((bbox0.y1() - 789.012).abs() < epsilon);
+    assert!((det0.confidence() - 0.987654).abs() < epsilon);
+    assert_eq!(det0.class_id(), 42);
 
-    assert!((dets[1].x1 - 0.001).abs() < epsilon);
-    assert!((dets[1].confidence - 0.999999).abs() < epsilon);
-    assert_eq!(dets[1].class_id, 0);
+    let det1 = dets.get(1);
+    let bbox1 = det1.box_().unwrap();
+    assert!((bbox1.x1() - 0.001).abs() < epsilon);
+    assert!((det1.confidence() - 0.999999).abs() < epsilon);
+    assert_eq!(det1.class_id(), 0);
 }
