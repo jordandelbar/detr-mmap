@@ -7,3 +7,12 @@ criterion = { version = "0.5", features = ["html_reports"] }
 opentelemetry = { version = "0.31", features = ["metrics", "trace"] }
 tracing-opentelemetry = "0.32"
 tracing = { version = "0.1", features = ["release_max_level_info"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+# panic = "abort"
+# strip = "symbols"
+
+# [profile.release.build-override]
+# opt-level = 3
