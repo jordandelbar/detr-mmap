@@ -1,4 +1,4 @@
-# RF-DETR Object Detection on edge devices with zero-serialization memory-mapped IPC
+# RF-DETR on Edge Devices with Zero-Serialization Memory-Mapped IPC
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordandelbar/detr-mmap/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/jordandelbar/detr-mmap/branch/main/graph/badge.svg?token=GFI0VJOZ9G)](https://codecov.io/gh/jordandelbar/detr-mmap)
@@ -16,9 +16,8 @@ A sentry mode state machine reduces computation by switching to standby when no 
 
   - Capture: Camera frame acquisition using [v4l]
   - Inference: [RF-DETR] model inference:
-    - CPU: [ORT] with CPU execution provider
-    - GPU: [ORT] with CUDA execution provider
-    - TensorRT via C++ bindings ([CXX])
+    - Rust + ONNX Runtime (CPU / CUDA)
+    - TensorRT via C++ (integrated into Rust using CXX)
   - Controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to [MQTT]
   - Gateway: WebSocket [Axum] server streaming frames + detections to clients
   - IPC: Memory-mapped files with [FlatBuffers] for zero-serialization, synchronized with POSIX mqueue semaphores.
@@ -35,7 +34,7 @@ A sentry mode state machine reduces computation by switching to standby when no 
 
 Edge devices have limited CPU and memory. Network protocol overhead (TCP, HTTP/2, serialization) adds latency and CPU usage.
 
-Memory-mapped files (`mmap`) provide true zero-serialization IPC. There is no serialization, the reader accesses data directly in the writer's memory.
+Memory-mapped files (`mmap`) provide true zero-serialization IPC. There is no runtime serialization or copying; data is written once and read zero-copy via memory mapping.
 The trade-off is that it only works for local IPC, this is not secured for cloud deployment with shared machine but clearly fitting for edge deployments.
 
 I used k3s even though it adds some memory footprint for the ease of use when it comes to edge deployment.
@@ -97,8 +96,9 @@ Follow [this guide](https://github.com/jordandelbar/yolo-tonic/blob/a146a7820c17
 
 Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 RGB input frames.
 
-> **Note**: These benchmarks were run on high-end desktop hardware. Edge device performance will vary.
-> See [CONTRIBUTING.md](CONTRIBUTING.md) if you can provide benchmarks on Raspberry Pi or Jetson hardware.
+> [!NOTE]
+> These benchmarks were run on high-end desktop hardware. Edge device performance will vary.
+> Benchmarks on edge device (Raspberry Pi, Jetson) are welcome.
 
 ### Benchmarks
 
