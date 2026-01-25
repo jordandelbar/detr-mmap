@@ -27,7 +27,7 @@ impl Camera {
 
         let decoder: Box<dyn FrameDecoder> = match device.pixel_format {
             PixelFormat::Yuyv => Box::new(YuyvDecoder::new()),
-            PixelFormat::Mjpeg => Box::new(MjpegDecoder::new()),
+            PixelFormat::Mjpeg => Box::new(MjpegDecoder::new()?),
         };
 
         let sink = FrameSink::new()?;

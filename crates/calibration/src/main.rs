@@ -10,9 +10,8 @@ fn main() -> anyhow::Result<()> {
     // Paths relative to workspace root
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
+        .and_then(|p| p.parent())
+        .ok_or_else(|| anyhow::anyhow!("Failed to find workspace root"))?
         .to_path_buf();
 
     let input_dir = workspace_root.join("scripts/quantization/calibration_data");
@@ -23,7 +22,13 @@ fn main() -> anyhow::Result<()> {
 
     let mut idx = 0;
 
-    for img_path in glob::glob(input_dir.join("*.jpg").to_str().unwrap())? {
+    let glob_pattern = input_dir
+        .join("*.jpg")
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid path encoding"))?
+        .to_owned();
+
+    for img_path in glob::glob(&glob_pattern)? {
         let img_path = img_path?;
         let img = image::open(&img_path)?.to_rgb8();
         let (tensor, _, _, _) = pre.preprocess_from_u8_slice(&img, img.width(), img.height())?;
@@ -49,7 +54,9 @@ fn dump_tensor(
     tensor: &ndarray::Array<f32, ndarray::IxDyn>,
 ) -> anyhow::Result<()> {
     let mut f = File::create(path)?;
-    let slice = tensor.as_slice().unwrap();
+    let slice = tensor
+        .as_slice()
+        .ok_or_else(|| anyhow::anyhow!("Tensor is not contiguous in memory"))?;
     let bytes = bytemuck::cast_slice(slice);
     f.write_all(bytes)?;
     Ok(())

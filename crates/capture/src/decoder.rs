@@ -87,18 +87,12 @@ pub struct MjpegDecoder {
     rgb_buffer: Vec<u8>,
 }
 
-impl Default for MjpegDecoder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MjpegDecoder {
-    pub fn new() -> Self {
-        Self {
-            decompressor: turbojpeg::Decompressor::new().unwrap(),
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            decompressor: turbojpeg::Decompressor::new()?,
             rgb_buffer: vec![0u8; 1920 * 1080 * 3],
-        }
+        })
     }
 }
 
@@ -145,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_mjpeg_decoder_invalid_data() {
-        let mut decoder = MjpegDecoder::new();
+        let mut decoder = MjpegDecoder::new().expect("Failed to create decoder");
         let invalid = vec![0, 1, 2, 3];
         assert!(decoder.decode(&invalid, 640, 480).is_err());
     }

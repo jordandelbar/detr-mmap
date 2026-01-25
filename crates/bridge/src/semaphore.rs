@@ -109,7 +109,10 @@ impl BridgeSemaphore {
     pub fn wait(&self) -> Result<(), BridgeError> {
         let mut buf = [0u8; 1];
         let mut prio = 0u32;
-        let mqd = self.mqd.as_ref().expect("Message queue descriptor is None");
+        let mqd = self
+            .mqd
+            .as_ref()
+            .ok_or_else(|| BridgeError::SemaphoreError("Message queue not initialized".into()))?;
 
         loop {
             match mq_receive(mqd, &mut buf, &mut prio) {
@@ -133,7 +136,10 @@ impl BridgeSemaphore {
     pub fn wait_timeout(&self, timeout_secs: u64) -> Result<bool, BridgeError> {
         let mut buf = [0u8; 1];
         let mut prio = 0u32;
-        let mqd = self.mqd.as_ref().expect("Message queue descriptor is None");
+        let mqd = self
+            .mqd
+            .as_ref()
+            .ok_or_else(|| BridgeError::SemaphoreError("Message queue not initialized".into()))?;
         let timeout = TimeSpec::new(timeout_secs as i64, 0);
 
         loop {
@@ -158,7 +164,10 @@ impl BridgeSemaphore {
     pub fn try_wait(&self) -> Result<bool, BridgeError> {
         let mut buf = [0u8; 1];
         let mut prio = 0u32;
-        let mqd = self.mqd.as_ref().expect("Message queue descriptor is None");
+        let mqd = self
+            .mqd
+            .as_ref()
+            .ok_or_else(|| BridgeError::SemaphoreError("Message queue not initialized".into()))?;
 
         // Use timed receive with zero timeout for non-blocking behavior
         let timeout = TimeSpec::new(0, 0);
@@ -180,7 +189,10 @@ impl BridgeSemaphore {
     /// to implement the fan-out pattern.
     pub fn post(&self) -> Result<(), BridgeError> {
         let msg = [1u8]; // Simple 1-byte message
-        let mqd = self.mqd.as_ref().expect("Message queue descriptor is None");
+        let mqd = self
+            .mqd
+            .as_ref()
+            .ok_or_else(|| BridgeError::SemaphoreError("Message queue not initialized".into()))?;
         mq_send(mqd, &msg, 0)
             .map_err(|e| BridgeError::SemaphoreError(format!("Queue send failed: {}", e)))
     }

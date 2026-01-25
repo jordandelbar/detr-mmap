@@ -194,7 +194,11 @@ impl BufferPoller {
                 // Convert FlatBuffers detections to owned Detection at serialization boundary
                 let detections = detection_result
                     .detections()
-                    .map(|dets| dets.iter().map(|d| Detection::from(&d)).collect())
+                    .map(|dets| {
+                        dets.iter()
+                            .filter_map(|d| Detection::try_from(&d).ok())
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 Some(DetectionData {
