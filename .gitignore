@@ -66,3 +66,6 @@ compile_commands.json
 
 # Trt cache
 *.cache
+
+# Cloned rf-detr repository
+rf-detr/
