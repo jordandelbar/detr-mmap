@@ -64,6 +64,9 @@ compile_commands.json
 # Tensors
 *.bin
 
+# Torch Model
+*.pth
+
 # Trt cache
 *.cache
 

@@ -191,7 +191,8 @@ This repository contains the ONNX model and INT8 calibration cache for RF-DETR {
 Download and build a TensorRT INT8 engine for your GPU:
 
 ```bash
-pip install huggingface_hub tensorrt pycuda numpy
+# Install dependencies
+uv pip install huggingface_hub tensorrt pycuda numpy
 
 # Download the user build script
 wget https://raw.githubusercontent.com/your-org/detr-mmap/main/scripts/model-pipeline/user_build_engine.py

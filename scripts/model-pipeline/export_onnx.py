@@ -5,7 +5,6 @@ This script clones the rf-detr repository if needed and exports the model
 to ONNX format at 512x512 resolution for INT8 quantization.
 """
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,17 +19,25 @@ RESOLUTION = 512
 
 
 def clone_rf_detr() -> None:
-    """Clone rf-detr repository if it doesn't exist."""
-    if RF_DETR_DIR.exists():
+    """Clone rf-detr repository and install it if needed."""
+    if not RF_DETR_DIR.exists():
+        print(f"Cloning rf-detr to {RF_DETR_DIR}...")
+        subprocess.run(
+            ["git", "clone", "--depth", "1", RF_DETR_REPO, str(RF_DETR_DIR)],
+            check=True,
+        )
+        print("Clone completed.")
+    else:
         print(f"rf-detr already exists at {RF_DETR_DIR}")
-        return
 
-    print(f"Cloning rf-detr to {RF_DETR_DIR}...")
+    # Always ensure rf-detr is installed (uv pip install -e is idempotent)
+    # Use --python to target the current interpreter's environment
+    print("Installing rf-detr dependencies...")
     subprocess.run(
-        ["git", "clone", "--depth", "1", RF_DETR_REPO, str(RF_DETR_DIR)],
+        ["uv", "pip", "install", "--python", sys.executable, "-e", f"{RF_DETR_DIR}[onnxexport]"],
         check=True,
     )
-    print("Clone completed.")
+    print("rf-detr installed.")
 
 
 def export_onnx(output_dir: Path, model_variant: str) -> Path:
@@ -44,10 +51,6 @@ def export_onnx(output_dir: Path, model_variant: str) -> Path:
         Path to the exported ONNX file.
     """
     import torch
-
-    # Add rf-detr to Python path
-    sys.path.insert(0, str(RF_DETR_DIR))
-
     from rfdetr import RFDETRSmall, RFDETRBase
 
     output_dir.mkdir(parents=True, exist_ok=True)

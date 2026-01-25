@@ -14,13 +14,15 @@ The pipeline is split into two parts:
 ### Prerequisites
 
 ```bash
-# Install Python dependencies
 cd scripts/model-pipeline
-pip install -e .
-pip install -e ".[tensorrt]"
 
-# Or with uv
-uv pip install -e . -e ".[tensorrt]"
+# Install dependencies with uv
+uv sync --extra tensorrt
+
+# Or create a virtual environment first
+uv venv
+source .venv/bin/activate
+uv sync --extra tensorrt
 ```
 
 ### Full Pipeline (Recommended)
@@ -28,7 +30,7 @@ uv pip install -e . -e ".[tensorrt]"
 Run the complete pipeline with a single command:
 
 ```bash
-python prepare_and_publish.py --hf-repo your-org/rfdetr-small-int8
+uv run prepare_and_publish.py --hf-repo your-org/rfdetr-small-int8
 ```
 
 Options:
@@ -45,16 +47,16 @@ You can also run each step manually:
 
 ```bash
 # 1. Export ONNX model (512x512)
-python export_onnx.py --output-dir ../../models/rfdetr_small/ --model-variant small
+uv run export_onnx.py --output-dir ../../models/rfdetr_small/ --model-variant small
 
 # 2. Download calibration images
-python download_calibration_data.py --count 100
+uv run download_calibration_data.py --count 100
 
 # 3. Generate calibration tensors (Rust crate)
 cargo run -p calibration --release -- --count 100
 
 # 4. Build calibration cache
-python build_calibration_cache.py \
+uv run --extra tensorrt build_calibration_cache.py \
     --onnx-path ../../models/rfdetr_small/inference_model.onnx \
     --cache-path ../../models/rfdetr_small/calibration.cache
 ```
@@ -64,6 +66,10 @@ python build_calibration_cache.py \
 ### Prerequisites
 
 ```bash
+# With uv (recommended)
+uv pip install huggingface_hub tensorrt pycuda numpy
+
+# Or with pip
 pip install huggingface_hub tensorrt pycuda numpy
 ```
 
@@ -72,7 +78,7 @@ pip install huggingface_hub tensorrt pycuda numpy
 Download the model from HuggingFace and build a TensorRT engine:
 
 ```bash
-python user_build_engine.py \
+uv run user_build_engine.py \
     --hf-repo your-org/rfdetr-small-int8 \
     --output ./rfdetr_int8.engine
 ```
@@ -80,7 +86,7 @@ python user_build_engine.py \
 Or use local files:
 
 ```bash
-python user_build_engine.py \
+uv run user_build_engine.py \
     --onnx ./inference_model.onnx \
     --cache ./calibration.cache \
     --output ./rfdetr_int8.engine
@@ -93,6 +99,9 @@ The `user_build_engine.py` script is designed to be standalone. Users can copy j
 ```bash
 # Download the script
 wget https://raw.githubusercontent.com/your-org/detr-mmap/main/scripts/model-pipeline/user_build_engine.py
+
+# Install dependencies
+uv pip install huggingface_hub tensorrt pycuda numpy
 
 # Build engine
 python user_build_engine.py --hf-repo your-org/rfdetr-small-int8 --output ./model.engine
@@ -131,13 +140,13 @@ your-org/rfdetr-small-int8/
 ### Test Maintainer Pipeline (Dry Run)
 
 ```bash
-python prepare_and_publish.py --hf-repo test-org/test-model --dry-run
+uv run prepare_and_publish.py --hf-repo test-org/test-model --dry-run
 ```
 
 ### Test User Pipeline
 
 ```bash
-python user_build_engine.py \
+uv run user_build_engine.py \
     --hf-repo your-org/rfdetr-small-int8 \
     --output ./rfdetr_int8.engine
 ```

@@ -6,10 +6,10 @@ for their specific GPU. It downloads the ONNX model and calibration cache from
 HuggingFace and builds the engine locally.
 
 Usage:
-    python user_build_engine.py --hf-repo your-org/rfdetr-small-int8 --output ./rfdetr_int8.engine
+    uv run user_build_engine.py --hf-repo your-org/rfdetr-small-int8 --output ./rfdetr_int8.engine
 
 Requirements:
-    pip install huggingface_hub tensorrt pycuda numpy
+    uv pip install huggingface_hub tensorrt pycuda numpy
 """
 import argparse
 import sys
