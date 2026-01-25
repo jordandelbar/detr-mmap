@@ -48,7 +48,12 @@ pub trait Preprocess {
     ///
     /// # Returns
     /// Preprocessed result with transformation parameters
-    fn preprocess(&mut self, pixels: &[u8], width: u32, height: u32) -> anyhow::Result<PreprocessResult>;
+    fn preprocess(
+        &mut self,
+        pixels: &[u8],
+        width: u32,
+        height: u32,
+    ) -> anyhow::Result<PreprocessResult>;
 
     /// Get the input size this preprocessor targets
     fn input_size(&self) -> (u32, u32);

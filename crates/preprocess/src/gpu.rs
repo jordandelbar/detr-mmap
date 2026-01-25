@@ -54,8 +54,7 @@ impl GpuPreProcessor {
         max_input_size: (u32, u32),
         device_id: usize,
     ) -> Result<Self> {
-        let device = CudaDevice::new(device_id)
-            .context("Failed to initialize CUDA device")?;
+        let device = CudaDevice::new(device_id).context("Failed to initialize CUDA device")?;
 
         // Load the PTX kernel
         let ptx = Ptx::from_src(PREPROCESS_PTX);
@@ -142,8 +141,8 @@ impl GpuPreProcessor {
         }
 
         // Calculate letterbox parameters
-        let scale = (self.input_size.0 as f32 / width as f32)
-            .min(self.input_size.1 as f32 / height as f32);
+        let scale =
+            (self.input_size.0 as f32 / width as f32).min(self.input_size.1 as f32 / height as f32);
         let new_width = (width as f32 * scale) as u32;
         let new_height = (height as f32 * scale) as u32;
         let offset_x = (self.input_size.0 - new_width) / 2;
@@ -151,7 +150,8 @@ impl GpuPreProcessor {
 
         // Reallocate input buffer if frame size changed
         if num_pixels != self.current_input_pixels {
-            self.d_input = self.device
+            self.d_input = self
+                .device
                 .alloc_zeros::<u8>(input_bytes)
                 .context("Failed to reallocate input buffer")?;
             self.current_input_pixels = num_pixels;
@@ -203,7 +203,12 @@ impl GpuPreProcessor {
         // Synchronize to ensure kernel completion
         self.device.synchronize().context("Failed to synchronize")?;
 
-        Ok((self.output_device_ptr(), scale, offset_x as f32, offset_y as f32))
+        Ok((
+            self.output_device_ptr(),
+            scale,
+            offset_x as f32,
+            offset_y as f32,
+        ))
     }
 }
 
@@ -261,7 +266,10 @@ mod tests {
         let result = GpuPreProcessor::new((512, 512), (1920, 1080));
         match result {
             Ok(_) => eprintln!("GPU preprocessor created successfully"),
-            Err(e) => eprintln!("GPU preprocessor creation failed (expected if no CUDA): {:?}", e),
+            Err(e) => eprintln!(
+                "GPU preprocessor creation failed (expected if no CUDA): {:?}",
+                e
+            ),
         }
     }
 
@@ -281,7 +289,7 @@ mod tests {
         for y in 0..height {
             for x in 0..width {
                 let idx = ((y * width + x) * 3) as usize;
-                pixels[idx] = (x % 256) as u8;     // R
+                pixels[idx] = (x % 256) as u8; // R
                 pixels[idx + 1] = (y % 256) as u8; // G
                 pixels[idx + 2] = ((x + y) % 256) as u8; // B
             }
@@ -289,8 +297,9 @@ mod tests {
 
         // CPU preprocessing
         let mut cpu = CpuPreProcessor::new(input_size);
-        let (cpu_output, cpu_scale, cpu_offset_x, cpu_offset_y) =
-            cpu.preprocess_from_u8_slice(&pixels, width, height).unwrap();
+        let (cpu_output, cpu_scale, cpu_offset_x, cpu_offset_y) = cpu
+            .preprocess_from_u8_slice(&pixels, width, height)
+            .unwrap();
 
         // GPU preprocessing
         let mut gpu = GpuPreProcessor::new(input_size, (width, height)).unwrap();

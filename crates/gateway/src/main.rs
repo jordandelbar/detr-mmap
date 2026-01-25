@@ -11,7 +11,11 @@ async fn main() -> anyhow::Result<()> {
 
     // TelemetryGuard initializes the tracing subscriber, so only call setup_logging if not using telemetry
     let _telemetry = if let Some(endpoint) = config.otel_endpoint.as_ref() {
-        Some(TelemetryGuard::init("gateway", endpoint, config.environment.clone())?)
+        Some(TelemetryGuard::init(
+            "gateway",
+            endpoint,
+            config.environment.clone(),
+        )?)
     } else {
         setup_logging(&config);
         None

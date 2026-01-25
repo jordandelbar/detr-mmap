@@ -36,12 +36,18 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    println!("Processed {idx} images, tensors saved to {}", output_dir.display());
+    println!(
+        "Processed {idx} images, tensors saved to {}",
+        output_dir.display()
+    );
 
     Ok(())
 }
 
-fn dump_tensor(path: &std::path::Path, tensor: &ndarray::Array<f32, ndarray::IxDyn>) -> anyhow::Result<()> {
+fn dump_tensor(
+    path: &std::path::Path,
+    tensor: &ndarray::Array<f32, ndarray::IxDyn>,
+) -> anyhow::Result<()> {
     let mut f = File::create(path)?;
     let slice = tensor.as_slice().unwrap();
     let bytes = bytemuck::cast_slice(slice);

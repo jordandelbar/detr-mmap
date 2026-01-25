@@ -152,8 +152,14 @@ impl Default for CpuPreProcessor {
 }
 
 impl Preprocess for CpuPreProcessor {
-    fn preprocess(&mut self, pixels: &[u8], width: u32, height: u32) -> anyhow::Result<PreprocessResult> {
-        let (array, scale, offset_x, offset_y) = self.preprocess_from_u8_slice(pixels, width, height)?;
+    fn preprocess(
+        &mut self,
+        pixels: &[u8],
+        width: u32,
+        height: u32,
+    ) -> anyhow::Result<PreprocessResult> {
+        let (array, scale, offset_x, offset_y) =
+            self.preprocess_from_u8_slice(pixels, width, height)?;
         Ok(PreprocessResult {
             data: PreprocessOutput::Cpu(array),
             scale,

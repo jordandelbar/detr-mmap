@@ -35,7 +35,11 @@ impl TelemetryGuard {
     /// * `service_name` - Name of this service (appears in traces/metrics)
     /// * `endpoint` - OTLP collector endpoint (e.g., "http://localhost:4317")
     /// * `environment` - Environment (Production uses JSON logs, Development uses pretty logs)
-    pub fn init(service_name: &str, endpoint: &str, environment: Environment) -> anyhow::Result<Self> {
+    pub fn init(
+        service_name: &str,
+        endpoint: &str,
+        environment: Environment,
+    ) -> anyhow::Result<Self> {
         global::set_text_map_propagator(TraceContextPropagator::new());
 
         let resource = Resource::builder()
