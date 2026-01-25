@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     // It also initializes the tracing subscriber, so only init fmt subscriber if not using telemetry.
     let (_telemetry, _runtime) = if let Some(endpoint) = config.otel_endpoint.as_ref() {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-        let guard = rt.block_on(async { TelemetryGuard::init("controller", endpoint) })?;
+        let guard = rt.block_on(async { TelemetryGuard::init("controller", endpoint, config.environment.clone()) })?;
         (Some(guard), Some(rt))
     } else {
         tracing_subscriber::fmt()

@@ -1,3 +1,4 @@
+use crate::Environment;
 use opentelemetry::KeyValue;
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
@@ -15,7 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 ///
 /// # Example
 /// ```ignore
-/// let _telemetry = TelemetryGuard::init("my-service", "http://localhost:4317")?;
+/// let _telemetry = TelemetryGuard::init("my-service", "http://localhost:4317", Environment::Production)?;
 /// // ... application runs ...
 /// // Telemetry is automatically flushed and shut down when guard is dropped
 /// ```
@@ -33,7 +34,8 @@ impl TelemetryGuard {
     /// # Arguments
     /// * `service_name` - Name of this service (appears in traces/metrics)
     /// * `endpoint` - OTLP collector endpoint (e.g., "http://localhost:4317")
-    pub fn init(service_name: &str, endpoint: &str) -> anyhow::Result<Self> {
+    /// * `environment` - Environment (Production uses JSON logs, Development uses pretty logs)
+    pub fn init(service_name: &str, endpoint: &str, environment: Environment) -> anyhow::Result<Self> {
         global::set_text_map_propagator(TraceContextPropagator::new());
 
         let resource = Resource::builder()
@@ -87,11 +89,23 @@ impl TelemetryGuard {
         let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-        tracing_subscriber::registry()
+        // Use JSON formatting in production, pretty formatting in development
+        let registry = tracing_subscriber::registry()
             .with(env_filter)
-            .with(tracing_subscriber::fmt::layer())
-            .with(otel_layer)
-            .init();
+            .with(otel_layer);
+
+        match environment {
+            Environment::Production => {
+                registry
+                    .with(tracing_subscriber::fmt::layer().json().with_level(true))
+                    .init();
+            }
+            Environment::Development => {
+                registry
+                    .with(tracing_subscriber::fmt::layer().pretty().with_ansi(true))
+                    .init();
+            }
+        }
 
         Ok(Self {
             tracer_provider,

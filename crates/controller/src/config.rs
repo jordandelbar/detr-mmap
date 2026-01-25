@@ -1,8 +1,9 @@
 use anyhow::Result;
-use common::{get_env, get_env_opt};
+use common::{Environment, get_env, get_env_opt};
 
 #[derive(Debug, Clone)]
 pub struct ControllerConfig {
+    pub environment: Environment,
     pub validation_frames: u32,
     pub tracking_exit_frames: u32,
     pub poll_interval_ms: u64,
@@ -16,6 +17,7 @@ pub struct ControllerConfig {
 impl ControllerConfig {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
+            environment: Environment::from_env(),
             validation_frames: get_env("VALIDATION_FRAMES", 3),
             tracking_exit_frames: get_env("TRACKING_EXIT_FRAMES", 40),
             poll_interval_ms: get_env("POLL_INTERVAL_MS", 500),

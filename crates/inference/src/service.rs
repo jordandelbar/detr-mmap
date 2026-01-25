@@ -24,7 +24,12 @@ enum PreprocessorVariant {
 }
 
 impl Preprocess for PreprocessorVariant {
-    fn preprocess(&mut self, pixels: &[u8], width: u32, height: u32) -> anyhow::Result<PreprocessResult> {
+    fn preprocess(
+        &mut self,
+        pixels: &[u8],
+        width: u32,
+        height: u32,
+    ) -> anyhow::Result<PreprocessResult> {
         match self {
             PreprocessorVariant::Cpu(p) => p.preprocess(pixels, width, height),
             #[cfg(feature = "gpu-preprocess")]
@@ -245,19 +250,20 @@ impl<B: InferenceBackend> InferenceService<B> {
             .pixels()
             .ok_or_else(|| anyhow::anyhow!("No pixel data"))?;
 
-        tracing::trace!(frame_number, width, height, "Preprocessing frame");
-
-        // Use the Preprocess trait - works for both CPU and GPU
+        // Preprocess frame (CPU or GPU based on config)
         let PreprocessResult {
             data: preprocessed,
             scale,
             offset_x,
             offset_y,
-        } = self.preprocessor.preprocess(pixels.bytes(), width, height)?;
+        } = {
+            let _s = common::span!("preprocessing");
+            self.preprocessor
+                .preprocess(pixels.bytes(), width, height)?
+        };
 
         let InferenceOutput { dets, logits } = {
-            let _infer_span = tracing::info_span!("model_inference").entered();
-            // Use infer_preprocessed which handles both CPU and GPU inputs
+            let _s = common::span!("model_inference");
             self.backend.infer_preprocessed(&preprocessed)?
         };
 

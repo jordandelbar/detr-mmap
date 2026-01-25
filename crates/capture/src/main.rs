@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
     // It also initializes the tracing subscriber, so only call setup_logging if not using telemetry.
     let (_telemetry, _runtime) = if let Some(endpoint) = config.otel_endpoint.as_ref() {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-        let guard = rt.block_on(async { TelemetryGuard::init("capture", endpoint) })?;
+        let guard = rt.block_on(async { TelemetryGuard::init("capture", endpoint, config.environment.clone()) })?;
         (Some(guard), Some(rt))
     } else {
         setup_logging(&config);
