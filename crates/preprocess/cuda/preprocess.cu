@@ -11,6 +11,15 @@
  * Output: Normalized f32 image in CHW format [3, target_H, target_W]
  */
 
+// ImageNet normalization constants (embedded to reduce parameter count)
+__device__ constexpr float MEAN_R = 0.485f;
+__device__ constexpr float MEAN_G = 0.456f;
+__device__ constexpr float MEAN_B = 0.406f;
+__device__ constexpr float STD_R = 0.229f;
+__device__ constexpr float STD_G = 0.224f;
+__device__ constexpr float STD_B = 0.225f;
+__device__ constexpr int LETTERBOX_GRAY = 114;
+
 extern "C" __global__ void preprocess_kernel(
     const unsigned char* __restrict__ input,  // Input RGB image [src_h, src_w, 3]
     float* __restrict__ output,               // Output CHW image [3, dst_h, dst_w]
@@ -22,14 +31,7 @@ extern "C" __global__ void preprocess_kernel(
     int resized_h,                            // Height after resize (before padding)
     int offset_x,                             // X offset for letterbox centering
     int offset_y,                             // Y offset for letterbox centering
-    float scale,                              // Scale factor applied during resize
-    float mean_r,                             // ImageNet mean for R channel
-    float mean_g,                             // ImageNet mean for G channel
-    float mean_b,                             // ImageNet mean for B channel
-    float std_r,                              // ImageNet std for R channel
-    float std_g,                              // ImageNet std for G channel
-    float std_b,                              // ImageNet std for B channel
-    int letterbox_gray                        // Letterbox padding color (114)
+    float scale                               // Scale factor applied during resize
 ) {
     // Each thread handles one output pixel
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -49,7 +51,7 @@ extern "C" __global__ void preprocess_kernel(
 
     if (in_padding) {
         // Use letterbox gray value (normalized to 0-1)
-        float gray_norm = letterbox_gray / 255.0f;
+        float gray_norm = LETTERBOX_GRAY / 255.0f;
         r = gray_norm;
         g = gray_norm;
         b = gray_norm;
@@ -108,9 +110,9 @@ extern "C" __global__ void preprocess_kernel(
     }
 
     // Apply ImageNet normalization
-    r = (r - mean_r) / std_r;
-    g = (g - mean_g) / std_g;
-    b = (b - mean_b) / std_b;
+    r = (r - MEAN_R) / STD_R;
+    g = (g - MEAN_G) / STD_G;
+    b = (b - MEAN_B) / STD_B;
 
     // Write to output in CHW format
     // Channel 0 (R): offset 0

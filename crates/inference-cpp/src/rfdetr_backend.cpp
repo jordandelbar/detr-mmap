@@ -192,7 +192,7 @@ bool RFDetrBackend::infer_raw(const float* images, float* out_dets, float* out_l
     return true;
 }
 
-bool RFDetrBackend::infer_from_device(void* d_images, float* out_dets, float* out_logits) {
+bool RFDetrBackend::infer_from_device(uint8_t* d_images, float* out_dets, float* out_logits) {
     // Use provided device pointer directly (zero-copy from GPU preprocessing)
     void* bindings[] = {
         d_images, // input already on device

@@ -36,7 +36,7 @@ mod ffi {
         #[namespace = "bridge"]
         unsafe fn infer_from_device(
             self: Pin<&mut RFDetrBackend>,
-            d_images: *mut c_void,
+            d_images: *mut u8,
             out_dets: *mut f32,
             out_logits: *mut f32,
         ) -> bool;
@@ -119,7 +119,7 @@ impl InferenceBackend for TrtBackend {
 
                 let success = unsafe {
                     self.inner.pin_mut().infer_from_device(
-                        *ptr as *mut std::ffi::c_void,
+                        *ptr as *mut u8,
                         dets.as_mut_ptr(),
                         logits.as_mut_ptr(),
                     )

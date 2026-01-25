@@ -15,12 +15,7 @@ use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr, LaunchAsync, LaunchConfig
 use cudarc::nvrtc::Ptx;
 use std::sync::Arc;
 
-/// ImageNet normalization constants
-const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
-const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
-const LETTERBOX_COLOR: u8 = 114;
-
-/// PTX kernel embedded at compile time
+/// PTX kernel embedded at compile time (compiled by nvcc in build.rs)
 const PREPROCESS_PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/preprocess.ptx"));
 
 /// GPU-accelerated image preprocessor
@@ -30,7 +25,10 @@ pub struct GpuPreProcessor {
     /// CUDA device handle
     device: Arc<CudaDevice>,
     /// Pre-allocated device buffer for input image (RGB u8)
+    /// Size matches the last processed frame; reallocated if frame size changes
     d_input: CudaSlice<u8>,
+    /// Current input buffer size in pixels (width * height)
+    current_input_pixels: usize,
     /// Pre-allocated device buffer for output (CHW f32)
     d_output: CudaSlice<f32>,
     /// Maximum input image size we can handle
@@ -69,8 +67,9 @@ impl GpuPreProcessor {
         let output_pixels = (input_size.0 * input_size.1) as usize;
 
         // Pre-allocate device buffers
+        // Start with a small input buffer; it will be reallocated on first use
         let d_input = device
-            .alloc_zeros::<u8>(max_input_pixels * 3)
+            .alloc_zeros::<u8>(3)
             .context("Failed to allocate input buffer")?;
 
         let d_output = device
@@ -81,6 +80,7 @@ impl GpuPreProcessor {
             input_size,
             device,
             d_input,
+            current_input_pixels: 0,
             d_output,
             max_input_pixels,
         })
@@ -96,6 +96,13 @@ impl GpuPreProcessor {
     /// Get the number of output elements
     pub fn output_len(&self) -> usize {
         (self.input_size.0 * self.input_size.1 * 3) as usize
+    }
+
+    /// Copy the output buffer from device to host (for testing/verification)
+    pub fn copy_output_to_host(&self) -> Result<Vec<f32>> {
+        self.device
+            .dtoh_sync_copy(&self.d_output)
+            .context("Failed to copy output from device")
     }
 
     /// Preprocess an image on the GPU
@@ -142,6 +149,14 @@ impl GpuPreProcessor {
         let offset_x = (self.input_size.0 - new_width) / 2;
         let offset_y = (self.input_size.1 - new_height) / 2;
 
+        // Reallocate input buffer if frame size changed
+        if num_pixels != self.current_input_pixels {
+            self.d_input = self.device
+                .alloc_zeros::<u8>(input_bytes)
+                .context("Failed to reallocate input buffer")?;
+            self.current_input_pixels = num_pixels;
+        }
+
         // Copy input to device
         self.device
             .htod_copy_into(pixels.to_vec(), &mut self.d_input)
@@ -164,7 +179,7 @@ impl GpuPreProcessor {
             shared_mem_bytes: 0,
         };
 
-        // Kernel parameters
+        // Kernel parameters (11 params - ImageNet constants are embedded in kernel)
         unsafe {
             func.launch(
                 config,
@@ -180,13 +195,6 @@ impl GpuPreProcessor {
                     offset_x as i32,
                     offset_y as i32,
                     scale,
-                    IMAGENET_MEAN[0],
-                    IMAGENET_MEAN[1],
-                    IMAGENET_MEAN[2],
-                    IMAGENET_STD[0],
-                    IMAGENET_STD[1],
-                    IMAGENET_STD[2],
-                    LETTERBOX_COLOR as i32,
                 ),
             )
             .context("Failed to launch preprocess kernel")?;
@@ -230,14 +238,193 @@ impl Preprocess for GpuPreProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CpuPreProcessor;
+
+    /// Helper to check if GPU preprocessing is fully working
+    /// Returns None if working, Some(reason) if not
+    fn gpu_not_available() -> Option<String> {
+        match GpuPreProcessor::new((64, 64), (128, 128)) {
+            Ok(mut gpu) => {
+                // Try a simple preprocess to verify kernel works
+                let test_pixels = vec![128u8; 128 * 128 * 3];
+                match gpu.preprocess_to_device(&test_pixels, 128, 128) {
+                    Ok(_) => None,
+                    Err(e) => Some(format!("Kernel execution failed: {}", e)),
+                }
+            }
+            Err(e) => Some(format!("GPU init failed: {}", e)),
+        }
+    }
 
     #[test]
     fn test_gpu_preprocessor_creation() {
-        // This test will only pass on a system with CUDA
         let result = GpuPreProcessor::new((512, 512), (1920, 1080));
-        // We don't assert success since CUDA might not be available
-        if result.is_err() {
-            eprintln!("GPU preprocessor creation failed (expected if no CUDA): {:?}", result.err());
+        match result {
+            Ok(_) => eprintln!("GPU preprocessor created successfully"),
+            Err(e) => eprintln!("GPU preprocessor creation failed (expected if no CUDA): {:?}", e),
         }
+    }
+
+    #[test]
+    fn test_gpu_vs_cpu_preprocessing() {
+        if let Some(reason) = gpu_not_available() {
+            eprintln!("Skipping GPU vs CPU test: {}", reason);
+            return;
+        }
+
+        let input_size = (512, 512);
+        let width = 640u32;
+        let height = 480u32;
+
+        // Create test image (gradient pattern for better comparison)
+        let mut pixels = vec![0u8; (width * height * 3) as usize];
+        for y in 0..height {
+            for x in 0..width {
+                let idx = ((y * width + x) * 3) as usize;
+                pixels[idx] = (x % 256) as u8;     // R
+                pixels[idx + 1] = (y % 256) as u8; // G
+                pixels[idx + 2] = ((x + y) % 256) as u8; // B
+            }
+        }
+
+        // CPU preprocessing
+        let mut cpu = CpuPreProcessor::new(input_size);
+        let (cpu_output, cpu_scale, cpu_offset_x, cpu_offset_y) =
+            cpu.preprocess_from_u8_slice(&pixels, width, height).unwrap();
+
+        // GPU preprocessing
+        let mut gpu = GpuPreProcessor::new(input_size, (width, height)).unwrap();
+        let (_, gpu_scale, gpu_offset_x, gpu_offset_y) =
+            gpu.preprocess_to_device(&pixels, width, height).unwrap();
+        let gpu_output = gpu.copy_output_to_host().unwrap();
+
+        // Verify transformation parameters match
+        assert_eq!(cpu_scale, gpu_scale, "Scale mismatch");
+        assert_eq!(cpu_offset_x, gpu_offset_x, "Offset X mismatch");
+        assert_eq!(cpu_offset_y, gpu_offset_y, "Offset Y mismatch");
+
+        // Verify output shapes match
+        let cpu_flat = cpu_output.as_slice().unwrap();
+        assert_eq!(
+            cpu_flat.len(),
+            gpu_output.len(),
+            "Output size mismatch: CPU {} vs GPU {}",
+            cpu_flat.len(),
+            gpu_output.len()
+        );
+
+        // Compare outputs with tolerance (bilinear interpolation may differ slightly)
+        let tolerance = 0.05; // Allow 5% tolerance for interpolation differences
+        let mut max_diff = 0.0f32;
+        let mut diff_count = 0;
+        let total_pixels = cpu_flat.len();
+
+        for (i, (cpu_val, gpu_val)) in cpu_flat.iter().zip(gpu_output.iter()).enumerate() {
+            let diff = (cpu_val - gpu_val).abs();
+            if diff > max_diff {
+                max_diff = diff;
+            }
+            if diff > tolerance {
+                diff_count += 1;
+                if diff_count <= 10 {
+                    eprintln!(
+                        "Diff at index {}: CPU={:.6}, GPU={:.6}, diff={:.6}",
+                        i, cpu_val, gpu_val, diff
+                    );
+                }
+            }
+        }
+
+        let diff_ratio = diff_count as f64 / total_pixels as f64;
+        eprintln!(
+            "GPU vs CPU comparison: max_diff={:.6}, diff_count={}/{} ({:.2}%)",
+            max_diff,
+            diff_count,
+            total_pixels,
+            diff_ratio * 100.0
+        );
+
+        // Allow up to 1% of pixels to differ beyond tolerance
+        assert!(
+            diff_ratio < 0.01,
+            "Too many pixels differ: {:.2}% (max allowed 1%)",
+            diff_ratio * 100.0
+        );
+
+        // Max difference should be reasonable
+        assert!(
+            max_diff < 0.5,
+            "Maximum difference too large: {:.6}",
+            max_diff
+        );
+
+        eprintln!("GPU vs CPU test passed!");
+    }
+
+    #[test]
+    fn test_gpu_letterbox_padding() {
+        if let Some(reason) = gpu_not_available() {
+            eprintln!("Skipping GPU letterbox test: {}", reason);
+            return;
+        }
+
+        let input_size = (512, 512);
+        // Wide image (will have vertical padding)
+        let width = 800u32;
+        let height = 400u32;
+
+        // Create solid red image
+        let pixels = vec![255u8, 0, 0].repeat((width * height) as usize);
+
+        let mut gpu = GpuPreProcessor::new(input_size, (width, height)).unwrap();
+        let (_, scale, offset_x, offset_y) =
+            gpu.preprocess_to_device(&pixels, width, height).unwrap();
+        let output = gpu.copy_output_to_host().unwrap();
+
+        // Verify letterbox parameters
+        let expected_scale = 512.0 / 800.0; // 0.64
+        assert!(
+            (scale - expected_scale).abs() < 0.01,
+            "Scale should be ~{}, got {}",
+            expected_scale,
+            scale
+        );
+        assert_eq!(offset_x, 0.0, "X offset should be 0 for wide image");
+        assert!(offset_y > 0.0, "Y offset should be positive for wide image");
+
+        // Check that padding region has letterbox gray value (114)
+        // After normalization: (114/255 - mean) / std
+        let gray_norm = 114.0 / 255.0;
+        let expected_r = (gray_norm - 0.485) / 0.229;
+        let expected_g = (gray_norm - 0.456) / 0.224;
+        let expected_b = (gray_norm - 0.406) / 0.225;
+
+        // Check a pixel in the top padding region (y=0, x=256)
+        let spatial = (input_size.0 * input_size.1) as usize;
+        let idx = 256; // Top-center pixel
+        let r = output[idx];
+        let g = output[idx + spatial];
+        let b = output[idx + 2 * spatial];
+
+        assert!(
+            (r - expected_r).abs() < 0.1,
+            "Padding R channel should be ~{:.3}, got {:.3}",
+            expected_r,
+            r
+        );
+        assert!(
+            (g - expected_g).abs() < 0.1,
+            "Padding G channel should be ~{:.3}, got {:.3}",
+            expected_g,
+            g
+        );
+        assert!(
+            (b - expected_b).abs() < 0.1,
+            "Padding B channel should be ~{:.3}, got {:.3}",
+            expected_b,
+            b
+        );
+
+        eprintln!("GPU letterbox padding test passed!");
     }
 }
