@@ -61,9 +61,9 @@ extern "C" __global__ void preprocess_kernel(
         float resized_x = (float)(out_x - offset_x);
         float resized_y = (float)(out_y - offset_y);
 
-        // Map to source image coordinates
-        float src_x = resized_x / scale;
-        float src_y = resized_y / scale;
+        // Map to source image coordinates (center-aligned, matches PyTorch default)
+        float src_x = (resized_x + 0.5f) / scale - 0.5f;
+        float src_y = (resized_y + 0.5f) / scale - 0.5f;
 
         // Bilinear interpolation
         int x0 = (int)floorf(src_x);
