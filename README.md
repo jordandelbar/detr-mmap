@@ -15,6 +15,7 @@ A sentry mode state machine reduces computation by switching to standby when no 
 ## Tech Stack
 
   - Capture: Camera frame acquisition using [v4l]
+  - Preprocessing: CPU (default) or CUDA (automatic with TensorRT backend)
   - Inference: [RF-DETR] model inference:
     - Rust + ONNX Runtime (CPU / CUDA)
     - TensorRT via C++ (integrated into Rust using CXX)
@@ -41,6 +42,8 @@ I used k3s even though it adds some memory footprint for the ease of use when it
 
 The pipeline is intentionally asynchronous. Frames are displayed immediately while detections correspond to the previous frame,
 introducing <1-frame temporal skew (multiple frame skew if using the CPU). This design maximizes throughput and minimizes perceived latency.
+
+GPU preprocessing is enabled automatically with the TensorRT backend. On edge devices where the CPU is typically the bottleneck, offloading preprocessing to the GPU frees CPU resources for other tasks.
 
 ## Installation
 
