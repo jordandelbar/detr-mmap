@@ -76,11 +76,11 @@ def main() -> None:
     args = parser.parse_args()
 
     # Paths
-    model_dir = WORKSPACE_ROOT / "models" / f"rfdetr_{args.model_variant}"
+    model_dir = SCRIPT_DIR / "models" / f"rfdetr_{args.model_variant}"
     onnx_path = model_dir / "inference_model.onnx"
     cache_path = model_dir / "calibration.cache"
-    calibration_data_dir = WORKSPACE_ROOT / "scripts" / "quantization" / "calibration_data"
-    calibration_tensor_dir = WORKSPACE_ROOT / "scripts" / "quantization" / "calibration_tensors"
+    calibration_data_dir = SCRIPT_DIR / "calibration_data"
+    calibration_tensor_dir = SCRIPT_DIR / "calibration_tensors"
 
     print(f"Model directory: {model_dir}")
     print(f"HuggingFace repo: {args.hf_repo}")

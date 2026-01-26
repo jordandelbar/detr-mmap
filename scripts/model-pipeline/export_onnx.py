@@ -12,6 +12,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent.resolve()
 WORKSPACE_ROOT = SCRIPT_DIR.parent.parent
 RF_DETR_REPO = "https://github.com/roboflow/rf-detr.git"
+RF_DETR_VERSION = "v1.4.0"  # Pin to specific release
 RF_DETR_DIR = WORKSPACE_ROOT / "rf-detr"
 
 # Fixed resolution for INT8 pipeline
@@ -21,9 +22,15 @@ RESOLUTION = 512
 def clone_rf_detr() -> None:
     """Clone rf-detr repository and install it if needed."""
     if not RF_DETR_DIR.exists():
-        print(f"Cloning rf-detr to {RF_DETR_DIR}...")
+        print(f"Cloning rf-detr {RF_DETR_VERSION} to {RF_DETR_DIR}...")
         subprocess.run(
-            ["git", "clone", "--depth", "1", RF_DETR_REPO, str(RF_DETR_DIR)],
+            [
+                "git", "clone",
+                "--branch", RF_DETR_VERSION,
+                "--depth", "1",
+                RF_DETR_REPO,
+                str(RF_DETR_DIR),
+            ],
             check=True,
         )
         print("Clone completed.")
@@ -32,9 +39,14 @@ def clone_rf_detr() -> None:
 
     # Always ensure rf-detr is installed (uv pip install -e is idempotent)
     # Use --python to target the current interpreter's environment
+    # Pin transformers<5 due to breaking API changes in v5.0
     print("Installing rf-detr dependencies...")
     subprocess.run(
-        ["uv", "pip", "install", "--python", sys.executable, "-e", f"{RF_DETR_DIR}[onnxexport]"],
+        [
+            "uv", "pip", "install", "--python", sys.executable,
+            "-e", f"{RF_DETR_DIR}[onnxexport]",
+            "transformers<5",
+        ],
         check=True,
     )
     print("rf-detr installed.")
@@ -125,7 +137,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=WORKSPACE_ROOT / "models" / "rfdetr_small",
+        default=SCRIPT_DIR / "models" / "rfdetr_small",
         help="Output directory for the ONNX model",
     )
     parser.add_argument(
@@ -143,6 +155,18 @@ def main() -> None:
 
     if not args.skip_clone:
         clone_rf_detr()
+        # Re-exec with --skip-clone so the newly installed rfdetr is importable
+        subprocess.run(
+            [
+                sys.executable,
+                __file__,
+                "--output-dir", str(args.output_dir),
+                "--model-variant", args.model_variant,
+                "--skip-clone",
+            ],
+            check=True,
+        )
+        return
 
     export_onnx(args.output_dir, args.model_variant)
 

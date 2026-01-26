@@ -13,8 +13,8 @@ import numpy as np
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 WORKSPACE_ROOT = SCRIPT_DIR.parent.parent
-DEFAULT_CALIBRATION_DIR = WORKSPACE_ROOT / "scripts" / "quantization" / "calibration_tensors"
-DEFAULT_IMAGE_DIR = WORKSPACE_ROOT / "scripts" / "quantization" / "calibration_data"
+DEFAULT_CALIBRATION_DIR = SCRIPT_DIR / "calibration_tensors"
+DEFAULT_IMAGE_DIR = SCRIPT_DIR / "calibration_data"
 
 # Input shape: NCHW format, matching preprocessing
 INPUT_SHAPE = (1, 3, 512, 512)
