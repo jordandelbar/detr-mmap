@@ -38,7 +38,7 @@ services:
       - ../models:/models:ro
     environment:
       - RUST_LOG=info,ort=warn
-      - MODEL_PATH=/models/rfdetr_S/rfdetr.onnx
+      - MODEL_PATH=/models/inference_model.onnx
       - CONFIDENCE_THRESHOLD=0.7
 
   gateway:

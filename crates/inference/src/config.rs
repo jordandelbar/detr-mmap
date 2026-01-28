@@ -38,10 +38,7 @@ impl InferenceConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             environment: Environment::from_env(),
-            model_path: get_env(
-                "MODEL_PATH",
-                "/models/rfdetr_S/rfdetr_int8.engine".to_string(),
-            ),
+            model_path: get_env("MODEL_PATH", "/models/rfdetr_int8.engine".to_string()),
             input_size: (
                 get_env("INPUT_WIDTH", DEFAULT_INPUT_SIZE.0),
                 get_env("INPUT_HEIGHT", DEFAULT_INPUT_SIZE.1),

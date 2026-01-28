@@ -50,6 +50,7 @@ GPU preprocessing is enabled automatically with the TensorRT backend. On edge de
  - **Rust** 1.92+ (`rustup default 1.92.0`)
  - **Docker** with buildx
  - **k3d** (lightweight Kubernetes)
+ - **uv** (Python package manager) - [install guide](https://docs.astral.sh/uv/getting-started/installation/)
  - **ONNX Runtime** (installed automatically in containers)
  - **CUDA** (to run GPU inference)
 
@@ -60,6 +61,9 @@ GPU preprocessing is enabled automatically with the TensorRT backend. On edge de
 Run locally with Docker Compose using CPU inference:
 
 ```bash
+# Download ONNX model from HuggingFace
+just download-model
+
 # Start all services
 just local-up
 
@@ -74,10 +78,15 @@ This runs inference on CPU.
 
 #### k3d Deployment
 
+For GPU inference with TensorRT, you need to build the INT8 engine for your specific GPU:
+
 ```bash
 # Clone repository
 git clone https://github.com/jordandelbar/detr-mmap.git
 cd detr-mmap
+
+# Build TensorRT INT8 engine (requires NVIDIA GPU, CUDA, TensorRT)
+just build-engine
 
 # Create k3d cluster + deploy services
 just up
@@ -167,6 +176,20 @@ ffmpeg -re -stream_loop -1 -i video.mp4 -c:v mjpeg -f v4l2 /dev/video0
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Citation
+
+This project uses RF-DETR by Roboflow. If you use this software, please cite:
+
+```bibtex
+@software{robinson2025rf-detr,
+  author = {Robinson, Isaac and Robicheaux, Peter and Popov, Matvei},
+  title = {RF-DETR},
+  year = {2025},
+  publisher = {GitHub},
+  url = {https://github.com/roboflow/rf-detr}
+}
+```
 
 ## License
 

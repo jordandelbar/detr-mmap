@@ -1,3 +1,35 @@
+#########
+# Model #
+#########
+
+# Default HuggingFace repository for the INT8 model
+HF_REPO := "jordandelbar/rf-detr-s-int8"
+
+# [Admin] Run the full model pipeline: export ONNX, calibrate, upload to HF
+# Usage: just model-pipeline --hf-repo org/repo-name
+# Options:
+#   --model-variant small|base   Model variant (default: small)
+#   --calibration-images N       Number of calibration images (default: 100)
+#   --dry-run                    Print commands without executing
+#   --skip-export                Skip ONNX export
+#   --skip-calibration-download  Skip downloading calibration images
+#   --skip-upload                Skip uploading to HuggingFace
+model-pipeline *ARGS:
+    cd scripts/model-pipeline && uv run main.py {{ARGS}}
+
+# [User] Download ONNX model from HuggingFace (for CPU/docker-compose usage)
+# Usage: just download-model
+# Downloads ONNX to models/ directory
+download-model:
+    cd scripts/model-setup && uv run download.py --hf-repo {{HF_REPO}} --output ../../models
+
+# [User] Build TensorRT INT8 engine from HuggingFace model (requires NVIDIA GPU)
+# Usage: just build-engine [--output path/to/engine.engine]
+# Requires: NVIDIA drivers, CUDA, TensorRT
+# By default, downloads from HF_REPO and outputs to models/rfdetr_int8.engine
+build-engine *ARGS:
+    cd scripts/model-setup && uv run --extra tensorrt build.py --hf-repo {{HF_REPO}} --output ../../models/rfdetr_int8.engine {{ARGS}}
+
 #######
 # Dev #
 #######

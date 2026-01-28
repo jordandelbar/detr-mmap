@@ -149,7 +149,7 @@ fn benchmark_inference(c: &mut Criterion) {
 
     #[cfg(feature = "ort-backend")]
     {
-        let onnx_model_path = "../../models/rfdetr_S/rfdetr.onnx";
+        let onnx_model_path = "../../models/inference_model.onnx";
 
         if Path::new(onnx_model_path).exists() {
             // Benchmark CPU execution provider
@@ -185,7 +185,7 @@ fn benchmark_inference(c: &mut Criterion) {
 
     #[cfg(feature = "trt-backend")]
     {
-        let trt_model_path = "../../models/rfdetr_S/rfdetr_int8.engine";
+        let trt_model_path = "../../models/rfdetr_int8.engine";
 
         if Path::new(trt_model_path).exists() {
             if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
@@ -220,7 +220,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
 
     #[cfg(feature = "ort-backend")]
     {
-        let onnx_model_path = "../../models/rfdetr_S/rfdetr.onnx";
+        let onnx_model_path = "../../models/inference_model.onnx";
 
         if Path::new(onnx_model_path).exists() {
             // CPU pipeline
@@ -318,7 +318,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
 
     #[cfg(feature = "trt-backend")]
     {
-        let trt_model_path = "../../models/rfdetr_S/rfdetr_int8.engine";
+        let trt_model_path = "../../models/rfdetr_int8.engine";
 
         if Path::new(trt_model_path).exists() {
             if let Ok(mut trt_backend) = TrtBackend::load_model(trt_model_path) {
