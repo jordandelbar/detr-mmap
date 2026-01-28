@@ -6,15 +6,12 @@ to users for building their own TensorRT engines without needing to repeat
 the calibration process.
 """
 import argparse
-import subprocess
 from pathlib import Path
 
 import numpy as np
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-WORKSPACE_ROOT = SCRIPT_DIR.parent.parent
 DEFAULT_CALIBRATION_DIR = SCRIPT_DIR / "calibration_tensors"
-DEFAULT_IMAGE_DIR = SCRIPT_DIR / "calibration_data"
 
 # Input shape: NCHW format, matching preprocessing
 INPUT_SHAPE = (1, 3, 512, 512)
@@ -24,10 +21,6 @@ class CacheOnlyCalibrator:
     """Calibrator that only builds the cache, doesn't build an engine."""
 
     def __init__(self, calibration_dir: Path, cache_file: Path, input_shape: tuple):
-        import tensorrt as trt
-
-        # Store as instance variable to avoid issues
-        self.trt = trt
         self.cache_file = cache_file
         self.input_shape = input_shape
         self.batch_size = input_shape[0]
@@ -86,23 +79,6 @@ class CacheOnlyCalibrator:
         print(f"Writing calibration cache to {self.cache_file}")
         with open(self.cache_file, "wb") as f:
             f.write(cache)
-
-
-def run_cargo_calibration(
-    input_dir: Path, output_dir: Path, count: int
-) -> None:
-    """Run the Rust calibration crate to generate preprocessed tensors."""
-    print(f"Running cargo calibration with {count} images...")
-
-    cmd = [
-        "cargo", "run", "-p", "calibration", "--release", "--",
-        "--input-dir", str(input_dir),
-        "--output-dir", str(output_dir),
-        "--count", str(count),
-    ]
-
-    subprocess.run(cmd, cwd=WORKSPACE_ROOT, check=True)
-    print("Calibration tensors generated successfully.")
 
 
 def build_calibration_cache(
@@ -202,27 +178,7 @@ def main() -> None:
         default=DEFAULT_CALIBRATION_DIR,
         help=f"Directory with calibration tensors (default: {DEFAULT_CALIBRATION_DIR})",
     )
-    parser.add_argument(
-        "--run-cargo-calibration",
-        action="store_true",
-        help="Run cargo calibration first to generate tensors",
-    )
-    parser.add_argument(
-        "--image-dir",
-        type=Path,
-        default=DEFAULT_IMAGE_DIR,
-        help=f"Directory with calibration images (default: {DEFAULT_IMAGE_DIR})",
-    )
-    parser.add_argument(
-        "--image-count",
-        type=int,
-        default=100,
-        help="Number of images to use for calibration (default: 100)",
-    )
     args = parser.parse_args()
-
-    if args.run_cargo_calibration:
-        run_cargo_calibration(args.image_dir, args.calibration_dir, args.image_count)
 
     build_calibration_cache(args.onnx_path, args.cache_path, args.calibration_dir)
 

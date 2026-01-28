@@ -1,55 +1,15 @@
 #!/usr/bin/env python3
-"""Export RF-DETR model to ONNX format.
-
-This script clones the rf-detr repository if needed and exports the model
-to ONNX format at 512x512 resolution for INT8 quantization.
-"""
+"""Export RF-DETR model to ONNX format."""
 import argparse
-import subprocess
-import sys
 from pathlib import Path
 
+import torch
+from rfdetr import RFDETRBase, RFDETRSmall
+
 SCRIPT_DIR = Path(__file__).parent.resolve()
-WORKSPACE_ROOT = SCRIPT_DIR.parent.parent
-RF_DETR_REPO = "https://github.com/roboflow/rf-detr.git"
-RF_DETR_VERSION = "v1.4.0"  # Pin to specific release
-RF_DETR_DIR = WORKSPACE_ROOT / "rf-detr"
 
 # Fixed resolution for INT8 pipeline
 RESOLUTION = 512
-
-
-def clone_rf_detr() -> None:
-    """Clone rf-detr repository and install it if needed."""
-    if not RF_DETR_DIR.exists():
-        print(f"Cloning rf-detr {RF_DETR_VERSION} to {RF_DETR_DIR}...")
-        subprocess.run(
-            [
-                "git", "clone",
-                "--branch", RF_DETR_VERSION,
-                "--depth", "1",
-                RF_DETR_REPO,
-                str(RF_DETR_DIR),
-            ],
-            check=True,
-        )
-        print("Clone completed.")
-    else:
-        print(f"rf-detr already exists at {RF_DETR_DIR}")
-
-    # Always ensure rf-detr is installed (uv pip install -e is idempotent)
-    # Use --python to target the current interpreter's environment
-    # Pin transformers<5 due to breaking API changes in v5.0
-    print("Installing rf-detr dependencies...")
-    subprocess.run(
-        [
-            "uv", "pip", "install", "--python", sys.executable,
-            "-e", f"{RF_DETR_DIR}[onnxexport]",
-            "transformers<5",
-        ],
-        check=True,
-    )
-    print("rf-detr installed.")
 
 
 def export_onnx(output_dir: Path, model_variant: str) -> Path:
@@ -62,9 +22,6 @@ def export_onnx(output_dir: Path, model_variant: str) -> Path:
     Returns:
         Path to the exported ONNX file.
     """
-    import torch
-    from rfdetr import RFDETRSmall, RFDETRBase
-
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load model based on variant
@@ -146,27 +103,7 @@ def main() -> None:
         default="small",
         help="Model variant to export (default: small)",
     )
-    parser.add_argument(
-        "--skip-clone",
-        action="store_true",
-        help="Skip cloning rf-detr repository",
-    )
     args = parser.parse_args()
-
-    if not args.skip_clone:
-        clone_rf_detr()
-        # Re-exec with --skip-clone so the newly installed rfdetr is importable
-        subprocess.run(
-            [
-                sys.executable,
-                __file__,
-                "--output-dir", str(args.output_dir),
-                "--model-variant", args.model_variant,
-                "--skip-clone",
-            ],
-            check=True,
-        )
-        return
 
     export_onnx(args.output_dir, args.model_variant)
 

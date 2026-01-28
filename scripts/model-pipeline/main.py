@@ -2,33 +2,50 @@
 """Prepare and publish RF-DETR INT8 model to HuggingFace.
 
 This is the main orchestration script for maintainers. It:
-1. Clones rf-detr if not exists
-2. Exports the ONNX model (512x512)
-3. Downloads calibration images
-4. Generates calibration tensors (via Rust crate)
-5. Builds calibration cache
-6. Pushes ONNX + cache to HuggingFace
+1. Exports the ONNX model (512x512)
+2. Downloads calibration images
+3. Generates calibration tensors (via Rust crate)
+4. Builds calibration cache
+5. Pushes ONNX + cache to HuggingFace
 """
 import argparse
+import asyncio
 import subprocess
-import sys
 from pathlib import Path
+
+from build_calibration_cache import build_calibration_cache
+from download_calibration_data import download_calibration_images
+from export_onnx import export_onnx
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 WORKSPACE_ROOT = SCRIPT_DIR.parent.parent
 
 
-def run_step(name: str, cmd: list, dry_run: bool = False) -> None:
-    """Run a pipeline step with logging."""
+def print_step(name: str) -> None:
+    """Print a step header."""
     print(f"\n{'='*60}")
     print(f"STEP: {name}")
     print(f"{'='*60}")
 
+
+def run_cargo_calibration(
+    input_dir: Path, output_dir: Path, count: int, dry_run: bool = False
+) -> None:
+    """Run the Rust calibration crate to generate preprocessed tensors."""
+    print_step("Generate calibration tensors")
+
+    cmd = [
+        "cargo", "run", "-p", "calibration", "--release", "--",
+        "--input-dir", str(input_dir),
+        "--output-dir", str(output_dir),
+        "--count", str(count),
+    ]
+
     if dry_run:
-        print(f"[DRY RUN] Would run: {' '.join(str(c) for c in cmd)}")
+        print(f"[DRY RUN] Would run: {' '.join(cmd)}")
         return
 
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, cwd=WORKSPACE_ROOT, check=True)
 
 
 def main() -> None:
@@ -88,64 +105,42 @@ def main() -> None:
 
     # Step 1: Export ONNX
     if not args.skip_export:
-        run_step(
-            "Export ONNX model",
-            [
-                sys.executable,
-                str(SCRIPT_DIR / "export_onnx.py"),
-                "--output-dir", str(model_dir),
-                "--model-variant", args.model_variant,
-            ],
-            args.dry_run,
-        )
+        print_step("Export ONNX model")
+        if args.dry_run:
+            print(f"[DRY RUN] Would export ONNX to {model_dir}")
+        else:
+            export_onnx(model_dir, args.model_variant)
     else:
         print(f"\nSkipping ONNX export (using existing: {onnx_path})")
 
     # Step 2: Download calibration images
     if not args.skip_calibration_download:
-        run_step(
-            "Download calibration images",
-            [
-                sys.executable,
-                str(SCRIPT_DIR / "download_calibration_data.py"),
-                "--output-dir", str(calibration_data_dir),
-                "--count", str(args.calibration_images),
-            ],
-            args.dry_run,
-        )
+        print_step("Download calibration images")
+        if args.dry_run:
+            print(f"[DRY RUN] Would download {args.calibration_images} images to {calibration_data_dir}")
+        else:
+            asyncio.run(download_calibration_images(calibration_data_dir, args.calibration_images))
     else:
         print(f"\nSkipping calibration download (using existing: {calibration_data_dir})")
 
-    # Step 3: Generate calibration tensors
-    run_step(
-        "Generate calibration tensors",
-        [
-            "cargo", "run", "-p", "calibration", "--release", "--",
-            "--input-dir", str(calibration_data_dir),
-            "--output-dir", str(calibration_tensor_dir),
-            "--count", str(args.calibration_images),
-        ],
+    # Step 3: Generate calibration tensors (Rust)
+    run_cargo_calibration(
+        calibration_data_dir,
+        calibration_tensor_dir,
+        args.calibration_images,
         args.dry_run,
     )
 
     # Step 4: Build calibration cache
-    run_step(
-        "Build calibration cache",
-        [
-            sys.executable,
-            str(SCRIPT_DIR / "build_calibration_cache.py"),
-            "--onnx-path", str(onnx_path),
-            "--cache-path", str(cache_path),
-            "--calibration-dir", str(calibration_tensor_dir),
-        ],
-        args.dry_run,
-    )
+    print_step("Build calibration cache")
+    if args.dry_run:
+        print(f"[DRY RUN] Would build cache at {cache_path}")
+    else:
+        build_calibration_cache(onnx_path, cache_path, calibration_tensor_dir)
 
     # Step 5: Upload to HuggingFace
     if not args.skip_upload:
-        print(f"\n{'='*60}")
-        print("STEP: Upload to HuggingFace")
-        print(f"{'='*60}")
+        print_step("Upload to HuggingFace")
 
         if args.dry_run:
             print(f"[DRY RUN] Would upload to {args.hf_repo}:")
@@ -175,53 +170,32 @@ def main() -> None:
             )
 
             # Create README for the HF repo
-            readme_content = f"""# RF-DETR {args.model_variant.capitalize()} INT8
+            readme_content = f"""---
+license: apache-2.0
+tags:
+  - object-detection
+  - tensorrt
+  - int8
+  - onnx
+pipeline_tag: object-detection
+---
 
-This repository contains the ONNX model and INT8 calibration cache for RF-DETR {args.model_variant.capitalize()}.
+# RF-DETR {args.model_variant.capitalize()} INT8
+
+Pre-exported ONNX model and TensorRT INT8 calibration cache for **RF-DETR {args.model_variant.capitalize()}**.
 
 ## Files
-
-- `inference_model.onnx` - F32 ONNX model (512x512 input resolution)
-- `calibration.cache` - TensorRT INT8 calibration cache
+- `inference_model.onnx` — FP32 ONNX model (512×512)
+- `calibration.cache` — TensorRT INT8 calibration cache
 
 ## Usage
-
-### Quick Start
-
-Download and build a TensorRT INT8 engine for your GPU:
-
-```bash
-# Install dependencies
-uv pip install huggingface_hub tensorrt pycuda numpy
-
-# Download the user build script
-wget https://raw.githubusercontent.com/your-org/detr-mmap/main/scripts/model-pipeline/user_build_engine.py
-
-# Build engine for your GPU
-python user_build_engine.py --hf-repo {args.hf_repo} --output ./rfdetr_int8.engine
-```
-
-### Manual Download
 
 ```python
 from huggingface_hub import hf_hub_download
 
-onnx_path = hf_hub_download("{args.hf_repo}", "inference_model.onnx")
-cache_path = hf_hub_download("{args.hf_repo}", "calibration.cache")
+onnx = hf_hub_download("org/rfdetr-small-int8", "inference_model.onnx")
+cache = hf_hub_download("org/rfdetr-small-int8", "calibration.cache")
 ```
-
-## Model Details
-
-- **Architecture**: RF-DETR {args.model_variant.capitalize()}
-- **Input Resolution**: 512x512
-- **Input Format**: NCHW, normalized with ImageNet mean/std
-- **Output Format**:
-  - `dets`: [1, 300, 4] bounding boxes in cxcywh format (normalized 0-1)
-  - `labels`: [1, 300, 91] class logits (apply sigmoid for scores)
-
-## License
-
-This model is distributed under the same license as RF-DETR.
 """
             print("Uploading README.md...")
             api.upload_file(
