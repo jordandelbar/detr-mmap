@@ -114,7 +114,9 @@ Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 R
 
 ### Benchmarks
 
-#### Inference Only
+All benchmarks measured with 1920x1080 RGB input frames.
+
+#### Inference
 
 | Backend    | Latency   | Throughput |
 |------------|-----------|------------|
@@ -122,19 +124,21 @@ Benchmarks run on NVIDIA RTX 2060 Super and AMD Ryzen 7 9800x3D with 1920x1080 R
 | ORT (CUDA) | 15.1 ms   | ~66 FPS    |
 | TensorRT   |  3.7 ms   | ~270 FPS   |
 
-#### Full Pipeline (preprocess → inference → postprocess)
+#### Preprocessing
 
-| Backend    | Latency   | Throughput |
-|------------|-----------|------------|
-| ORT (CPU)  | 68.7 ms   | ~15 FPS    |
-| ORT (CUDA) | 15.8 ms   | ~63 FPS    |
-| TensorRT   |  4.2 ms   | ~240 FPS   |
+| Backend                   | Latency  | Speedup |
+|---------------------------|----------|---------|
+| CPU (AMD Ryzen 9800x3D)   | 444 µs   | 1x      |
+| GPU (NVIDIA RTX 2060S)    | 21 µs    | 21x     |
 
-#### Component Breakdown (1920x1080)
+> [!NOTE]
+> GPU preprocessing benchmarks measure kernel execution only, excluding host-to-device transfer.
+> In production with TensorRT, frames stay on GPU (decoder → preprocess → inference), achieving these speeds.
+
+#### Other Components
 
 | Component      | Latency  |
 |----------------|----------|
-| Preprocessing  | 412 µs   |
 | Postprocessing | 23 µs    |
 | Frame write    | 309 µs   |
 | Frame read     | 46 ns    |
@@ -160,6 +164,21 @@ just bench
 Here is an example of a typical trace span:
 
 ![Alt text](./docs/images/traces.png)
+
+| Stage                    | Component | Latency     |
+|--------------------------|-----------|-------------|
+| MJPEG decoding           | Capture   | ~2.5 ms     |
+| Frame write (mmap)       | Capture   | ~300 µs     |
+| Host-to-device transfer  | Inference | ~600 µs     |
+| Preprocessing (kernel)   | Inference | ~150 µs     |
+| Model inference          | Inference | ~4 ms       |
+| Postprocessing           | Inference | ~30 µs      |
+| Detection write (mmap)   | Inference | ~50 µs      |
+| **Total**                |           | **~7.5 ms** |
+| JPEG encoding (async)    | Gateway   | ~2.5 ms     |
+
+> [!NOTE]
+> Gateway runs asynchronously, encoding the previous frame while inference processes the current frame.
 
 ## Testing without a camera
 

@@ -5,7 +5,7 @@ use inference::{
     processing::post::PostProcessor,
 };
 use ndarray::{Array, IxDyn};
-use preprocess::PreProcessor;
+use preprocess::CpuPreProcessor;
 use std::path::Path;
 
 #[cfg(feature = "ort-backend")]
@@ -67,37 +67,6 @@ fn create_mock_rfdetr_output(
     let logits = Array::from_shape_vec(IxDyn(&[1, num_queries, num_classes]), logits_data).unwrap();
 
     (dets, logits)
-}
-
-fn benchmark_preprocessing(c: &mut Criterion) {
-    let mut group = c.benchmark_group("preprocessing");
-
-    // Test different resolutions
-    let resolutions = [(640, 480), (1280, 720), (1920, 1080)];
-
-    for (width, height) in resolutions.iter() {
-        let frame_data = create_test_frame(*width, *height);
-        let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
-        let mut preprocessor = PreProcessor::default();
-
-        group.bench_with_input(
-            BenchmarkId::new("letterbox", format!("{}x{}", width, height)),
-            &frame,
-            |b, frame| {
-                b.iter(|| {
-                    preprocessor
-                        .preprocess_frame(
-                            black_box(frame.pixels().unwrap()),
-                            black_box(frame.width()),
-                            black_box(frame.height()),
-                        )
-                        .unwrap()
-                });
-            },
-        );
-    }
-
-    group.finish();
 }
 
 fn benchmark_postprocessing(c: &mut Criterion) {
@@ -215,7 +184,7 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
     let frame_data = create_test_frame(1920, 1080);
     let frame = flatbuffers::root::<schema::Frame>(&frame_data).unwrap();
 
-    let mut preprocessor = PreProcessor::new((512, 512));
+    let mut preprocessor = CpuPreProcessor::new((512, 512));
     let post_processor = PostProcessor::new(0.5);
 
     #[cfg(feature = "ort-backend")]
@@ -374,7 +343,6 @@ fn benchmark_full_pipeline(c: &mut Criterion) {
 #[cfg(any(feature = "ort-backend", feature = "trt-backend"))]
 criterion_group!(
     benches,
-    benchmark_preprocessing,
     benchmark_postprocessing,
     benchmark_inference,
     benchmark_full_pipeline

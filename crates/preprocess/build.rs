@@ -1,13 +1,13 @@
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 use std::env;
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 use std::path::PathBuf;
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 use std::process::Command;
 
 fn main() {
-    // Only compile CUDA kernel when gpu feature is enabled
-    #[cfg(feature = "gpu")]
+    // Only compile CUDA kernel when cuda feature is enabled
+    #[cfg(feature = "cuda")]
     compile_cuda();
 
     // Always rerun if the CUDA source changes
@@ -15,7 +15,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 fn compile_cuda() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let cuda_file = PathBuf::from("cuda/preprocess.cu");
@@ -46,7 +46,7 @@ fn compile_cuda() {
     println!("cargo:rerun-if-changed=cuda/preprocess.cu");
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 fn find_nvcc() -> Option<PathBuf> {
     // Try CUDA_PATH environment variable first
     if let Ok(cuda_path) = env::var("CUDA_PATH") {

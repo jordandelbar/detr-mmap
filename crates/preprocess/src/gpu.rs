@@ -11,6 +11,7 @@
 use crate::config::DEFAULT_INPUT_SIZE;
 use crate::{Preprocess, PreprocessOutput, PreprocessResult};
 use anyhow::{Context, Result};
+use common::span;
 use cudarc::driver::{CudaDevice, CudaSlice, DevicePtr, LaunchAsync, LaunchConfig};
 use cudarc::nvrtc::Ptx;
 use std::sync::Arc;
@@ -104,21 +105,12 @@ impl GpuPreProcessor {
             .context("Failed to copy output from device")
     }
 
-    /// Preprocess an image on the GPU
+    /// Upload pixels to device memory (for benchmarking kernel-only performance)
     ///
-    /// # Arguments
-    /// * `pixels` - RGB pixel data in HWC format
-    /// * `width` - Image width
-    /// * `height` - Image height
-    ///
-    /// # Returns
-    /// Device pointer to preprocessed data and transformation parameters
-    pub fn preprocess_to_device(
-        &mut self,
-        pixels: &[u8],
-        width: u32,
-        height: u32,
-    ) -> Result<(u64, f32, f32, f32)> {
+    /// Call this once to upload data, then use `run_kernel` to benchmark just the kernel.
+    pub fn upload_to_device(&mut self, pixels: &[u8], width: u32, height: u32) -> Result<()> {
+        let _s = span!("host_to_device_transfer");
+
         let num_pixels = (width * height) as usize;
         let input_bytes = num_pixels * 3;
 
@@ -140,14 +132,6 @@ impl GpuPreProcessor {
             );
         }
 
-        // Calculate letterbox parameters
-        let scale =
-            (self.input_size.0 as f32 / width as f32).min(self.input_size.1 as f32 / height as f32);
-        let new_width = (width as f32 * scale) as u32;
-        let new_height = (height as f32 * scale) as u32;
-        let offset_x = (self.input_size.0 - new_width) / 2;
-        let offset_y = (self.input_size.1 - new_height) / 2;
-
         // Reallocate input buffer if frame size changed
         if num_pixels != self.current_input_pixels {
             self.d_input = self
@@ -161,6 +145,23 @@ impl GpuPreProcessor {
         self.device
             .htod_copy_into(pixels.to_vec(), &mut self.d_input)
             .context("Failed to copy input to device")?;
+
+        Ok(())
+    }
+
+    /// Run the preprocessing kernel only (assumes data already uploaded via `upload_to_device`)
+    ///
+    /// This is useful for benchmarking kernel performance without host-to-device copy overhead.
+    pub fn run_kernel(&mut self, width: u32, height: u32) -> Result<(u64, f32, f32, f32)> {
+        let _s = span!("preprocess_kernel");
+
+        // Calculate letterbox parameters
+        let scale =
+            (self.input_size.0 as f32 / width as f32).min(self.input_size.1 as f32 / height as f32);
+        let new_width = (width as f32 * scale) as u32;
+        let new_height = (height as f32 * scale) as u32;
+        let offset_x = (self.input_size.0 - new_width) / 2;
+        let offset_y = (self.input_size.1 - new_height) / 2;
 
         // Launch the preprocessing kernel
         let func = self
@@ -209,6 +210,25 @@ impl GpuPreProcessor {
             offset_x as f32,
             offset_y as f32,
         ))
+    }
+
+    /// Preprocess an image on the GPU (full pipeline: upload + kernel)
+    ///
+    /// # Arguments
+    /// * `pixels` - RGB pixel data in HWC format
+    /// * `width` - Image width
+    /// * `height` - Image height
+    ///
+    /// # Returns
+    /// Device pointer to preprocessed data and transformation parameters
+    pub fn preprocess_to_device(
+        &mut self,
+        pixels: &[u8],
+        width: u32,
+        height: u32,
+    ) -> Result<(u64, f32, f32, f32)> {
+        self.upload_to_device(pixels, width, height)?;
+        self.run_kernel(width, height)
     }
 }
 

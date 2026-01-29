@@ -8,7 +8,7 @@ path = "src/lib.rs"
 
 [features]
 default = []
-gpu = ["dep:cudarc"]
+cuda = ["dep:cudarc"]
 
 [dependencies]
 schema = { path = "../schema" }
@@ -21,7 +21,7 @@ fast_image_resize = { version = "5.0", features = ["rayon"] }
 tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 opentelemetry = { workspace = true }
-cudarc = { version = "0.12", optional = true }
+cudarc = { version = "0.12", optional = true, features = ["cuda-version-from-build-system"] }
 
 [build-dependencies]
 cc = "1.2"
@@ -29,3 +29,7 @@ cc = "1.2"
 [dev-dependencies]
 criterion = { workspace = true }
 flatbuffers = "24.3"
+
+[[bench]]
+name = "preprocess"
+harness = false

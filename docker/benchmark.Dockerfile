@@ -19,8 +19,8 @@ ENV TENSORRT_ROOT=/usr
 
 ENV LD_LIBRARY_PATH=/workspace/target/release:/workspace/target/release/deps:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 
-RUN cargo build --release --benches --workspace --features "ort-backend trt-backend"
+RUN cargo build --release --benches --workspace --features "ort-backend trt-backend gpu-preprocess"
 
 ENV BENCH_FILTER=""
 
-CMD sh -c 'if [ -z "$BENCH_FILTER" ]; then cargo bench --workspace --features "ort-backend trt-backend"; else cargo bench --workspace --features "ort-backend trt-backend" -- "$BENCH_FILTER"; fi'
+CMD sh -c 'if [ -z "$BENCH_FILTER" ]; then cargo bench --workspace --features "ort-backend trt-backend gpu-preprocess"; else cargo bench --workspace --features "ort-backend trt-backend gpu-preprocess" -- "$BENCH_FILTER"; fi'

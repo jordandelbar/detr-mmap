@@ -1,13 +1,13 @@
 pub mod config;
 pub mod cpu;
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 pub mod gpu;
 
 use ndarray::{Array, IxDyn};
 
 pub use config::DEFAULT_INPUT_SIZE;
 pub use cpu::CpuPreProcessor;
-#[cfg(feature = "gpu")]
+#[cfg(feature = "cuda")]
 pub use gpu::GpuPreProcessor;
 
 /// Output from preprocessing - either CPU array or GPU device pointer

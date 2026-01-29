@@ -26,7 +26,7 @@ default = ["ort-backend"]
 ort-backend = ["dep:ort"]
 trt-backend = []
 # GPU preprocessing using cudarc
-gpu-preprocess = ["preprocess/gpu"]
+gpu-preprocess = ["preprocess/cuda"]
 # All features safe for CI (excludes trt-backend which requires TensorRT)
 ci = ["ort-backend"]
 
