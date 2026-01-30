@@ -12,6 +12,8 @@ A sentry mode state machine reduces computation by switching to standby when no 
 
 ![output](https://github.com/user-attachments/assets/dd159ccf-a968-493c-94f5-4355ba1a585b)
 
+<sub>Video by [Martina Tomšič](https://www.pexels.com/video/dog-waiting-in-front-of-a-door-6477490/) on Pexels</sub>
+
 ## Tech Stack
 
   - Capture: Camera frame acquisition using [v4l]
@@ -56,35 +58,50 @@ GPU preprocessing is enabled automatically with the TensorRT backend. On edge de
 
 ### Quick Start
 
-#### Local Development (no Kubernetes)
+```bash
+# Clone repository
+git clone https://github.com/jordandelbar/detr-mmap.git
+cd detr-mmap
+```
 
-Run locally with Docker Compose using CPU inference:
+#### Quick Demo (pre-built images)
+
+Run with pre-built images from GHCR (model baked in, no build required):
 
 ```bash
-# Download ONNX model from HuggingFace
-just download-model
-
 # Start all services
-just local-up
+just demo-up
 
 # Open webpage
 just open-webpage
 
 # Stop services
-just local-down
+just demo-down
 ```
 
-This runs inference on CPU.
+#### Local Development
 
-#### k3d Deployment
+Build and run locally from source with CPU inference:
+
+```bash
+# Download ONNX model from HuggingFace
+just download-model
+
+# Build and start all services
+just dev-up
+
+# Open webpage
+just open-webpage
+
+# Stop services
+just dev-down
+```
+
+#### k3d Deployment (GPU)
 
 For GPU inference with TensorRT, you need to build the INT8 engine for your specific GPU:
 
 ```bash
-# Clone repository
-git clone https://github.com/jordandelbar/detr-mmap.git
-cd detr-mmap
-
 # Build TensorRT INT8 engine (requires NVIDIA GPU, CUDA, TensorRT)
 just build-engine
 

@@ -52,12 +52,19 @@ up:
 down:
     @k3d cluster delete detr-mmap
 
-# Local development (no k8s, CPU-only)
-local-up:
+# Local development (builds from source, no k8s, CPU-only)
+dev-up:
     @docker compose -f docker/compose.local.yml up --build
 
-local-down:
+dev-down:
     @docker compose -f docker/compose.local.yml down
+
+# Demo (uses pre-built images from GHCR)
+demo-up:
+    @docker compose up
+
+demo-down:
+    @docker compose down
 
 open-webpage:
     @if command -v xdg-open > /dev/null; then xdg-open index.html; \

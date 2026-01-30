@@ -1,0 +1,57 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    command: mosquitto -c /mosquitto-no-auth.conf
+    volumes:
+      - ./docker/mosquitto-local.conf:/mosquitto-no-auth.conf:ro
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+
+  capture:
+    image: ghcr.io/jordandelbar/detr-mmap/capture:latest
+    ipc: host
+    privileged: true
+    user: "0:0"
+    volumes:
+      - /dev:/dev
+    environment:
+      - RUST_LOG=info
+      - DEVICE_ID=${DEVICE_ID:-0}
+      - SENTRY_MODE_FPS=3.0
+    depends_on:
+      - inference
+
+  inference:
+    image: ghcr.io/jordandelbar/detr-mmap/inference-cpu:latest
+    ipc: host
+    user: "0:0"
+    environment:
+      - RUST_LOG=info,ort=warn
+      - MODEL_PATH=/models/inference_model.onnx
+      - CONFIDENCE_THRESHOLD=0.7
+
+  gateway:
+    image: ghcr.io/jordandelbar/detr-mmap/gateway:latest
+    ipc: host
+    user: "0:0"
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info
+      - GATEWAY_WS_ADDR=0.0.0.0:8080
+    depends_on:
+      - inference
+
+  controller:
+    image: ghcr.io/jordandelbar/detr-mmap/controller:latest
+    ipc: host
+    user: "0:0"
+    environment:
+      - RUST_LOG=info
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - MQTT_DEVICE_ID=local-dev
+    depends_on:
+      - mosquitto
+      - inference
