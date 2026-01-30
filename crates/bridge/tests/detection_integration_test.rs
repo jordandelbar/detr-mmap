@@ -75,7 +75,7 @@ fn test_detection_writer_reader_synchronization() {
     let detection_result = result1.unwrap();
     let dets = detection_result.detections();
     assert!(
-        dets.is_none() || dets.unwrap().len() == 0,
+        dets.is_none() || dets.unwrap().is_empty(),
         "Should have no detections"
     );
 

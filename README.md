@@ -214,7 +214,8 @@ This project uses RF-DETR by Roboflow. If you use this software, please cite:
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
-Note: This project is intended for educational and research purposes.
+> [!NOTE]
+> This project is intended for educational and research purposes.
 
 <!--references-->
 [RF-DETR]: https://github.com/roboflow/rf-detr

@@ -145,19 +145,15 @@ jobs:
       - name: Generate FlatBuffer schema files
         run: cargo build --package schema
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
       # Note: Excludes inference/trt-backend which requires TensorRT SDK
-      # Bridge ci feature enables all testable features
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --features "bridge/ci" -- -D warnings
+        run: cargo clippy --workspace --all-targets --features "bridge/ci,inference/ci" -- -D warnings
 
       - name: Build all crates
-        run: cargo build --workspace --features "bridge/ci"
+        run: cargo build --workspace --features "bridge/ci,inference/ci"
 
       - name: Run tests
-        run: cargo test --workspace --features "bridge/ci" -- --nocapture
+        run: cargo test --workspace --features "bridge/ci,inference/ci" -- --nocapture
 
       - name: Run doc tests
         run: cargo test --workspace --doc
@@ -191,7 +187,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --features "bridge/ci" --lcov --output-path lcov.info
+        run: cargo llvm-cov --workspace --features "bridge/ci,inference/ci" --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

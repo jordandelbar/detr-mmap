@@ -2,7 +2,6 @@
 # Model #
 #########
 
-# Default HuggingFace repository for the INT8 model
 HF_REPO := "jordandelbar/rf-detr-s-int8"
 
 # [Admin] Run the full model pipeline: export ONNX, calibrate, upload to HF
