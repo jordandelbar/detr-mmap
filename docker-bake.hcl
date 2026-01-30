@@ -33,11 +33,10 @@ target "controller" {
 }
 
 target "inference-cpu" {
-  inherits = ["common"]
+  context = "."
+  dockerfile = "docker/inference-cpu.Dockerfile"
+  platforms = ["linux/amd64"]
   tags = ["detr-mmap-inference-cpu:${TAG}", "${REGISTRY}/detr-mmap-inference-cpu:${TAG}"]
-  args = {
-    BINARY_NAME = "inference"
-  }
 }
 
 target "inference-ort-cuda" {
