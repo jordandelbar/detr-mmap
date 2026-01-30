@@ -19,8 +19,8 @@ A sentry mode state machine reduces computation by switching to standby when no 
   - Capture: Camera frame acquisition using [v4l]
   - Preprocessing: CPU (default) or CUDA (automatic with TensorRT backend)
   - Inference: [RF-DETR] model inference:
-    - Rust + ONNX Runtime (CPU / CUDA)
-    - TensorRT via C++ (integrated into Rust using CXX)
+    - Rust + [ONNX] [ORT] Runtime (CPU / CUDA)
+    - TensorRT via C++ (integrated into Rust using [CXX])
   - Controller: State machine managing sentry mode (Standby/Alarmed) based on human detection, publishes events to [MQTT]
   - Gateway: WebSocket [Axum] server streaming frames + detections to clients
   - IPC: Memory-mapped files with [FlatBuffers] for zero-serialization, synchronized with POSIX mqueue semaphores.
