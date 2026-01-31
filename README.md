@@ -49,9 +49,13 @@ GPU preprocessing is enabled automatically with the TensorRT backend. On edge de
 
 ## Installation
 
- - **Rust** 1.92+ (`rustup default 1.92.0`)
+For quick demo:
  - **Docker** with buildx
- - **k3d** (lightweight Kubernetes)
+
+For full setup:
+ - **Docker** with buildx
+ - **Rust** 1.92+ (`rustup default 1.92.0`)
+ - **k3d** (lightweight k3s in docker) - [install guide](https://k3d.io/stable/#installation)
  - **uv** (Python package manager) - [install guide](https://docs.astral.sh/uv/getting-started/installation/)
  - **ONNX Runtime** (installed automatically in containers)
  - **CUDA** (to run GPU inference)
@@ -201,7 +205,7 @@ Here is an example of a typical trace span:
 
 ```bash
 sudo modprobe v4l2loopback video_nr=0
-ffmpeg -re -stream_loop -1 -i video.mp4 -c:v mjpeg -f v4l2 /dev/video0
+ffmpeg -re -stream_loop -1 -i video.mp4 -vf "scale=1920:1080" -c:v mjpeg -f v4l2 /dev/video0
 ```
 
 ## Ideas about what to do with this repo
