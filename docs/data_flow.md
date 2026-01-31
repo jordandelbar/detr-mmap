@@ -21,7 +21,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
          4. If seq1 != seq2, data was overwritten mid-read → discard frame
      * **Trade-off**: Torn reads are possible but safely detected and discarded.
      * **Why acceptable**: Video frames are disposable. Losing occasional frames due to slow readers is better than processing corrupted data.
-     * Implementation: `crates/bridge/src/mmap_reader.rs:58-70` (read_frame method)
+     * Implementation: `crates/bridge/src/mmap_reader.rs:59-71` (read_frame method)
  * Atomic Publishing:
      1. Write Payload: The writer copies the frame pixels into the shared memory.
      2. Memory Barrier: Executes a Release fence (implicit in atomic store).
@@ -61,7 +61,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
      4. Read Latest: It checks the mmap header for the current global sequence number (e.g., seq=105).
      5. Skip: It skips reading frames 102, 103, 104 entirely. It reads frame 105 directly from shared memory.
      * Result: Latency is minimized to exactly the inference time + capture time, regardless of how slow the inference is.
-     * Code: `crates/inference/src/service.rs:107-127`
+     * Code: `crates/inference/src/service.rs:168-188`
 
 ### 3.2 Gateway: The "Process All" Pattern (Lossless, High Throughput)
  * Component: gateway crate
@@ -76,7 +76,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
      * WebSocket clients expect smooth, continuous video (not just latest frames).
      * If a client is slow, the tokio broadcast channel handles backpressure (slow clients get dropped frames at their end, not at the gateway).
  * Result: All frames are encoded and broadcast. Individual WebSocket clients may drop frames if they can't keep up, but the gateway itself processes everything.
- * Code: `crates/gateway/src/polling.rs:BufferPoller::run()`
+ * Code: `crates/gateway/src/polling.rs:66-104` (BufferPoller::run method)
 
 ## 4. Sentry Mode: Adaptive Frame Rate Control
  * Component: bridge::SentryControl
@@ -105,7 +105,7 @@ If the inference engine is slow, it skips frames rather than falling behind.
          * Standby state → SentryMode::Standby
          * Validation/Tracking states → SentryMode::Alarmed
      4. Updates shared control: `sentry_control.set_mode(mode)`
-     5. Code: `crates/controller/src/service.rs:67-85`
+     5. Code: `crates/controller/src/service.rs:67-91`
 
  * **Capture Service** (the "Executor"):
      1. Reads sentry mode every frame: `mode = sentry.get_mode()`
@@ -114,11 +114,11 @@ If the inference engine is slow, it skips frames rather than falling behind.
          * Alarmed: sleeps for 33ms (30 FPS)
      3. Flushes stale V4L2 buffer frames on Standby→Alarmed transition:
          * V4L2 maintains an internal buffer queue that can hold old frames during standby
-         * On mode switch, discards frames older than 50ms to ensure fresh data
+         * On mode switch, discards frames to ensure fresh data
          * Prevents processing stale buffered frames when responsiveness matters most
-         * Code: `crates/capture/src/camera.rs:285-314`
+         * Code: `crates/capture/src/camera.rs:60-74`
      4. Logs mode transitions for observability
-     5. Code: `crates/capture/src/camera.rs:345-363`
+     5. Code: `crates/capture/src/camera.rs:60-74`
 
 ### 4.2 Implementation Details
  * **Atomic Operations**:
