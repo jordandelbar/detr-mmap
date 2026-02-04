@@ -11,7 +11,7 @@ This project implements a complete edge AI pipeline with RF-DETR object detectio
 A sentry mode state machine with hysteresis reduces computation by switching to standby when no humans are detected.
 The state machine requires multiple consecutive detections before transitioning to alarmed mode (30 FPS), and multiple consecutive non-detections before returning to standby (3 FPS), preventing rapid flickering between modes.
 
-![output](https://github.com/user-attachments/assets/dd159ccf-a968-493c-94f5-4355ba1a585b)
+![screencast](https://github.com/user-attachments/assets/814a93cf-61cf-4937-8a9b-a6c5bb66af69)
 
 <sub>Video by [Martina Tomšič](https://www.pexels.com/video/dog-waiting-in-front-of-a-door-6477490/) on Pexels</sub>
 
