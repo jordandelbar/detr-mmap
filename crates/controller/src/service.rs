@@ -9,6 +9,7 @@ pub struct ControllerService {
     state_context: StateContext,
     detection_reader: DetectionReader,
     detection_semaphore: BridgeSemaphore,
+    mode_semaphore: BridgeSemaphore,
     sentry_control: SentryControl,
     mqtt_notifier: MqttNotifier,
 }
@@ -27,6 +28,10 @@ impl ControllerService {
             "Detection semaphore",
         );
 
+        let mode_semaphore = BridgeSemaphore::ensure(SemaphoreType::ModeChangeControllerToCapture)
+            .map_err(|e| anyhow::anyhow!("Failed to create mode change semaphore: {}", e))?;
+        tracing::info!("Mode change semaphore connected");
+
         let sentry_control = SentryControl::build()?;
         tracing::info!("Sentry control connected");
 
@@ -42,6 +47,7 @@ impl ControllerService {
             state_context: StateContext::new(),
             detection_reader,
             detection_semaphore,
+            mode_semaphore,
             sentry_control,
             mqtt_notifier,
         })
@@ -83,6 +89,11 @@ impl ControllerService {
             if let Some(new_state) = state_changed {
                 let sentry_mode = self.state_context.to_sentry_mode();
                 self.sentry_control.set_mode(sentry_mode);
+
+                // Signal capture to wake up immediately for mode change
+                if let Err(e) = self.mode_semaphore.post() {
+                    tracing::warn!(error = %e, "Failed to signal mode change to capture");
+                }
 
                 tracing::info!(
                     state = ?new_state,

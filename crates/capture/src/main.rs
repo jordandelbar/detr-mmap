@@ -1,5 +1,5 @@
 use anyhow::Context;
-use bridge::SentryControl;
+use bridge::{BridgeSemaphore, SemaphoreType, SentryControl};
 use capture::{camera::Camera, config::CameraConfig, logging::setup_logging};
 use common::TelemetryGuard;
 use signal_hook::{
@@ -40,7 +40,12 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!("Sentry control initialized in shared memory");
 
-    match camera.run(&shutdown, &sentry_control) {
+    let mode_semaphore = BridgeSemaphore::ensure(SemaphoreType::ModeChangeControllerToCapture)
+        .context("Failed to open mode change semaphore")?;
+
+    tracing::info!("Mode change semaphore connected");
+
+    match camera.run(&shutdown, &sentry_control, &mode_semaphore) {
         Ok(_) => {
             tracing::info!("Camera capture stopped gracefully");
             Ok(())

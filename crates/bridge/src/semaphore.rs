@@ -4,13 +4,16 @@ use nix::mqueue::{
 };
 use nix::sys::stat::Mode;
 use nix::sys::time::TimeSpec;
+use nix::time::{ClockId, clock_gettime};
 use std::ffi::CString;
+use std::time::Duration;
 
 #[derive(Copy, Clone)]
 pub enum SemaphoreType {
     FrameCaptureToInference,
     FrameCaptureToGateway,
     DetectionInferenceToController,
+    ModeChangeControllerToCapture,
 }
 
 impl SemaphoreType {
@@ -19,6 +22,7 @@ impl SemaphoreType {
             Self::FrameCaptureToInference => "/bridge_frame_inference",
             Self::FrameCaptureToGateway => "/bridge_frame_gateway",
             Self::DetectionInferenceToController => "/bridge_detection_controller",
+            Self::ModeChangeControllerToCapture => "/bridge_mode_controller_capture",
         }
     }
 }
@@ -134,16 +138,41 @@ impl BridgeSemaphore {
     /// Returns Ok(true) if a signal was received, Ok(false) if timeout occurred.
     /// Automatically retries if interrupted by signals.
     pub fn wait_timeout(&self, timeout_secs: u64) -> Result<bool, BridgeError> {
+        self.wait_timeout_duration(Duration::from_secs(timeout_secs))
+    }
+
+    /// Wait for a signal with a timeout specified as a Duration
+    ///
+    /// This will block until a message (signal) is available or the timeout expires.
+    /// Returns Ok(true) if a signal was received, Ok(false) if timeout occurred.
+    /// Automatically retries if interrupted by signals.
+    ///
+    /// This method provides sub-second precision, useful for frame pacing where
+    /// timeouts may be ~33ms (30fps) or similar.
+    pub fn wait_timeout_duration(&self, timeout: Duration) -> Result<bool, BridgeError> {
         let mut buf = [0u8; 1];
         let mut prio = 0u32;
         let mqd = self
             .mqd
             .as_ref()
             .ok_or_else(|| BridgeError::SemaphoreError("Message queue not initialized".into()))?;
-        let timeout = TimeSpec::new(timeout_secs as i64, 0);
+
+        // mq_timedreceive uses absolute time, so we need to compute deadline from current time
+        let now = clock_gettime(ClockId::CLOCK_REALTIME).map_err(|e| {
+            BridgeError::SemaphoreError(format!("Failed to get current time: {}", e))
+        })?;
+        let deadline_secs = now.tv_sec() + timeout.as_secs() as i64;
+        let deadline_nanos = now.tv_nsec() + timeout.subsec_nanos() as i64;
+        // Handle nanosecond overflow
+        let (deadline_secs, deadline_nanos) = if deadline_nanos >= 1_000_000_000 {
+            (deadline_secs + 1, deadline_nanos - 1_000_000_000)
+        } else {
+            (deadline_secs, deadline_nanos)
+        };
+        let abs_timeout = TimeSpec::new(deadline_secs, deadline_nanos);
 
         loop {
-            match mq_timedreceive(mqd, &mut buf, &mut prio, &timeout) {
+            match mq_timedreceive(mqd, &mut buf, &mut prio, &abs_timeout) {
                 Ok(_) => return Ok(true),
                 Err(nix::errno::Errno::EINTR) => continue, // Retry on interrupt
                 Err(nix::errno::Errno::ETIMEDOUT) => return Ok(false), // Timeout
@@ -169,10 +198,12 @@ impl BridgeSemaphore {
             .as_ref()
             .ok_or_else(|| BridgeError::SemaphoreError("Message queue not initialized".into()))?;
 
-        // Use timed receive with zero timeout for non-blocking behavior
-        let timeout = TimeSpec::new(0, 0);
+        // Use current time as absolute timeout for non-blocking behavior
+        let now = clock_gettime(ClockId::CLOCK_REALTIME).map_err(|e| {
+            BridgeError::SemaphoreError(format!("Failed to get current time: {}", e))
+        })?;
 
-        match mq_timedreceive(mqd, &mut buf, &mut prio, &timeout) {
+        match mq_timedreceive(mqd, &mut buf, &mut prio, &now) {
             Ok(_) => Ok(true),
             Err(nix::errno::Errno::ETIMEDOUT) => Ok(false), // No message available
             Err(e) => Err(BridgeError::SemaphoreError(format!(
@@ -314,5 +345,56 @@ mod tests {
         // Both should be able to wait once
         waiter1.wait().expect("Failed to wait");
         waiter2.wait().expect("Failed to wait");
+    }
+
+    #[test]
+    fn test_wait_timeout_duration_subsecond() {
+        let queue_name = "/test_bridge_queue5";
+        let mq = BridgeSemaphore::create_with_name(queue_name).expect("Failed to create queue");
+
+        // Test timeout with sub-second duration (50ms)
+        let start = std::time::Instant::now();
+        let result = mq
+            .wait_timeout_duration(Duration::from_millis(50))
+            .expect("Failed to wait");
+        let elapsed = start.elapsed();
+
+        // Should timeout (no signal posted)
+        assert!(!result, "Expected timeout, got signal");
+
+        // Elapsed time should be close to 50ms (allow some margin for scheduling)
+        assert!(
+            elapsed >= Duration::from_millis(45),
+            "Timeout too short: {:?}",
+            elapsed
+        );
+        assert!(
+            elapsed < Duration::from_millis(150),
+            "Timeout too long: {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn test_wait_timeout_duration_with_signal() {
+        let queue_name = "/test_bridge_queue6";
+        let mq = BridgeSemaphore::create_with_name(queue_name).expect("Failed to create queue");
+
+        // Post a signal before waiting
+        mq.post().expect("Failed to post");
+
+        // Wait should return immediately with signal
+        let start = std::time::Instant::now();
+        let result = mq
+            .wait_timeout_duration(Duration::from_millis(100))
+            .expect("Failed to wait");
+        let elapsed = start.elapsed();
+
+        assert!(result, "Expected signal, got timeout");
+        assert!(
+            elapsed < Duration::from_millis(50),
+            "Signal wait took too long: {:?}",
+            elapsed
+        );
     }
 }

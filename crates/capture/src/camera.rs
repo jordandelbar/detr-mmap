@@ -5,7 +5,7 @@ use crate::pacing::CapturePacing;
 use crate::sink::FrameSink;
 use crate::source::FrameSource;
 use anyhow::Result;
-use bridge::{SentryControl, SentryMode, capture_current_trace};
+use bridge::{BridgeSemaphore, SentryControl, SentryMode, capture_current_trace};
 use common::span;
 use std::sync::{
     Arc,
@@ -41,7 +41,12 @@ impl Camera {
         })
     }
 
-    pub fn run(&mut self, shutdown: &Arc<AtomicBool>, sentry: &SentryControl) -> Result<()> {
+    pub fn run(
+        &mut self,
+        shutdown: &Arc<AtomicBool>,
+        sentry: &SentryControl,
+        mode_semaphore: &BridgeSemaphore,
+    ) -> Result<()> {
         tracing::info!(
             "Starting camera stream at {}x{}...",
             self.device.width,
@@ -126,7 +131,21 @@ impl Camera {
 
             let elapsed = start_time.elapsed();
             if elapsed < pacing.frame_duration() {
-                std::thread::sleep(pacing.frame_duration() - elapsed);
+                let remaining = pacing.frame_duration() - elapsed;
+                // Wait on mqueue instead of sleeping - allows instant wake on mode change
+                match mode_semaphore.wait_timeout_duration(remaining) {
+                    Ok(true) => {
+                        // Mode change signal received - drain any queued signals
+                        let _ = mode_semaphore.drain();
+                    }
+                    Ok(false) => {
+                        // Timeout - normal pacing, no mode change
+                    }
+                    Err(e) => {
+                        tracing::warn!("Mode semaphore wait failed: {}, falling back to sleep", e);
+                        std::thread::sleep(remaining);
+                    }
+                }
             } else {
                 tracing::trace!("Processing took longer than frame budget: {:?}", elapsed);
             }

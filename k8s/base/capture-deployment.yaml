@@ -44,6 +44,23 @@ spec:
       # Reduce grace period since capture handles SIGTERM quickly
       terminationGracePeriodSeconds: 5
 
+      # Clean up stale mqueues from previous runs before starting capture
+      initContainers:
+        - name: cleanup-mqueue
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Cleaning up stale bridge mqueues..."
+              rm -f /dev/mqueue/bridge_* 2>/dev/null || true
+              echo "Cleanup complete. Remaining queues:"
+              ls -la /dev/mqueue/ 2>/dev/null || echo "  (none)"
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
+          securityContext:
+            runAsUser: 0
+
       containers:
         - name: capture
           image: detr-mmap-capture:latest
